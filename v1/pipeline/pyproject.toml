@@ -1,0 +1,17 @@
+[project]
+name = "mnist-leiden-pipeline"
+version = "0.1.0"
+description = "Subsample MNIST, run scanpy-style Leiden clustering, and export a cluster-sorted matrix for the web app"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "scanpy>=1.10",
+    "igraph>=0.11",
+    "leidenalg>=0.10",
+    "numpy",
+    "pillow",
+]
+
+[tool.uv]
+package = false
+# Intel macOS: newer llvmlite/numba ship no x86_64 macOS wheels (source build needs LLVM).
+constraint-dependencies = ["llvmlite<0.45", "numba<0.62"]

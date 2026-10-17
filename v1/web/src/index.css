@@ -1,0 +1,76 @@
+:root {
+  --bg: #fafaf9;
+  --fg: #1c1917;
+  --muted: #78716c;
+  --border: #e7e5e4;
+  --panel: #ffffff;
+  --accent: #e11d48;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0a09;
+    --fg: #f5f5f4;
+    --muted: #a8a29e;
+    --border: #292524;
+    --panel: #1c1917;
+    --accent: #fb7185;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+.status { padding: 48px; color: var(--muted); }
+h1 { margin: 0 0 8px; font-size: 1.6rem; }
+h2 { margin: 0; font-size: 1rem; }
+h3 { margin: 24px 0 8px; font-size: 0.95rem; }
+.muted { color: var(--muted); }
+
+.page-header p { margin: 0 0 12px; color: var(--muted); max-width: 70ch; }
+.legend { display: flex; gap: 12px; list-style: none; padding: 0; margin: 0; font-size: 0.85rem; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: baseline; }
+
+.layout { display: flex; gap: 24px; margin-top: 20px; align-items: flex-start; flex-wrap: wrap; }
+.panel header { margin-bottom: 8px; }
+.panel header p { margin: 2px 0 0; font-size: 0.8rem; color: var(--muted); max-width: 440px; }
+
+.matrix-row { display: flex; gap: 4px; }
+.strip-labels { display: flex; flex-direction: column; justify-content: flex-start; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.7rem; color: var(--muted); gap: 8px; }
+.matrix { position: relative; display: flex; gap: 2px; cursor: crosshair; border: 1px solid var(--border); background: #000; }
+.matrix img { display: block; user-select: none; }
+.strip { display: block; image-rendering: pixelated; }
+.boundary { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid rgba(255, 255, 255, 0.55); pointer-events: none; }
+.cursor { position: absolute; left: -6px; right: -6px; height: 0; border-top: 2px solid var(--accent); pointer-events: none; }
+
+.sidebar { width: 320px; }
+.digit-preview { display: flex; gap: 16px; align-items: flex-start; min-height: 140px; }
+.digit-preview canvas { width: 112px; height: 112px; image-rendering: pixelated; border: 1px solid var(--border); background: #000; flex-shrink: 0; }
+.digit-preview dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 0.85rem; }
+.digit-preview dt { color: var(--muted); }
+.digit-preview dd { margin: 0; }
+.digit-preview p { font-size: 0.85rem; margin: 0; }
+.umap { border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: crosshair; }
+
+.clusters { border-collapse: collapse; width: 100%; max-width: 900px; font-size: 0.85rem; }
+.clusters th, .clusters td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.clusters th { color: var(--muted); font-weight: 500; }
+.clusters .num { text-align: right; font-variant-numeric: tabular-nums; }
+.clusters td:last-child { width: 60%; }
+.composition { display: flex; height: 18px; border-radius: 3px; overflow: hidden; }
+.composition div { font-size: 0.7rem; color: #fff; display: flex; align-items: center; justify-content: center; min-width: 1px; }
+
+.section-note { margin: 0 0 12px; font-size: 0.8rem; color: var(--muted); }
+.cluster-samples { display: flex; flex-direction: column; gap: 10px; }
+.sample-row { display: flex; align-items: center; gap: 16px; }
+.sample-head { width: 150px; flex-shrink: 0; font-size: 0.85rem; }
+.samples { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.samples li { position: relative; border: 2px solid transparent; border-radius: 3px; line-height: 0; }
+.samples li.mismatch { border-color: var(--accent); }
+.samples li.active { outline: 2px solid var(--fg); outline-offset: 1px; }
+.samples canvas { width: 56px; height: 56px; image-rendering: pixelated; background: #000; }
+.samples .badge { position: absolute; right: 1px; bottom: 1px; font-size: 0.65rem; line-height: 1; padding: 2px 3px; border-radius: 2px; color: #fff; }
