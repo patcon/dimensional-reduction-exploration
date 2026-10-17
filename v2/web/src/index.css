@@ -5,6 +5,10 @@
   --border: #e7e5e4;
   --panel: #ffffff;
   --accent: #e11d48;
+  /* Optimiser phases on the projection timeline. */
+  --phase-1: #7c3aed;
+  --phase-2: #0891b2;
+  --phase-3: #ca8a04;
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
   color: var(--fg);
   background: var(--bg);
@@ -19,6 +23,9 @@
     --border: #292524;
     --panel: #1c1917;
     --accent: #fb7185;
+    --phase-1: #a78bfa;
+    --phase-2: #22d3ee;
+    --phase-3: #facc15;
   }
 }
 
@@ -79,9 +86,14 @@ button.link { font: inherit; font-size: 0.8rem; background: none; border: 0; col
 .checkbox input { margin: 0; accent-color: var(--fg); }
 .plot.rotatable:active, .plot.pannable:active { cursor: grabbing; }
 .projection .section-note { margin-top: 6px; }
-.timeline { display: flex; align-items: center; gap: 10px; margin: 8px 0 6px; font-size: 0.8rem; }
-.timeline input { flex: 1; margin: 0; accent-color: var(--accent); }
-.timeline span { min-width: 9.5em; text-align: right; font-variant-numeric: tabular-nums; }
+.timeline { display: flex; align-items: flex-start; gap: 10px; margin: 8px 0 4px; font-size: 0.8rem; }
+.timeline-track { position: relative; flex: 1; }
+.timeline-track input { display: block; width: 100%; margin: 0; accent-color: var(--accent); }
+.phase-bar { position: relative; height: 4px; margin: 3px 8px 0; }
+.phase-bar span { position: absolute; top: 0; height: 100%; border-radius: 2px; opacity: 0.3; transition: opacity 0.2s; }
+.phase-bar span.on { opacity: 1; }
+.timeline-info { display: flex; flex-direction: column; align-items: flex-end; min-width: 9.5em; font-variant-numeric: tabular-nums; }
+.phase-detail { margin: 0 0 8px; min-height: 3.6em; font-size: 0.75rem; color: var(--muted); }
 .button { font: inherit; font-size: 0.8rem; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
 .button:hover:not(:disabled) { border-color: var(--muted); }
 .button:disabled { opacity: 0.4; cursor: not-allowed; }

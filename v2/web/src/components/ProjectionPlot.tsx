@@ -15,6 +15,28 @@ const EVOLUTION_STEP_MS = 450
 
 const METHOD_NAMES: Record<string, string> = { umap: 'UMAP', pacmap: 'PaCMAP', localmap: 'LocalMAP' }
 
+interface OptimiserPhase {
+  /** Iteration at which the phase ends. */
+  end: number
+  title: string
+  detail: string
+}
+
+/** PaCMAP's three phases at its default num_iters (100, 100, 250), which the pipeline uses. */
+const pacmapPhases = (refinement: string): OptimiserPhase[] => [
+  { end: 100, title: 'Global structure', detail: 'mid-near pairs pull hard (weight 1000 → 3); neighbours 2, further pairs 1.' },
+  { end: 200, title: 'Balancing', detail: 'mid-near pairs held at 3, neighbours raised to 3; further pairs 1.' },
+  { end: 450, title: 'Local refinement', detail: refinement },
+]
+
+const PHASES: Record<string, OptimiserPhase[]> = {
+  pacmap: pacmapPhases('mid-near pairs dropped; only neighbours (1) and further pairs (1) remain.'),
+  // LocalMAP only changes the third phase.
+  localmap: pacmapPhases(
+    'mid-near pairs dropped. Every 10 iterations, further pairs are resampled from points close by in the layout, and neighbour attraction weakens with distance, sharpening cluster boundaries.',
+  ),
+}
+
 /** Split projection keys like "pacmap3d_r8" into a method, dimensionality and digit resolution. */
 function parseKey(key: string) {
   const m = key.match(/^(.*?)([23])d_r(\d+)$/)
@@ -336,6 +358,18 @@ export function ProjectionPlot({
     const s = Math.min(last - 1, Math.floor(p))
     return Math.round(iterations[s] + (iterations[s + 1] - iterations[s]) * (p - s))
   }
+  /** Inverse of iterationAt: the slider position (in snapshots) where `iteration` falls. */
+  const posOfIteration = (iteration: number) => {
+    const s = Math.max(0, iterations.findIndex((_, i) => i < last && iteration <= iterations[i + 1]))
+    return s + (iteration - iterations[s]) / (iterations[s + 1] - iterations[s])
+  }
+  const phases = PHASES[method] ?? []
+  const iteration = iterationAt(pos)
+  const found = phases.findIndex((p) => iteration < p.end)
+  // The final iteration (the end of the last phase) still counts as the last phase.
+  const phaseIndex = found === -1 ? phases.length - 1 : found
+  const currentPhase = phases[phaseIndex] ?? null
+  const phaseColor = (i: number) => `var(--phase-${i + 1})`
 
   useEffect(() => {
     const { name: fromName, points: from } = shown.current
@@ -611,25 +645,62 @@ export function ProjectionPlot({
         }}
       />
       <div className="timeline">
-        <input
-          type="range"
-          min={0}
-          max={last}
-          step="any"
-          value={pos}
-          aria-label="Optimisation progress"
-          onPointerDown={startDrag}
-          onChange={(e) => scrubTo(Number(e.target.value), phase === 'dragging' ? 'dragging' : 'playing')}
-          onKeyDown={() => {
-            timelineRun.current++
-            loadFrames().catch(() => {})
-          }}
-          onKeyUp={() => phase !== 'dragging' && playForward()}
-        />
-        <span className="muted">
-          {method === 'umap' ? 'Epoch' : 'Iteration'} {iterationAt(pos)} of {iterations[last]}
-        </span>
+        <div className="timeline-track">
+          <input
+            type="range"
+            min={0}
+            max={last}
+            step="any"
+            value={pos}
+            aria-label="Optimisation progress"
+            onPointerDown={startDrag}
+            onChange={(e) => scrubTo(Number(e.target.value), phase === 'dragging' ? 'dragging' : 'playing')}
+            onKeyDown={() => {
+              timelineRun.current++
+              loadFrames().catch(() => {})
+            }}
+            onKeyUp={() => phase !== 'dragging' && playForward()}
+            style={currentPhase ? { accentColor: phaseColor(phaseIndex) } : undefined}
+          />
+          {/* Phase segments, laid out in slider (snapshot) units so they line up with the thumb. */}
+          <div className="phase-bar" aria-hidden>
+            {phases.map((p, i) => {
+              const from = posOfIteration(i === 0 ? 0 : phases[i - 1].end)
+              const to = posOfIteration(p.end)
+              return (
+                <span
+                  key={p.end}
+                  className={p === currentPhase ? 'on' : ''}
+                  style={{ left: `${(from / last) * 100}%`, width: `${((to - from) / last) * 100}%`, background: phaseColor(i) }}
+                  title={`Phase ${i + 1}: ${p.title}`}
+                />
+              )
+            })}
+          </div>
+        </div>
+        <div className="timeline-info">
+          <span className="muted">
+            {method === 'umap' ? 'Epoch' : 'Iteration'} {iteration} of {iterations[last]}
+          </span>
+          {currentPhase ? (
+            <span style={{ color: phaseColor(phaseIndex) }}>
+              Phase {phaseIndex + 1} of {phases.length}
+            </span>
+          ) : (
+            <span className="muted">One phase</span>
+          )}
+        </div>
       </div>
+      <p className="phase-detail">
+        {currentPhase ? (
+          <>
+            <strong style={{ color: phaseColor(phaseIndex) }}>{currentPhase.title}:</strong>{' '}
+            {currentPhase.detail}
+          </>
+        ) : (
+          'UMAP has no phases: one objective throughout, with a step size that shrinks linearly to zero.'
+        )}
+      </p>
       <button
         className="button"
         onClick={regenerate}
