@@ -1,0 +1,23 @@
+[project]
+name = "mnist-leiden-pipeline"
+version = "0.1.0"
+description = "Subsample MNIST, cluster it with Leiden, compute UMAP/PaCMAP/LocalMAP projections and sorted matrices for the web app"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "scanpy>=1.10",
+    "igraph>=0.11",
+    "leidenalg>=0.10",
+    "numpy",
+    "pillow",
+    "pacmap>=0.9.1",
+]
+
+[tool.uv]
+package = false
+# Intel macOS: newer llvmlite/numba ship no x86_64 macOS wheels (source build needs LLVM).
+constraint-dependencies = [
+    "llvmlite<0.45",
+    "numba<0.62",
+    # faiss-cpu >=1.13 (via pacmap) has no macOS 14 x86_64 wheels.
+    "faiss-cpu<1.13; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+]
