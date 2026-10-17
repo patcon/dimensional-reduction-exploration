@@ -23,11 +23,15 @@ function Digit({ data, row }: { data: MnistData; row: number }) {
 export function ClusterSamples({
   data,
   hovered,
+  selected,
   onHover,
+  onSelect,
 }: {
   data: MnistData
   hovered: number | null
+  selected: number | null
   onHover: (row: number | null) => void
+  onSelect: (row: number) => void
 }) {
   const { meta } = data
   return (
@@ -53,11 +57,12 @@ export function ClusterSamples({
                 return (
                   <li
                     key={r}
-                    className={[label !== c.majorityLabel && 'mismatch', r === hovered && 'active']
+                    className={[label !== c.majorityLabel && 'mismatch', r === hovered && 'active', r === selected && 'selected']
                       .filter(Boolean)
                       .join(' ')}
                     onMouseEnter={() => onHover(r)}
                     onMouseLeave={() => onHover(null)}
+                    onClick={() => onSelect(r)}
                     title={`label ${label}`}
                   >
                     <Digit data={data} row={r} />

@@ -59,14 +59,19 @@ export function ProjectionPlot({
   paths,
   pathsLabel,
   hovered,
+  selected,
   onHover,
+  onSelect,
 }: {
   meta: Meta
   /** One path per group of the active sorting, in sort order. */
   paths: GroupPath[]
   pathsLabel: string
   hovered: number | null
+  selected: number | null
   onHover: (r: number | null) => void
+  /** Called on click (not drag) with the nearest point, or null for empty space. */
+  onSelect: (r: number | null) => void
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const dpr = window.devicePixelRatio || 1
@@ -75,7 +80,14 @@ export function ProjectionPlot({
   const [rotation, setRotation] = useState<Rotation>(INITIAL_ROTATION)
   const [view, setView] = useState<View>(INITIAL_VIEW)
   const [showPaths, setShowPaths] = useState(false)
-  const drag = useRef<{ x: number; y: number; mode: 'rotate' | 'pan'; rotation: Rotation; view: View } | null>(null)
+  const drag = useRef<{
+    x: number
+    y: number
+    mode: 'rotate' | 'pan'
+    rotation: Rotation
+    view: View
+    moved: boolean
+  } | null>(null)
 
   const is3d = (meta.projections[name][0]?.length ?? 2) === 3
   const points = useMemo(() => normalize(meta.projections[name]), [meta, name])
@@ -84,9 +96,11 @@ export function ProjectionPlot({
     [points, rotation, view, is3d],
   )
   const majority = useMemo(() => new Map(meta.clusters.map((c) => [c.id, c.majorityLabel])), [meta])
-  const hoveredPath = useMemo(
-    () => (hovered === null ? -1 : paths.findIndex((p) => p.rows.includes(hovered))),
-    [paths, hovered],
+  // A pinned point keeps its group's path highlighted; otherwise follow the hover.
+  const focus = selected ?? hovered
+  const focusPath = useMemo(
+    () => (focus === null ? -1 : paths.findIndex((p) => p.rows.includes(focus))),
+    [paths, focus],
   )
 
   const resetView = () => {
@@ -119,9 +133,9 @@ export function ProjectionPlot({
     if (showPaths) {
       ctx.lineJoin = 'round'
       paths.forEach((path, i) => {
-        const focused = hoveredPath === -1 || hoveredPath === i
-        ctx.globalAlpha = focused ? (hoveredPath === -1 ? 0.55 : 0.9) : 0.08
-        ctx.lineWidth = hoveredPath === i ? 1.25 : 0.75
+        const focused = focusPath === -1 || focusPath === i
+        ctx.globalAlpha = focused ? (focusPath === -1 ? 0.55 : 0.9) : 0.08
+        ctx.lineWidth = focusPath === i ? 1.25 : 0.75
         ctx.strokeStyle = path.color
         ctx.beginPath()
         path.rows.forEach((row, j) => {
@@ -134,15 +148,21 @@ export function ProjectionPlot({
     }
 
     ctx.globalAlpha = 1
-    if (hovered !== null) {
-      const { sx, sy } = screen[hovered]
-      ctx.strokeStyle = getComputedStyle(canvas).color
-      ctx.lineWidth = 2
+    const fg = getComputedStyle(canvas).color
+    const ring = (row: number, radius: number, width: number) => {
+      const { sx, sy } = screen[row]
+      ctx.strokeStyle = fg
+      ctx.lineWidth = width
       ctx.beginPath()
-      ctx.arc(sx, sy, 6, 0, Math.PI * 2)
+      ctx.arc(sx, sy, radius, 0, Math.PI * 2)
       ctx.stroke()
     }
-  }, [screen, hovered, majority, meta, dpr, is3d, view.zoom, showPaths, paths, hoveredPath])
+    if (selected !== null) {
+      ring(selected, 7, 3)
+      ring(selected, 2, 2)
+    }
+    if (hovered !== null && hovered !== selected) ring(hovered, 6, 1.5)
+  }, [screen, hovered, selected, majority, meta, dpr, is3d, view.zoom, showPaths, paths, focusPath])
 
   // React's onWheel is passive, so attach natively to be able to preventDefault page scroll.
   useEffect(() => {
@@ -184,6 +204,10 @@ export function ProjectionPlot({
       const { x, y, mode, rotation: r0, view: v0 } = drag.current
       const dx = e.clientX - x
       const dy = e.clientY - y
+      // Small jitters during a click shouldn't move the view.
+      if (!drag.current.moved && Math.hypot(dx, dy) < 3) return
+      if (!drag.current.moved) onHover(null)
+      drag.current.moved = true
       if (mode === 'pan') {
         setView({ ...v0, panX: v0.panX + dx, panY: v0.panY + dy })
       } else {
@@ -198,8 +222,16 @@ export function ProjectionPlot({
 
   const handleDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const pan = !is3d || e.shiftKey || e.button === 2
-    drag.current = { x: e.clientX, y: e.clientY, mode: pan ? 'pan' : 'rotate', rotation, view }
-    onHover(null)
+    drag.current = { x: e.clientX, y: e.clientY, mode: pan ? 'pan' : 'rotate', rotation, view, moved: false }
+  }
+
+  const handleUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const wasClick = drag.current && !drag.current.moved && e.button === 0
+    drag.current = null
+    if (wasClick) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      onSelect(nearest(e.clientX - rect.left, e.clientY - rect.top))
+    }
   }
 
   const endDrag = () => (drag.current = null)
@@ -235,7 +267,7 @@ export function ProjectionPlot({
         style={{ width: SIZE, height: SIZE }}
         onMouseMove={handleMove}
         onMouseDown={handleDown}
-        onMouseUp={endDrag}
+        onMouseUp={handleUp}
         onContextMenu={(e) => e.preventDefault()}
         onMouseLeave={() => {
           endDrag()

@@ -14,7 +14,9 @@ interface Props {
   boundaries?: number[]
   controls?: ReactNode
   hovered: number | null
+  selected: number | null
   onHover: (row: number | null) => void
+  onSelect: (row: number) => void
 }
 
 const STRIP_WIDTH = 14
@@ -41,7 +43,7 @@ function Strip({ colors, height, title }: { colors: string[]; height: number; ti
   )
 }
 
-export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, boundaries = [], controls, hovered, onHover }: Props) {
+export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, boundaries = [], controls, hovered, selected, onHover, onSelect }: Props) {
   const n = order.length
   const majorityByCluster = useMemo(
     () => new Map(meta.clusters.map((c) => [c.id, c.majorityLabel])),
@@ -60,10 +62,9 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, bo
 
   const toY = (row: number) => (row / n) * height
 
-  const handleMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const rowAtPointer = (e: React.MouseEvent<HTMLDivElement>) => {
     const y = e.clientY - e.currentTarget.getBoundingClientRect().top
-    const displayRow = Math.min(n - 1, Math.max(0, Math.floor((y / height) * n)))
-    onHover(order[displayRow])
+    return order[Math.min(n - 1, Math.max(0, Math.floor((y / height) * n)))]
   }
 
   return (
@@ -80,14 +81,23 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, bo
           <span>cluster</span>
           <span>label</span>
         </div>
-        <div className="matrix" style={{ height }} onMouseMove={handleMove} onMouseLeave={() => onHover(null)}>
+        <div
+          className="matrix"
+          style={{ height }}
+          onMouseMove={(e) => onHover(rowAtPointer(e))}
+          onMouseLeave={() => onHover(null)}
+          onClick={(e) => onSelect(rowAtPointer(e))}
+        >
           <Strip colors={clusterColors} height={height} title="Leiden cluster (coloured by majority digit)" />
           <Strip colors={labelColors} height={height} title="True digit label" />
           <img src={imageUrl} alt={title} style={{ width: MATRIX_WIDTH, height }} draggable={false} />
           {boundaries.map((row) => (
             <div key={row} className="boundary" style={{ top: toY(row) }} />
           ))}
-          {hovered !== null && <div className="cursor" style={{ top: toY(displayRowOf[hovered]) }} />}
+          {selected !== null && <div className="cursor pinned" style={{ top: toY(displayRowOf[selected]) }} />}
+          {hovered !== null && hovered !== selected && (
+            <div className="cursor" style={{ top: toY(displayRowOf[hovered]) }} />
+          )}
         </div>
       </div>
     </section>

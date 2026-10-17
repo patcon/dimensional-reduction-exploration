@@ -2,7 +2,17 @@ import { useEffect, useRef } from 'react'
 import type { MnistData } from '../useMnistData'
 import { DIGIT_COLORS } from '../palette'
 
-export function DigitPreview({ data, row }: { data: MnistData; row: number | null }) {
+export function DigitPreview({
+  data,
+  row,
+  pinned,
+  onUnpin,
+}: {
+  data: MnistData
+  row: number | null
+  pinned: boolean
+  onUnpin: () => void
+}) {
   const ref = useRef<HTMLCanvasElement>(null)
   const { meta, pixels } = data
 
@@ -26,7 +36,7 @@ export function DigitPreview({ data, row }: { data: MnistData; row: number | nul
     <div className="digit-preview">
       <canvas ref={ref} width={28} height={28} />
       {row === null ? (
-        <p className="muted">Hover a row in either matrix, or a point in the projection.</p>
+        <p className="muted">Hover a row in either matrix, a sample, or a point in the projection. Click to pin it.</p>
       ) : (
         <dl>
           <dt>Label</dt>
@@ -42,6 +52,16 @@ export function DigitPreview({ data, row }: { data: MnistData; row: number | nul
           </dd>
           <dt>MNIST index</dt>
           <dd>{meta.rows.sourceIndex[row]}</dd>
+          <dt>{pinned ? 'Pinned' : ''}</dt>
+          <dd>
+            {pinned ? (
+              <button className="link" onClick={onUnpin}>
+                Unpin (Esc)
+              </button>
+            ) : (
+              <span className="muted">Click to pin</span>
+            )}
+          </dd>
         </dl>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MATRIX_URLS, useMnistData } from './useMnistData'
 import { MatrixPanel } from './components/MatrixPanel'
 import { DigitPreview } from './components/DigitPreview'
@@ -45,6 +45,9 @@ function Segmented<K extends string>({
 export default function App() {
   const { data, error } = useMnistData()
   const [hovered, setHovered] = useState<number | null>(null)
+  // A clicked row stays pinned: it drives the preview and path highlight until unpinned.
+  const [selected, setSelected] = useState<number | null>(null)
+  const toggleSelected = (row: number | null) => setSelected((s) => (row === null || s === row ? null : row))
   const [groupBy, setGroupBy] = useState<GroupKey>('leiden')
   const [within, setWithin] = useState<WithinKey>('pc1')
   const identity = useMemo(() => (data ? data.meta.rows.label.map((_, i) => i) : []), [data])
@@ -62,6 +65,12 @@ export default function App() {
       return { rows, color: DIGIT_COLORS[digit] }
     })
   }, [data, groupBy, within])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setSelected(null)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   if (error) return <main className="status">Failed to load data: {error}</main>
   if (!data) return <main className="status">Loading…</main>
@@ -96,7 +105,9 @@ export default function App() {
           order={identity}
           height={MATRIX_HEIGHT}
           hovered={hovered}
+          selected={selected}
           onHover={setHovered}
+          onSelect={toggleSelected}
         />
         <MatrixPanel
           title="Sorted"
@@ -114,16 +125,20 @@ export default function App() {
           height={MATRIX_HEIGHT}
           boundaries={sorting.boundaries}
           hovered={hovered}
+          selected={selected}
           onHover={setHovered}
+          onSelect={toggleSelected}
         />
         <aside className="sidebar">
-          <DigitPreview data={data} row={hovered} />
+          <DigitPreview data={data} row={selected ?? hovered} pinned={selected !== null} onUnpin={() => setSelected(null)} />
           <ProjectionPlot
             meta={meta}
             paths={paths}
             pathsLabel={`${GROUPS[groupBy].label} groups in ${within === 'pc1' ? 'PC1' : 'random'} order`}
             hovered={hovered}
+            selected={selected}
             onHover={setHovered}
+            onSelect={toggleSelected}
           />
         </aside>
       </div>
@@ -132,7 +147,7 @@ export default function App() {
       <p className="section-note">
         Evenly spaced along each cluster's sorted order. Outlined digits disagree with the cluster's majority label.
       </p>
-      <ClusterSamples data={data} hovered={hovered} onHover={setHovered} />
+      <ClusterSamples data={data} hovered={hovered} selected={selected} onHover={setHovered} onSelect={toggleSelected} />
 
       <h3>Clusters</h3>
       <ClusterTable meta={meta} />
