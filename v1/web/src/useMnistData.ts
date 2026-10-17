@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Meta } from './types'
+import type { GroupKey, Meta, WithinKey } from './types'
 
 const base = `${import.meta.env.BASE_URL}data`
 
@@ -44,8 +44,5 @@ export function useMnistData() {
 
 export const MATRIX_URLS = {
   original: `${base}/matrix_original.png`,
-  sorted: {
-    leiden: `${base}/matrix_sorted_leiden.png`,
-    label: `${base}/matrix_sorted_label.png`,
-  },
+  sorted: (group: GroupKey, within: WithinKey) => `${base}/matrix_sorted_${group}_${within}.png`,
 }

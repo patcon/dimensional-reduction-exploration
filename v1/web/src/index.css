@@ -37,7 +37,7 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 
 .layout { display: flex; gap: 24px; margin-top: 20px; align-items: flex-start; flex-wrap: wrap; }
 .panel header { margin-bottom: 8px; }
-.panel-title { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.panel-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 28px; font-size: 0.85rem; }
 .panel header p { margin: 2px 0 0; font-size: 0.8rem; color: var(--muted); max-width: 440px; }
 
 .matrix-row { display: flex; gap: 4px; }

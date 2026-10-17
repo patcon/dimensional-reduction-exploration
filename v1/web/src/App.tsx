@@ -6,25 +6,47 @@ import { ProjectionPlot } from './components/ProjectionPlot'
 import { ClusterTable } from './components/ClusterTable'
 import { ClusterSamples } from './components/ClusterSamples'
 import { DIGIT_COLORS } from './palette'
-import type { SortKey } from './types'
+import type { GroupKey, WithinKey } from './types'
 
 const MATRIX_HEIGHT = 720
 
-const SORTS: Record<SortKey, { label: string; subtitle: string }> = {
-  leiden: {
-    label: 'Leiden',
-    subtitle: 'Clusters in dendrogram order; rows within a cluster ordered by its own PC1',
-  },
-  label: {
-    label: 'Labels',
-    subtitle: 'Digits 0–9; within each digit, grouped by Leiden cluster, then ordered by PC1',
-  },
+const GROUPS: Record<GroupKey, { label: string; describe: string }> = {
+  leiden: { label: 'Leiden', describe: 'Leiden clusters in dendrogram order' },
+  label: { label: 'Labels', describe: 'Digits 0–9' },
+}
+
+const WITHINS: Record<WithinKey, { label: string; describe: string }> = {
+  random: { label: 'Random', describe: 'rows in random order within each group' },
+  pc1: { label: 'PC1', describe: "rows ordered along each group's own first principal component" },
+}
+
+function Segmented<K extends string>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: Record<K, { label: string }>
+  value: K
+  onChange: (key: K) => void
+  ariaLabel: string
+}) {
+  return (
+    <div className="segmented" role="tablist" aria-label={ariaLabel}>
+      {(Object.keys(options) as K[]).map((key) => (
+        <button key={key} role="tab" aria-selected={key === value} className={key === value ? 'on' : ''} onClick={() => onChange(key)}>
+          {options[key].label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 export default function App() {
   const { data, error } = useMnistData()
   const [hovered, setHovered] = useState<number | null>(null)
-  const [sortBy, setSortBy] = useState<SortKey>('leiden')
+  const [groupBy, setGroupBy] = useState<GroupKey>('leiden')
+  const [within, setWithin] = useState<WithinKey>('pc1')
   const identity = useMemo(() => (data ? data.meta.rows.label.map((_, i) => i) : []), [data])
 
   if (error) return <main className="status">Failed to load data: {error}</main>
@@ -32,6 +54,7 @@ export default function App() {
 
   const { meta } = data
   const p = meta.params
+  const sorting = meta.sortings[groupBy][within]
 
   return (
     <main>
@@ -62,28 +85,20 @@ export default function App() {
           onHover={setHovered}
         />
         <MatrixPanel
-          title="Sorted by"
-          subtitle={SORTS[sortBy].subtitle}
+          title="Sorted"
+          subtitle={`${GROUPS[groupBy].describe}; ${WITHINS[within].describe}`}
           controls={
-            <div className="segmented" role="tablist" aria-label="Sort rows by">
-              {(Object.keys(SORTS) as SortKey[]).map((key) => (
-                <button
-                  key={key}
-                  role="tab"
-                  aria-selected={key === sortBy}
-                  className={key === sortBy ? 'on' : ''}
-                  onClick={() => setSortBy(key)}
-                >
-                  {SORTS[key].label}
-                </button>
-              ))}
-            </div>
+            <>
+              <Segmented options={GROUPS} value={groupBy} onChange={setGroupBy} ariaLabel="Group rows by" />
+              <span className="muted">then</span>
+              <Segmented options={WITHINS} value={within} onChange={setWithin} ariaLabel="Order within groups by" />
+            </>
           }
-          imageUrl={MATRIX_URLS.sorted[sortBy]}
+          imageUrl={MATRIX_URLS.sorted(groupBy, within)}
           meta={meta}
-          order={meta.sortings[sortBy].order}
+          order={sorting.order}
           height={MATRIX_HEIGHT}
-          boundaries={meta.sortings[sortBy].boundaries}
+          boundaries={sorting.boundaries}
           hovered={hovered}
           onHover={setHovered}
         />

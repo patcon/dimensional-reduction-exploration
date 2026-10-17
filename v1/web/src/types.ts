@@ -20,10 +20,13 @@ export interface Meta {
   }
   /** Per-row coordinates keyed by projection name, e.g. umap2d -> [x, y], umap3d -> [x, y, z]. */
   projections: Record<string, number[][]>
-  sortings: Record<SortKey, Sorting>
+  sortings: Record<GroupKey, Record<WithinKey, Sorting>>
 }
 
-export type SortKey = 'leiden' | 'label'
+/** How rows are grouped in the sorted matrix. */
+export type GroupKey = 'leiden' | 'label'
+/** How rows are ordered inside each group. */
+export type WithinKey = 'random' | 'pc1'
 
 export interface Sorting {
   /** order[displayRow] = original row index in matrix_original.png */

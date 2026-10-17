@@ -15,8 +15,8 @@ pnpm install
 pnpm dev
 ```
 
-- `matrix_original.png` / `matrix_sorted_{leiden,label}.png`: N × 784 grayscale, one digit per row.
-- Leiden sort: clusters follow `sc.tl.dendrogram` order; rows inside a cluster are
-  ordered along that cluster's first principal component.
-- Label sort: digits 0–9, then Leiden cluster within each digit, then PC1.
+- `matrix_original.png` / `matrix_sorted_<group>_<within>.png`: N × 784 grayscale, one digit per row.
+- Groups (`leiden` | `label`): Leiden clusters in `sc.tl.dendrogram` order, or digits 0–9.
+- Within each group (`random` | `pc1`): original random subsample order, or along the
+  group's own first principal component.
 - Note: Intel macOS needs `llvmlite<0.45` / `numba<0.62` (pinned in `pyproject.toml`).

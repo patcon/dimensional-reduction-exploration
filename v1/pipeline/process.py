@@ -5,8 +5,10 @@ The source sprite (mnist_images.png) is a 784 x 65000 image: each row is one
 
 Outputs (written to ../web/public/data/):
   matrix_original.png  N x 784 grayscale, subsample in random order
-  matrix_sorted_leiden.png  same rows, reordered so Leiden clusters are contiguous
-  matrix_sorted_label.png   same rows, reordered by true digit label
+  matrix_sorted_<group>_<within>.png
+                       same rows, grouped by Leiden cluster or true label
+                       (group = leiden|label), ordered within each group
+                       randomly or by the group's own PC1 (within = random|pc1)
   meta.json            per-row cluster/label, projections (UMAP 2D/3D), per-cluster summaries
 """
 
@@ -111,41 +113,42 @@ def main() -> None:
     int_labels = labels[idx]
     pcs = adata.obsm["X_pca"]
 
-    # Leiden sort: clusters in dendrogram order, then each cluster's own PC1.
-    order_parts = []
-    for c in cluster_order:
-        members = np.flatnonzero(clusters == c)
-        order_parts.append(members[within_cluster_order(pcs[members])])
-
-    # Label sort: digits 0-9, then Leiden cluster (dendrogram order) so you can see
-    # how each digit splits across clusters, then PC1 within each sub-block.
-    label_parts = []
-    for digit in range(N_CLASSES):
-        for c in cluster_order:
-            members = np.flatnonzero((int_labels == digit) & (clusters == c))
-            label_parts.append(members[within_cluster_order(pcs[members])])
-    label_order = np.concatenate(label_parts)
-    label_sizes = np.bincount(int_labels, minlength=N_CLASSES)
+    # Groupings for the sorted matrix: Leiden clusters in dendrogram order, or digits 0-9.
+    groupings = {
+        "leiden": [np.flatnonzero(clusters == c) for c in cluster_order],
+        "label": [np.flatnonzero(int_labels == d) for d in range(N_CLASSES)],
+    }
+    # Orderings within each group. Subsample order is already random, so "random"
+    # just keeps rows in their original order.
+    within_orders = {
+        "random": lambda members: members,
+        "pc1": lambda members: members[within_cluster_order(pcs[members])],
+    }
 
     sortings = {
-        "leiden": {
-            "order": np.concatenate(order_parts),
-            "boundaries": np.cumsum([len(p) for p in order_parts])[:-1],
-        },
-        "label": {
-            "order": label_order,
-            "boundaries": np.cumsum(label_sizes)[:-1],
-        },
+        group: {
+            within: {
+                "order": np.concatenate([fn(m) for m in groups]),
+                "boundaries": np.cumsum([len(m) for m in groups])[:-1],
+            }
+            for within, fn in within_orders.items()
+        }
+        for group, groups in groupings.items()
     }
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    for stale in OUT_DIR.glob("matrix_sorted_*.png"):
+        stale.unlink()
     Image.fromarray(pixels).save(OUT_DIR / "matrix_original.png", optimize=True)
-    for name, sorting in sortings.items():
-        Image.fromarray(pixels[sorting["order"]]).save(OUT_DIR / f"matrix_sorted_{name}.png", optimize=True)
+    for group, by_within in sortings.items():
+        for within, sorting in by_within.items():
+            Image.fromarray(pixels[sorting["order"]]).save(
+                OUT_DIR / f"matrix_sorted_{group}_{within}.png", optimize=True
+            )
 
     cluster_summaries = []
     start = 0
-    for c, part in zip(cluster_order, order_parts):
+    for c, part in zip(cluster_order, groupings["leiden"]):
         counts = np.bincount(int_labels[part], minlength=N_CLASSES)
         cluster_summaries.append(
             {
@@ -173,11 +176,15 @@ def main() -> None:
         },
         # Per-row coordinates for each projection, keyed by name (e.g. umap2d, umap3d).
         "projections": {name: np.round(coords, 3).tolist() for name, coords in projections.items()},
-        # sortings[name].order[i] = original row shown at row i of matrix_sorted_<name>.png;
-        # boundaries are the display rows where a new group (cluster / digit) starts.
+        # sortings[group][within].order[i] = original row shown at row i of
+        # matrix_sorted_<group>_<within>.png; boundaries are the display rows where a
+        # new group (cluster / digit) starts.
         "sortings": {
-            name: {"order": s["order"].tolist(), "boundaries": s["boundaries"].tolist()}
-            for name, s in sortings.items()
+            group: {
+                within: {"order": s["order"].tolist(), "boundaries": s["boundaries"].tolist()}
+                for within, s in by_within.items()
+            }
+            for group, by_within in sortings.items()
         },
     }
     (OUT_DIR / "meta.json").write_text(json.dumps(meta))
