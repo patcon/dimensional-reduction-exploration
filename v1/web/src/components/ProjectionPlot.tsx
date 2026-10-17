@@ -9,7 +9,13 @@ const MIN_ZOOM = 0.5
 const MAX_ZOOM = 40
 const GLIDE_MS = 450
 
-const NAMES: Record<string, string> = { umap2d: 'UMAP 2D', umap3d: 'UMAP 3D' }
+const METHOD_NAMES: Record<string, string> = { umap: 'UMAP', pacmap: 'PaCMAP', localmap: 'LocalMAP' }
+
+/** Split projection keys like "pacmap3d" into a method and dimensionality. */
+function parseKey(key: string) {
+  const m = key.match(/^(.*?)([23])d$/)
+  return m ? { method: m[1], dims: Number(m[2]) } : { method: key, dims: 2 }
+}
 
 interface Rotation {
   yaw: number
@@ -85,8 +91,13 @@ export function ProjectionPlot({
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const dpr = window.devicePixelRatio || 1
-  const names = Object.keys(meta.projections)
-  const [name, setName] = useState(names[0])
+  const keys = Object.keys(meta.projections)
+  const methods = [...new Set(keys.map((k) => parseKey(k).method))]
+  const [method, setMethod] = useState(methods[0])
+  const [dims, setDims] = useState(parseKey(keys[0]).dims)
+  const dimsForMethod = keys.map(parseKey).filter((k) => k.method === method).map((k) => k.dims)
+  // Fall back to whatever dimensionality this method has if the chosen one is missing.
+  const name = keys.find((k) => parseKey(k).method === method && parseKey(k).dims === dims) ?? keys.find((k) => parseKey(k).method === method)!
   const [rotation, setRotation] = useState<Rotation>(INITIAL_ROTATION)
   const [view, setView] = useState<View>(INITIAL_VIEW)
   const [showPaths, setShowPaths] = useState(false)
@@ -146,8 +157,9 @@ export function ProjectionPlot({
     setView(INITIAL_VIEW)
   }
 
-  const selectProjection = (n: string) => {
-    setName(n)
+  const selectProjection = (next: { method?: string; dims?: number }) => {
+    if (next.method) setMethod(next.method)
+    if (next.dims) setDims(next.dims)
     resetView()
   }
 
@@ -279,16 +291,30 @@ export function ProjectionPlot({
   return (
     <div className="projection">
       <div className="projection-head">
-        <div className="segmented" role="tablist" aria-label="Projection">
-          {names.map((n) => (
+        <div className="segmented" role="tablist" aria-label="Projection method">
+          {methods.map((m) => (
             <button
-              key={n}
+              key={m}
               role="tab"
-              aria-selected={n === name}
-              className={n === name ? 'on' : ''}
-              onClick={() => selectProjection(n)}
+              aria-selected={m === method}
+              className={m === method ? 'on' : ''}
+              onClick={() => selectProjection({ method: m })}
             >
-              {NAMES[n] ?? n}
+              {METHOD_NAMES[m] ?? m}
+            </button>
+          ))}
+        </div>
+        <div className="segmented" role="tablist" aria-label="Dimensions">
+          {[2, 3].map((d) => (
+            <button
+              key={d}
+              role="tab"
+              aria-selected={d === (is3d ? 3 : 2)}
+              className={d === (is3d ? 3 : 2) ? 'on' : ''}
+              disabled={!dimsForMethod.includes(d)}
+              onClick={() => selectProjection({ dims: d })}
+            >
+              {d}D
             </button>
           ))}
         </div>

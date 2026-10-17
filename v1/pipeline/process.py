@@ -9,7 +9,7 @@ Outputs (written to ../web/public/data/):
                        same rows, grouped by Leiden cluster or true label
                        (group = leiden|label), ordered within each group
                        randomly or by the group's own PC1 (within = random|pc1)
-  meta.json            per-row cluster/label, projections (UMAP 2D/3D), per-cluster summaries
+  meta.json            per-row cluster/label, projections (UMAP / PaCMAP / LocalMAP, 2D + 3D), per-cluster summaries
 """
 
 import argparse
@@ -17,10 +17,18 @@ import json
 import urllib.request
 from pathlib import Path
 
-import numpy as np
-import scanpy as sc
-from anndata import AnnData
-from PIL import Image
+import numba
+
+# numba's default OpenMP threading layer segfaults alongside the libomp bundled
+# with faiss/sklearn (seen running PaCMAP on macOS x86_64). Must be set before
+# any parallel numba code runs.
+numba.config.THREADING_LAYER = "workqueue"
+
+import numpy as np  # noqa: E402
+import pacmap  # noqa: E402
+import scanpy as sc  # noqa: E402
+from anndata import AnnData  # noqa: E402
+from PIL import Image  # noqa: E402
 
 IMAGES_URL = "https://storage.googleapis.com/learnjs-data/model-builder/mnist_images.png"
 LABELS_URL = "https://storage.googleapis.com/learnjs-data/model-builder/mnist_labels_uint8"
@@ -104,6 +112,11 @@ def main() -> None:
     for dims in (2, 3):
         sc.tl.umap(adata, n_components=dims, random_state=args.seed)
         projections[f"umap{dims}d"] = adata.obsm["X_umap"].copy()
+    # PaCMAP and LocalMAP take raw pixels; they apply their own PCA preprocessing.
+    for name, cls in (("pacmap", pacmap.PaCMAP), ("localmap", pacmap.LocalMAP)):
+        for dims in (2, 3):
+            reducer = cls(n_components=dims, random_state=args.seed)
+            projections[f"{name}{dims}d"] = reducer.fit_transform(adata.X)
     # Hierarchical ordering of clusters so similar clusters sit next to each other.
     sc.tl.dendrogram(adata, groupby="leiden", n_pcs=args.n_pcs)
 
