@@ -17,6 +17,8 @@ Outputs (written to ../web/public/data/), for each resolution r in RESOLUTIONS:
                        randomly or by the group's own PC1 (within = random|pc1)
   meta.json            per-row cluster/label, projections (UMAP / PaCMAP / LocalMAP, 2D + 3D,
                        at every resolution), per-cluster summaries
+  evolution/<name>.bin layout snapshots during optimisation, for each projection in meta.json:
+                       float32, snapshots x N x dims (iterations listed in meta.json)
 """
 
 import argparse
@@ -36,6 +38,8 @@ import pacmap  # noqa: E402
 import scanpy as sc  # noqa: E402
 from anndata import AnnData  # noqa: E402
 from PIL import Image  # noqa: E402
+from sklearn.utils import check_random_state  # noqa: E402
+from umap.umap_ import find_ab_params, simplicial_set_embedding  # noqa: E402
 
 IMAGES_URL = "https://storage.googleapis.com/learnjs-data/model-builder/mnist_images.png"
 LABELS_URL = "https://storage.googleapis.com/learnjs-data/model-builder/mnist_labels_uint8"
@@ -44,6 +48,10 @@ N_PIXELS = 784
 PADDED = 32
 # Largest first: the 32x32 projections are the reference the others are aligned to in the app.
 RESOLUTIONS = (32, 16, 8, 4, 2)
+# Iterations at which to snapshot each layout. PaCMAP/LocalMAP use PaCMAP's defaults (450
+# iterations total); UMAP's 500 epochs get the same number of snapshots, denser early on.
+PACMAP_SNAPSHOTS = [0, 10, 30, 60, 100, 120, 140, 170, 200, 250, 300, 350, 450]
+UMAP_SNAPSHOTS = [0, 10, 20, 35, 50, 75, 100, 150, 200, 250, 300, 400, 500]
 N_CLASSES = 10
 
 HERE = Path(__file__).parent
@@ -86,25 +94,59 @@ def downsample(digits: np.ndarray, side: int) -> np.ndarray:
     return padded.reshape(n, side, block, side, block).mean(axis=(2, 4)).reshape(n, side * side)
 
 
-def project(X: np.ndarray, n_pcs: int, n_neighbors: int, seed: int) -> dict[str, np.ndarray]:
-    """UMAP (scanpy-style, via PCA when there are enough pixels), PaCMAP and LocalMAP, each in 2D and 3D."""
+def umap_snapshots(ad: AnnData, rep: np.ndarray, dims: int, seed: int) -> np.ndarray:
+    """What sc.tl.umap computes (same defaults), but snapshotted at UMAP_SNAPSHOTS epochs.
+
+    Calls umap's simplicial_set_embedding directly, as scanpy does, with a list of epochs
+    so it also returns the intermediate layouts. The last snapshot is sc.tl.umap's result.
+    """
+    a, b = find_ab_params(spread=1.0, min_dist=0.5)
+    _, aux = simplicial_set_embedding(
+        data=rep,
+        graph=ad.obsp["connectivities"].tocoo(copy=True),
+        n_components=dims,
+        initial_alpha=1.0,
+        a=a,
+        b=b,
+        gamma=1.0,
+        negative_sample_rate=5,
+        n_epochs=UMAP_SNAPSHOTS,
+        init="spectral",
+        random_state=check_random_state(seed),
+        metric="euclidean",
+        metric_kwds={},
+        densmap=False,
+        densmap_kwds={},
+        output_dens=False,
+    )
+    return np.stack(aux["embedding_list"])
+
+
+def project(X: np.ndarray, n_pcs: int, n_neighbors: int, seed: int) -> dict[str, tuple[list[int], np.ndarray]]:
+    """UMAP (scanpy-style, via PCA when there are enough pixels), PaCMAP and LocalMAP, each in 2D and 3D.
+
+    Returns, per projection, the snapshot iterations and a snapshots x N x dims array whose
+    last entry is the final layout.
+    """
     ad = AnnData(X=X)
     if X.shape[1] > n_pcs:
         sc.pp.pca(ad, n_comps=n_pcs, random_state=seed)
         sc.pp.neighbors(ad, n_neighbors=n_neighbors, n_pcs=n_pcs, random_state=seed)
+        rep = ad.obsm["X_pca"][:, :n_pcs]
     else:
         # Too few pixels to reduce: build the kNN graph on the pixels themselves.
         sc.pp.neighbors(ad, n_neighbors=n_neighbors, use_rep="X", random_state=seed)
+        rep = X
     out = {}
-    # scanpy always writes X_umap, so stash each embedding under its own key.
     for dims in (2, 3):
-        sc.tl.umap(ad, n_components=dims, random_state=seed)
-        out[f"umap{dims}d"] = ad.obsm["X_umap"].copy()
+        out[f"umap{dims}d"] = (UMAP_SNAPSHOTS, umap_snapshots(ad, rep, dims, seed))
     # PaCMAP and LocalMAP take raw pixels; they apply their own PCA preprocessing above 100 dims.
     for name, cls in (("pacmap", pacmap.PaCMAP), ("localmap", pacmap.LocalMAP)):
         for dims in (2, 3):
-            reducer = cls(n_components=dims, random_state=seed)
-            out[f"{name}{dims}d"] = reducer.fit_transform(X)
+            reducer = cls(
+                n_components=dims, random_state=seed, intermediate=True, intermediate_snapshots=PACMAP_SNAPSHOTS
+            )
+            out[f"{name}{dims}d"] = (PACMAP_SNAPSHOTS, reducer.fit_transform(X))
     return out
 
 
@@ -150,10 +192,12 @@ def main() -> None:
     )
     # Keyed like "umap2d_r8": method, dimensionality, resolution.
     projections = {}
+    evolution = {}
     for r in RESOLUTIONS:
         print(f"Projecting {r}x{r}")
-        for name, coords in project(by_res[r] / 255.0, args.n_pcs, args.n_neighbors, args.seed).items():
-            projections[f"{name}_r{r}"] = coords
+        for name, (iterations, snapshots) in project(by_res[r] / 255.0, args.n_pcs, args.n_neighbors, args.seed).items():
+            projections[f"{name}_r{r}"] = snapshots[-1]
+            evolution[f"{name}_r{r}"] = (iterations, snapshots)
     # Hierarchical ordering of clusters so similar clusters sit next to each other.
     sc.tl.dendrogram(adata, groupby="leiden", n_pcs=args.n_pcs)
 
@@ -189,6 +233,12 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for stale in OUT_DIR.glob("matrix_*.png"):
         stale.unlink()
+    evo_dir = OUT_DIR / "evolution"
+    evo_dir.mkdir(exist_ok=True)
+    for stale in evo_dir.glob("*.bin"):
+        stale.unlink()
+    for name, (_, snapshots) in evolution.items():
+        snapshots.astype("<f4").tofile(evo_dir / f"{name}.bin")
     for r in RESOLUTIONS:
         pixels = np.round(by_res[r]).astype(np.uint8)
         Image.fromarray(pixels).save(OUT_DIR / f"matrix_original_r{r}.png", optimize=True)
@@ -229,6 +279,9 @@ def main() -> None:
         },
         # Per-row coordinates for each projection, keyed by name (e.g. umap2d_r32, pacmap3d_r4).
         "projections": {name: np.round(coords, 3).tolist() for name, coords in projections.items()},
+        # Optimisation snapshots per projection, loaded on demand from evolution/<name>.bin
+        # (float32, snapshots x N x dims); the last snapshot is the projection itself.
+        "evolution": {name: {"iterations": iterations} for name, (iterations, _) in evolution.items()},
         # sortings[group][within].order[i] = original row shown at row i of
         # matrix_sorted_<group>_<within>_r<r>.png; boundaries are the display rows where a
         # new group (cluster / digit) starts.

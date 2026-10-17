@@ -44,6 +44,22 @@ export function useMnistData() {
   return state
 }
 
+const evolutions = new Map<string, Promise<Float32Array>>()
+
+/** Layout snapshots for one projection: float32, snapshots x nSamples x dims, row-major (cached). */
+export function loadEvolution(name: string) {
+  if (!evolutions.has(name)) {
+    const request = fetch(`${base}/evolution/${name}.bin`).then(async (r) => {
+      if (!r.ok) throw new Error(`evolution/${name}.bin: ${r.status}`)
+      return new Float32Array(await r.arrayBuffer())
+    })
+    // Let a failed fetch be retried.
+    request.catch(() => evolutions.delete(name))
+    evolutions.set(name, request)
+  }
+  return evolutions.get(name)!
+}
+
 export const MATRIX_URLS = {
   original: (res: number) => `${base}/matrix_original_r${res}.png`,
   sorted: (group: GroupKey, within: WithinKey, res: number) => `${base}/matrix_sorted_${group}_${within}_r${res}.png`,

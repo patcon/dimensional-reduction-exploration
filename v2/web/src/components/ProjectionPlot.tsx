@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Meta } from '../types'
 import { DIGIT_COLORS } from '../palette'
+import { loadEvolution } from '../useMnistData'
 
 const SIZE = 320
 const PAD = 10
@@ -9,6 +10,8 @@ const MIN_ZOOM = 0.5
 const MAX_ZOOM = 40
 const GLIDE_MS = 450
 const MORPH_MS = 900
+/** Time spent moving between consecutive optimisation snapshots. */
+const EVOLUTION_STEP_MS = 450
 
 const METHOD_NAMES: Record<string, string> = { umap: 'UMAP', pacmap: 'PaCMAP', localmap: 'LocalMAP' }
 
@@ -95,11 +98,11 @@ function symmetricEigen(a: number[][]) {
 }
 
 /**
- * Rotate (or mirror) `points` to best match `reference` (orthogonal Procrustes), so that
- * morphing between methods shows how layouts differ rather than their arbitrary orientation.
+ * The rotation (or mirroring) that best maps `points` onto `reference` (orthogonal Procrustes), so
+ * that morphing between methods shows how layouts differ rather than their arbitrary orientation.
  * R = M (MᵀM)^-½ with M = XᵀY, which equals UVᵀ from the SVD of M.
  */
-function alignTo(points: Vec3[], reference: Vec3[], dims: number): Vec3[] {
+function procrustes(points: Vec3[], reference: Vec3[], dims: number): number[][] {
   const mean = (ps: Vec3[]) => Array.from({ length: dims }, (_, d) => ps.reduce((s, p) => s + p[d], 0) / ps.length)
   const [mx, my] = [mean(points), mean(reference)]
   const m = Array.from({ length: dims }, (_, i) =>
@@ -110,8 +113,15 @@ function alignTo(points: Vec3[], reference: Vec3[], dims: number): Vec3[] {
   const invSqrt = mtm.map((_, i) =>
     mtm.map((__, j) => values.reduce((s, val, k) => s + (vectors[i][k] * vectors[j][k]) / Math.sqrt(Math.max(val, 1e-12)), 0)),
   )
-  const r = m.map((row) => invSqrt.map((_, j) => row.reduce((s, mik, k) => s + mik * invSqrt[k][j], 0)))
-  // Orthogonal maps preserve distances from the centre, so points stay within the unit sphere.
+  return m.map((row) => invSqrt.map((_, j) => row.reduce((s, mik, k) => s + mik * invSqrt[k][j], 0)))
+}
+
+function identity(dims: number) {
+  return Array.from({ length: dims }, (_, i) => Array.from({ length: dims }, (_, j) => (i === j ? 1 : 0)))
+}
+
+/** Apply a dims x dims rotation. Orthogonal maps preserve distances from the centre, so points stay within the unit sphere. */
+function rotate(points: Vec3[], r: number[][], dims: number): Vec3[] {
   return points.map((p) => {
     const out: Vec3 = [0, 0, 0]
     for (let j = 0; j < dims; j++) for (let i = 0; i < dims; i++) out[j] += p[i] * r[i][j]
@@ -196,19 +206,21 @@ export function ProjectionPlot({
 
   const is3d = (meta.projections[name][0]?.length ?? 2) === 3
   // Every projection, normalised and aligned to the first one of the same dimensionality (UMAP at full resolution).
+  // Keep each rotation too, so its optimisation snapshots can be turned the same way.
   const aligned = useMemo(() => {
-    const out: Record<string, Vec3[]> = {}
+    const out: Record<string, { points: Vec3[]; rotation: number[][] }> = {}
     const references = new Map<number, Vec3[]>()
     for (const key of Object.keys(meta.projections)) {
       const { dims } = parseKey(key)
       const pts = normalize(meta.projections[key])
       const reference = references.get(dims)
-      if (reference) out[key] = alignTo(pts, reference, dims)
-      else references.set(dims, (out[key] = pts))
+      const rotation = reference ? procrustes(pts, reference, dims) : identity(dims)
+      out[key] = { points: reference ? rotate(pts, rotation, dims) : pts, rotation }
+      if (!reference) references.set(dims, pts)
     }
     return out
   }, [meta])
-  const target = aligned[name]
+  const target = aligned[name].points
 
   // Morph between methods or resolutions of the same dimensionality; switching 2D/3D just jumps.
   const [points, setPoints] = useState(target)
@@ -217,6 +229,66 @@ export function ProjectionPlot({
     shown.current.points = points
   })
   const morphing = useRef(false)
+
+  // Replay the optimiser's snapshots for the current projection, ending on its final layout.
+  const [evolution, setEvolution] = useState<{ name: string; status: 'loading' | 'playing'; iteration: number } | null>(
+    null,
+  )
+  const evolutionRun = useRef(0)
+  const stopEvolution = () => {
+    evolutionRun.current++
+    setEvolution(null)
+    setPoints(target)
+  }
+  const playEvolution = async () => {
+    const run = ++evolutionRun.current
+    const { iterations } = meta.evolution[name]
+    const dims = parseKey(name).dims
+    const width = is3d ? 3 : 2
+    const n = meta.rows.label.length
+    setEvolution({ name, status: 'loading', iteration: 0 })
+    let raw: Float32Array
+    try {
+      raw = await loadEvolution(name)
+    } catch {
+      if (run === evolutionRun.current) setEvolution(null)
+      return
+    }
+    // Switching projection abandons a replay; the morph then starts from wherever it had got to.
+    const abandoned = () => run !== evolutionRun.current || shown.current.name !== name
+    if (abandoned()) {
+      if (run === evolutionRun.current) setEvolution(null)
+      return
+    }
+    const { rotation } = aligned[name]
+    // Normalise each snapshot on its own (early layouts are much smaller or larger than the final one),
+    // then turn it like the final layout; the last snapshot is the projection itself.
+    const frames = iterations.map((_, s) => {
+      if (s === iterations.length - 1) return target
+      const coords = Array.from({ length: n }, (_, i) => Array.from(raw.subarray((s * n + i) * width, (s * n + i + 1) * width)))
+      return rotate(normalize(coords), rotation, dims)
+    })
+    const t0 = performance.now()
+    const step = (now: number) => {
+      if (abandoned()) {
+        if (run === evolutionRun.current) setEvolution(null)
+        return
+      }
+      // rAF timestamps are the frame's start, which can be just before t0.
+      const pos = Math.min(frames.length - 1, Math.max(0, (now - t0) / EVOLUTION_STEP_MS))
+      const s = Math.min(frames.length - 2, Math.floor(pos))
+      const t = pos - s
+      const [a, b] = [frames[s], frames[s + 1]]
+      setPoints(a.map((p, i) => p.map((v, d) => v + (b[i][d] - v) * t) as Vec3))
+      setEvolution({ name, status: 'playing', iteration: Math.round(iterations[s] + (iterations[s + 1] - iterations[s]) * t) })
+      if (pos < frames.length - 1) requestAnimationFrame(step)
+      else {
+        setPoints(target)
+        setEvolution(null)
+      }
+    }
+    requestAnimationFrame(step)
+  }
   useEffect(() => {
     const { name: fromName, points: from } = shown.current
     shown.current.name = name
@@ -482,6 +554,29 @@ export function ProjectionPlot({
           onHover(null)
         }}
       />
+      <div className="evolution">
+        {evolution?.name === name ? (
+          <>
+            <button className="button" onClick={stopEvolution}>
+              {evolution.status === 'loading' ? 'Loading…' : 'Skip to end'}
+            </button>
+            {evolution.status === 'playing' && (
+              <span className="muted">
+                {method === 'umap' ? 'Epoch' : 'Iteration'} {evolution.iteration} of{' '}
+                {meta.evolution[name].iterations.at(-1)}
+              </span>
+            )}
+          </>
+        ) : (
+          <button
+            className="button"
+            onClick={playEvolution}
+            title="Replay how the optimiser moved points from its starting layout to this one"
+          >
+            Show algorithmic evolution
+          </button>
+        )}
+      </div>
       <p className="section-note">
         {showPaths && <>Paths follow {pathsLabel}. </>}
         Scroll to zoom; {is3d ? `drag to ${pinnedPoint ? 'orbit the pinned sample' : 'rotate'}, shift-drag to pan.` : 'drag to pan.'}{' '}

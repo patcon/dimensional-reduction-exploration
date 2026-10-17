@@ -22,6 +22,8 @@ export interface Meta {
   /** Per-row coordinates keyed by projection name, e.g. umap2d_r32 -> [x, y], pacmap3d_r4 -> [x, y, z]. */
   projections: Record<string, number[][]>
   sortings: Record<GroupKey, Record<WithinKey, Sorting>>
+  /** Optimisation snapshots per projection name, fetched on demand with loadEvolution(). */
+  evolution: Record<string, { iterations: number[] }>
 }
 
 /** How rows are grouped in the sorted matrix. */
