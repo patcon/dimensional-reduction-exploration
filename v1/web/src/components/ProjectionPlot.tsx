@@ -7,6 +7,7 @@ const PAD = 10
 const DRAG_SPEED = 0.01
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 40
+const GLIDE_MS = 450
 
 const NAMES: Record<string, string> = { umap2d: 'UMAP 2D', umap3d: 'UMAP 3D' }
 
@@ -29,9 +30,14 @@ export interface GroupPath {
 
 const INITIAL_ROTATION: Rotation = { yaw: 0.5, pitch: 0.3 }
 const INITIAL_VIEW: View = { zoom: 1, panX: 0, panY: 0 }
+const ORIGIN: Vec3 = [0, 0, 0]
+
+type Vec3 = [number, number, number]
+
+const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2)
 
 /** Centre each axis and scale so every point lies within the unit sphere (or disc). */
-function normalize(coords: number[][]): [number, number, number][] {
+function normalize(coords: number[][]): Vec3[] {
   const dims = coords[0]?.length ?? 2
   const centre = Array.from({ length: dims }, (_, d) => {
     const vals = coords.map((p) => p[d])
@@ -44,8 +50,12 @@ function normalize(coords: number[][]): [number, number, number][] {
   })
 }
 
-/** Rotate around the vertical axis (yaw) then the horizontal axis (pitch); returns screen x/y and depth. */
-function project([x, y, z]: [number, number, number], { yaw, pitch }: Rotation, { zoom, panX, panY }: View) {
+/**
+ * Rotate around `pivot`, first about the vertical axis (yaw) then the horizontal axis (pitch).
+ * The pivot lands at the canvas centre (before pan); returns screen x/y and depth.
+ */
+function project(p: Vec3, pivot: Vec3, { yaw, pitch }: Rotation, { zoom, panX, panY }: View) {
+  const [x, y, z] = [p[0] - pivot[0], p[1] - pivot[1], p[2] - pivot[2]]
   const x1 = x * Math.cos(yaw) + z * Math.sin(yaw)
   const z1 = -x * Math.sin(yaw) + z * Math.cos(yaw)
   const y2 = y * Math.cos(pitch) - z1 * Math.sin(pitch)
@@ -80,6 +90,15 @@ export function ProjectionPlot({
   const [rotation, setRotation] = useState<Rotation>(INITIAL_ROTATION)
   const [view, setView] = useState<View>(INITIAL_VIEW)
   const [showPaths, setShowPaths] = useState(false)
+  // Rotation centre: the pinned sample in 3D, otherwise the middle of the cloud.
+  const [pivot, setPivot] = useState<Vec3>(ORIGIN)
+  const pivotRef = useRef(pivot)
+  const viewRef = useRef(view)
+  // Latest values for the glide animation to start from (declared before it, so synced first).
+  useEffect(() => {
+    pivotRef.current = pivot
+    viewRef.current = view
+  })
   const drag = useRef<{
     x: number
     y: number
@@ -92,9 +111,28 @@ export function ProjectionPlot({
   const is3d = (meta.projections[name][0]?.length ?? 2) === 3
   const points = useMemo(() => normalize(meta.projections[name]), [meta, name])
   const screen = useMemo(
-    () => points.map((p) => project(p, is3d ? rotation : { yaw: 0, pitch: 0 }, view)),
-    [points, rotation, view, is3d],
+    () => points.map((p) => (is3d ? project(p, pivot, rotation, view) : project(p, ORIGIN, { yaw: 0, pitch: 0 }, view))),
+    [points, pivot, rotation, view, is3d],
   )
+
+  // Glide the pivot to the pinned sample (centring it) or back to the origin on unpin.
+  const pinnedPoint = is3d && selected !== null ? points[selected] : null
+  useEffect(() => {
+    const from = pivotRef.current
+    const to = pinnedPoint ?? ORIGIN
+    const fromPan = viewRef.current
+    const recentre = pinnedPoint !== null
+    const t0 = performance.now()
+    let frame = 0
+    const step = (now: number) => {
+      const t = easeInOut(Math.min(1, (now - t0) / GLIDE_MS))
+      setPivot(from.map((v, d) => v + (to[d] - v) * t) as Vec3)
+      if (recentre) setView((v) => ({ ...v, panX: fromPan.panX * (1 - t), panY: fromPan.panY * (1 - t) }))
+      if (t < 1) frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
+  }, [pinnedPoint])
   const majority = useMemo(() => new Map(meta.clusters.map((c) => [c.id, c.majorityLabel])), [meta])
   // A pinned point keeps its group's path highlighted; otherwise follow the hover.
   const focus = selected ?? hovered
@@ -276,7 +314,7 @@ export function ProjectionPlot({
       />
       <p className="section-note">
         {showPaths && <>Paths follow {pathsLabel}. </>}
-        Scroll to zoom; {is3d ? 'drag to rotate, shift-drag to pan.' : 'drag to pan.'}{' '}
+        Scroll to zoom; {is3d ? `drag to ${pinnedPoint ? 'orbit the pinned sample' : 'rotate'}, shift-drag to pan.` : 'drag to pan.'}{' '}
         {transformed && (
           <button className="link" onClick={resetView}>
             Reset view
