@@ -22,7 +22,7 @@ interface Props {
 }
 
 const STRIP_WIDTH = 14
-const SWEEP_TAIL = 90 // pixels of trail behind the dot
+const SWEEP_TAIL_MS = 120 // trail behind the dot, in time (so it shrinks as the dot slows)
 const MATRIX_WIDTH = 392 // 784 px columns at 0.5x
 
 function Strip({ colors, height, title }: { colors: string[]; height: number; title: string }) {
@@ -68,7 +68,7 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, bo
   // The sweep dot travels along the focused row's line, one matrix column per pixel.
   const dotRef = useRef<HTMLDivElement>(null)
   const tailRef = useRef<HTMLDivElement>(null)
-  useSweepFrames(sweep, SWEEP_TAIL, (frame) => {
+  useSweepFrames(sweep, SWEEP_TAIL_MS, (frame) => {
     const dot = dotRef.current
     const tail = tailRef.current
     if (!dot || !tail) return
@@ -80,7 +80,7 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, bo
     const y = toY(displayRowOf[frame.row])
     const toX = (px: number) => (Math.min(Math.max(px, 0), N_PIXELS) / N_PIXELS) * MATRIX_WIDTH
     const head = toX(frame.pixel)
-    const start = toX(frame.pixel - SWEEP_TAIL)
+    const start = toX(frame.tailPixel)
     dot.style.opacity = frame.pixel <= N_PIXELS ? '1' : '0'
     dot.style.transform = `translate(${head}px, ${y}px)`
     tail.style.opacity = '1'

@@ -5,7 +5,7 @@ import { N_PIXELS, useSweepFrames, type Sweep } from '../sweep'
 
 const PREVIEW_SIZE = 112
 const CELL = PREVIEW_SIZE / 28
-const SWEEP_TAIL = 16 // pixels of trail behind the head
+const SWEEP_TAIL_MS = 30 // trail behind the head, in time (so it shrinks as the head slows)
 
 export function DigitPreview({
   data,
@@ -25,7 +25,7 @@ export function DigitPreview({
   const dpr = window.devicePixelRatio || 1
 
   // Walk a red pixel through the digit in row-major order: the same order its row is laid out in the matrix.
-  useSweepFrames(sweep, SWEEP_TAIL, (frame) => {
+  useSweepFrames(sweep, SWEEP_TAIL_MS, (frame) => {
     const canvas = overlayRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
@@ -34,10 +34,10 @@ export function DigitPreview({
     if (!frame || frame.row !== row) return
     ctx.fillStyle = getComputedStyle(canvas).color
     const head = Math.floor(frame.pixel)
-    for (let k = SWEEP_TAIL; k >= 0; k--) {
-      const i = head - k
-      if (i < 0 || i >= N_PIXELS) continue
-      ctx.globalAlpha = (1 - k / (SWEEP_TAIL + 1)) ** 1.5
+    const tail = Math.floor(frame.tailPixel)
+    const length = head - tail + 1
+    for (let i = Math.max(tail, 0); i <= Math.min(head, N_PIXELS - 1); i++) {
+      ctx.globalAlpha = ((i - tail + 1) / length) ** 1.5
       ctx.fillRect((i % 28) * CELL, Math.floor(i / 28) * CELL, CELL, CELL)
     }
     ctx.globalAlpha = 1
