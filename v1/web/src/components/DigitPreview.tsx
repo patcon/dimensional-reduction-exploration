@@ -10,12 +10,14 @@ const SWEEP_TAIL_MS = 30 // trail behind the head, in time (so it shrinks as the
 export function DigitPreview({
   data,
   row,
+  pixelOrder,
   pinned,
   sweep,
   onUnpin,
 }: {
   data: MnistData
   row: number | null
+  pixelOrder: number[] | null
   pinned: boolean
   sweep: Sweep | null
   onUnpin: () => void
@@ -24,7 +26,7 @@ export function DigitPreview({
   const overlayRef = useRef<HTMLCanvasElement>(null)
   const dpr = window.devicePixelRatio || 1
 
-  // Walk a red pixel through the digit in row-major order: the same order its row is laid out in the matrix.
+  // Walk a red pixel through the digit cell by cell: the same order its row is laid out in the matrix.
   useSweepFrames(sweep, SWEEP_TAIL_MS, (frame) => {
     const canvas = overlayRef.current
     if (!canvas) return
@@ -49,13 +51,14 @@ export function DigitPreview({
     const img = ctx.createImageData(28, 28)
     if (row !== null) {
       const offset = row * meta.nPixels
+      // Fold the row back into 28×28 in its current column order, so a shuffle scrambles the digit too.
       for (let i = 0; i < 784; i++) {
-        const v = pixels[offset + i]
+        const v = pixels[offset + (pixelOrder ? pixelOrder[i] : i)]
         img.data.set([v, v, v, 255], i * 4)
       }
     }
     ctx.putImageData(img, 0, 0)
-  }, [row, meta, pixels])
+  }, [row, meta, pixels, pixelOrder])
 
   const cluster = row === null ? null : meta.clusters.find((c) => c.id === meta.rows.cluster[row])!
   const label = row === null ? null : meta.rows.label[row]
