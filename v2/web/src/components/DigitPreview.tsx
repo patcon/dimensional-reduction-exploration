@@ -1,23 +1,22 @@
 import { useEffect, useRef } from 'react'
 import type { MnistData } from '../useMnistData'
 import { DIGIT_COLORS } from '../palette'
-import { N_PIXELS, useSweepFrames, type Sweep } from '../sweep'
+import { useSweepFrames, type Sweep } from '../sweep'
 
 const PREVIEW_SIZE = 112
-const CELL = PREVIEW_SIZE / 28
 const SWEEP_TAIL_MS = 30 // trail behind the head, in time (so it shrinks as the head slows)
 
 export function DigitPreview({
   data,
   row,
-  pixelOrder,
+  resolution,
   pinned,
   sweep,
   onUnpin,
 }: {
   data: MnistData
   row: number | null
-  pixelOrder: number[] | null
+  resolution: number
   pinned: boolean
   sweep: Sweep | null
   onUnpin: () => void
@@ -25,9 +24,12 @@ export function DigitPreview({
   const ref = useRef<HTMLCanvasElement>(null)
   const overlayRef = useRef<HTMLCanvasElement>(null)
   const dpr = window.devicePixelRatio || 1
+  // The preview stays the same size at every resolution; cells just get bigger.
+  const nPixels = resolution * resolution
+  const cell = PREVIEW_SIZE / resolution
 
   // Walk a red pixel through the digit cell by cell: the same order its row is laid out in the matrix.
-  useSweepFrames(sweep, SWEEP_TAIL_MS, (frame) => {
+  useSweepFrames(sweep, SWEEP_TAIL_MS, nPixels, (frame) => {
     const canvas = overlayRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
@@ -38,9 +40,9 @@ export function DigitPreview({
     const head = Math.floor(frame.pixel)
     const tail = Math.floor(frame.tailPixel)
     const length = head - tail + 1
-    for (let i = Math.max(tail, 0); i <= Math.min(head, N_PIXELS - 1); i++) {
+    for (let i = Math.max(tail, 0); i <= Math.min(head, nPixels - 1); i++) {
       ctx.globalAlpha = ((i - tail + 1) / length) ** 1.5
-      ctx.fillRect((i % 28) * CELL, Math.floor(i / 28) * CELL, CELL, CELL)
+      ctx.fillRect((i % resolution) * cell, Math.floor(i / resolution) * cell, cell, cell)
     }
     ctx.globalAlpha = 1
   })
@@ -48,17 +50,16 @@ export function DigitPreview({
 
   useEffect(() => {
     const ctx = ref.current!.getContext('2d')!
-    const img = ctx.createImageData(28, 28)
+    const img = ctx.createImageData(resolution, resolution)
     if (row !== null) {
-      const offset = row * meta.nPixels
-      // Fold the row back into 28×28 in its current column order, so a shuffle scrambles the digit too.
-      for (let i = 0; i < 784; i++) {
-        const v = pixels[offset + (pixelOrder ? pixelOrder[i] : i)]
+      const offset = row * nPixels
+      for (let i = 0; i < nPixels; i++) {
+        const v = pixels[resolution][offset + i]
         img.data.set([v, v, v, 255], i * 4)
       }
     }
     ctx.putImageData(img, 0, 0)
-  }, [row, meta, pixels, pixelOrder])
+  }, [row, pixels, resolution, nPixels])
 
   const cluster = row === null ? null : meta.clusters.find((c) => c.id === meta.rows.cluster[row])!
   const label = row === null ? null : meta.rows.label[row]
@@ -66,7 +67,7 @@ export function DigitPreview({
   return (
     <div className="digit-preview">
       <div className="digit-canvas">
-        <canvas ref={ref} width={28} height={28} />
+        <canvas ref={ref} width={resolution} height={resolution} />
         <canvas
           ref={overlayRef}
           className="sweep-overlay"

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { Meta } from '../types'
 import { DIGIT_COLORS } from '../palette'
-import { N_PIXELS, useSweepFrames, type Sweep } from '../sweep'
-import { usePermutedImage } from '../pixelOrder'
+import { useSweepFrames, type Sweep } from '../sweep'
 
 interface Props {
   title: string
@@ -11,8 +10,8 @@ interface Props {
   meta: Meta
   /** order[displayRow] = original row index */
   order: number[]
-  /** pixelOrder[column] = row-major pixel drawn at that column; null keeps row-major. */
-  pixelOrder: number[] | null
+  /** Digit side length: the image has resolution² columns, always drawn MATRIX_WIDTH wide. */
+  resolution: number
   height: number
   /** Display rows at which to draw a group separator line. */
   boundaries?: number[]
@@ -26,7 +25,7 @@ interface Props {
 
 const STRIP_WIDTH = 14
 const SWEEP_TAIL_MS = 120 // trail behind the dot, in time (so it shrinks as the dot slows)
-const MATRIX_WIDTH = 392 // 784 px columns at 0.5x
+const MATRIX_WIDTH = 392 // the same width at every resolution
 
 function Strip({ colors, height, title }: { colors: string[]; height: number; title: string }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -49,9 +48,9 @@ function Strip({ colors, height, title }: { colors: string[]; height: number; ti
   )
 }
 
-export function MatrixPanel({ title, subtitle, imageUrl, meta, order, pixelOrder, height, boundaries = [], controls, hovered, selected, sweep, onHover, onSelect }: Props) {
+export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution, height, boundaries = [], controls, hovered, selected, sweep, onHover, onSelect }: Props) {
   const n = order.length
-  const imageSrc = usePermutedImage(imageUrl, pixelOrder)
+  const nPixels = resolution * resolution
   const majorityByCluster = useMemo(
     () => new Map(meta.clusters.map((c) => [c.id, c.majorityLabel])),
     [meta],
@@ -72,7 +71,7 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, pixelOrder
   // The sweep dot travels along the focused row's line, one matrix column per pixel.
   const dotRef = useRef<HTMLDivElement>(null)
   const tailRef = useRef<HTMLDivElement>(null)
-  useSweepFrames(sweep, SWEEP_TAIL_MS, (frame) => {
+  useSweepFrames(sweep, SWEEP_TAIL_MS, nPixels, (frame) => {
     const dot = dotRef.current
     const tail = tailRef.current
     if (!dot || !tail) return
@@ -82,10 +81,10 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, pixelOrder
       return
     }
     const y = toY(displayRowOf[frame.row])
-    const toX = (px: number) => (Math.min(Math.max(px, 0), N_PIXELS) / N_PIXELS) * MATRIX_WIDTH
+    const toX = (px: number) => (Math.min(Math.max(px, 0), nPixels) / nPixels) * MATRIX_WIDTH
     const head = toX(frame.pixel)
     const start = toX(frame.tailPixel)
-    dot.style.opacity = frame.pixel <= N_PIXELS ? '1' : '0'
+    dot.style.opacity = frame.pixel <= nPixels ? '1' : '0'
     dot.style.transform = `translate(${head}px, ${y}px)`
     tail.style.opacity = '1'
     tail.style.transform = `translate(${start}px, ${y}px)`
@@ -121,7 +120,14 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, pixelOrder
           <Strip colors={clusterColors} height={height} title="Leiden cluster (coloured by majority digit)" />
           <Strip colors={labelColors} height={height} title="True digit label" />
           <div className="matrix-image">
-            <img src={imageSrc} alt={title} style={{ width: MATRIX_WIDTH, height }} draggable={false} />
+            {/* Stretch narrow (low-resolution) matrices into crisp blocks; let wide ones scale down smoothly. */}
+            <img
+              src={imageUrl}
+              alt={title}
+              className={nPixels < MATRIX_WIDTH ? 'blocky' : ''}
+              style={{ width: MATRIX_WIDTH, height }}
+              draggable={false}
+            />
             <div ref={tailRef} className="sweep-tail" />
             <div ref={dotRef} className="sweep-dot" />
           </div>

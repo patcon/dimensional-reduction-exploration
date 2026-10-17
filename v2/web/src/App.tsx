@@ -8,18 +8,12 @@ import { ClusterSamples } from './components/ClusterSamples'
 import { DIGIT_COLORS } from './palette'
 import type { GroupKey, WithinKey } from './types'
 import { SWEEP_DWELL_MS, type Sweep } from './sweep'
-import { PIXEL_ORDERS, type PixelOrderKey } from './pixelOrder'
 
 const MATRIX_HEIGHT = 720
 
 const GROUPS: Record<GroupKey, { label: string; describe: string }> = {
   leiden: { label: 'Leiden', describe: 'Leiden clusters in dendrogram order' },
   label: { label: 'Labels', describe: 'Digits 0–9' },
-}
-
-const PIXEL_ORDER_OPTIONS: Record<PixelOrderKey, { label: string }> = {
-  rowMajor: { label: 'Row by row' },
-  shuffled: { label: 'Shuffled' },
 }
 
 const WITHINS: Record<WithinKey, { label: string; describe: string }> = {
@@ -57,8 +51,8 @@ export default function App() {
   const toggleSelected = (row: number | null) => setSelected((s) => (row === null || s === row ? null : row))
   const [groupBy, setGroupBy] = useState<GroupKey>('leiden')
   const [within, setWithin] = useState<WithinKey>('pc1')
-  const [pixelOrderKey, setPixelOrderKey] = useState<PixelOrderKey>('rowMajor')
-  const pixelOrder = PIXEL_ORDERS[pixelOrderKey]
+  // Digit resolution (side length) shown everywhere; null until data arrives, then the largest.
+  const [resolutionChoice, setResolution] = useState<number | null>(null)
   const identity = useMemo(() => (data ? data.meta.rows.label.map((_, i) => i) : []), [data])
 
   // One path per group of the active sorting, coloured like that group in the strips.
@@ -98,6 +92,7 @@ export default function App() {
 
   const { meta } = data
   const p = meta.params
+  const resolution = resolutionChoice ?? meta.resolutions[0]
   const sorting = meta.sortings[groupBy][within]
 
   return (
@@ -105,22 +100,18 @@ export default function App() {
       <header className="page-header">
         <h1>MNIST, from pixels to projections</h1>
         <p>
-          Each 28×28 digit is flattened into a single row of {meta.nPixels} pixels, and{' '}
+          Each 28×28 digit is padded to 32×32 and flattened into a single row of pixels, and{' '}
           {meta.nSamples.toLocaleString()} of those rows are stacked into a matrix. PCA ({p.n_pcs} components) → kNN
           graph (k={p.n_neighbors}) → Leiden (resolution {p.resolution}) finds{' '}
           <strong>{meta.nClusters} clusters</strong>. The sorted matrix regroups rows by cluster or true label, and
           UMAP, PaCMAP and LocalMAP lay the same digits out in 2D and 3D.
         </p>
+        <p>
+          Each digit is also average-pooled down to 16×16, 8×8, 4×4 and 2×2, and every projection is recomputed at each
+          resolution. Clusters stay fixed at 32×32, so colours show how well a coarser digit keeps its cluster together.
+          Pick a resolution above the projection to watch the layout morph.
+        </p>
         <p>Hover any digit to find it in every view, pause to watch its pixels become a row, and click to pin it.</p>
-        <div className="page-controls">
-          <span className="muted">Pixel order</span>
-          <Segmented options={PIXEL_ORDER_OPTIONS} value={pixelOrderKey} onChange={setPixelOrderKey} ariaLabel="Pixel order" />
-          <span className="muted">
-            {pixelOrderKey === 'shuffled'
-              ? 'Every row gets the same shuffle of its 784 pixels. The projections are unchanged: they never used the pixel layout.'
-              : 'Shuffle the pixel columns to see what the projections actually rely on.'}
-          </span>
-        </div>
         <ul className="legend">
           {DIGIT_COLORS.map((c, d) => (
             <li key={d}>
@@ -133,11 +124,11 @@ export default function App() {
       <div className="layout">
         <MatrixPanel
           title="Original"
-          subtitle="Random subsample order"
-          imageUrl={MATRIX_URLS.original}
+          subtitle={`Random subsample order; ${resolution}×${resolution} = ${resolution * resolution} pixels per row`}
+          imageUrl={MATRIX_URLS.original(resolution)}
           meta={meta}
           order={identity}
-          pixelOrder={pixelOrder}
+          resolution={resolution}
           height={MATRIX_HEIGHT}
           hovered={hovered}
           selected={selected}
@@ -155,10 +146,10 @@ export default function App() {
               <Segmented options={WITHINS} value={within} onChange={setWithin} ariaLabel="Order within groups by" />
             </>
           }
-          imageUrl={MATRIX_URLS.sorted(groupBy, within)}
+          imageUrl={MATRIX_URLS.sorted(groupBy, within, resolution)}
           meta={meta}
           order={sorting.order}
-          pixelOrder={pixelOrder}
+          resolution={resolution}
           height={MATRIX_HEIGHT}
           boundaries={sorting.boundaries}
           hovered={hovered}
@@ -171,13 +162,15 @@ export default function App() {
           <DigitPreview
             data={data}
             row={focus}
-            pixelOrder={pixelOrder}
+            resolution={resolution}
             pinned={selected !== null}
             sweep={sweep}
             onUnpin={() => setSelected(null)}
           />
           <ProjectionPlot
             meta={meta}
+            resolution={resolution}
+            onResolution={setResolution}
             paths={paths}
             pathsLabel={`${GROUPS[groupBy].label} groups in ${within === 'pc1' ? 'PC1' : 'random'} order`}
             hovered={hovered}
@@ -192,7 +185,7 @@ export default function App() {
       <p className="section-note">
         Evenly spaced along each cluster's sorted order. Outlined digits disagree with the cluster's majority label.
       </p>
-      <ClusterSamples data={data} pixelOrder={pixelOrder} hovered={hovered} selected={selected} onHover={setHovered} onSelect={toggleSelected} />
+      <ClusterSamples data={data} resolution={resolution} hovered={hovered} selected={selected} onHover={setHovered} onSelect={toggleSelected} />
 
       <h3>Clusters</h3>
       <ClusterTable meta={meta} />

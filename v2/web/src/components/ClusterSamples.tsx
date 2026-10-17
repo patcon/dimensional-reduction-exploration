@@ -4,32 +4,33 @@ import { DIGIT_COLORS } from '../palette'
 
 const SAMPLES_PER_CLUSTER = 12
 
-function Digit({ data, row, pixelOrder }: { data: MnistData; row: number; pixelOrder: number[] | null }) {
+function Digit({ data, row, resolution }: { data: MnistData; row: number; resolution: number }) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const ctx = ref.current!.getContext('2d')!
-    const img = ctx.createImageData(28, 28)
-    const offset = row * data.meta.nPixels
-    for (let i = 0; i < 784; i++) {
-      const v = data.pixels[offset + (pixelOrder ? pixelOrder[i] : i)]
+    const nPixels = resolution * resolution
+    const img = ctx.createImageData(resolution, resolution)
+    const offset = row * nPixels
+    for (let i = 0; i < nPixels; i++) {
+      const v = data.pixels[resolution][offset + i]
       img.data.set([v, v, v, 255], i * 4)
     }
     ctx.putImageData(img, 0, 0)
-  }, [data, row, pixelOrder])
-  return <canvas ref={ref} width={28} height={28} />
+  }, [data, row, resolution])
+  return <canvas ref={ref} width={resolution} height={resolution} />
 }
 
 /** Samples are evenly spaced through each cluster's sorted rows, so they span its PC1 axis. */
 export function ClusterSamples({
   data,
-  pixelOrder,
+  resolution,
   hovered,
   selected,
   onHover,
   onSelect,
 }: {
   data: MnistData
-  pixelOrder: number[] | null
+  resolution: number
   hovered: number | null
   selected: number | null
   onHover: (row: number | null) => void
@@ -67,7 +68,7 @@ export function ClusterSamples({
                     onClick={() => onSelect(r)}
                     title={`label ${label}`}
                   >
-                    <Digit data={data} row={r} pixelOrder={pixelOrder} />
+                    <Digit data={data} row={r} resolution={resolution} />
                     <span className="badge" style={{ background: DIGIT_COLORS[label] }}>
                       {label}
                     </span>

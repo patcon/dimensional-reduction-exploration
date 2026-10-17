@@ -10,7 +10,8 @@ export interface ClusterSummary {
 export interface Meta {
   params: Record<string, number>
   nSamples: number
-  nPixels: number
+  /** Side length of each available resolution (digits padded to 32×32, then average-pooled), largest first. */
+  resolutions: number[]
   nClusters: number
   clusters: ClusterSummary[]
   rows: {
@@ -18,7 +19,7 @@ export interface Meta {
     label: number[]
     cluster: number[]
   }
-  /** Per-row coordinates keyed by projection name, e.g. umap2d -> [x, y], umap3d -> [x, y, z]. */
+  /** Per-row coordinates keyed by projection name, e.g. umap2d_r32 -> [x, y], pacmap3d_r4 -> [x, y, z]. */
   projections: Record<string, number[][]>
   sortings: Record<GroupKey, Record<WithinKey, Sorting>>
 }
@@ -29,7 +30,7 @@ export type GroupKey = 'leiden' | 'label'
 export type WithinKey = 'random' | 'pc1'
 
 export interface Sorting {
-  /** order[displayRow] = original row index in matrix_original.png */
+  /** order[displayRow] = original row index in matrix_original_r<r>.png */
   order: number[]
   /** Display rows where a new group (cluster or digit) begins. */
   boundaries: number[]

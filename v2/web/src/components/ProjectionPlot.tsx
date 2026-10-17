@@ -12,10 +12,10 @@ const MORPH_MS = 900
 
 const METHOD_NAMES: Record<string, string> = { umap: 'UMAP', pacmap: 'PaCMAP', localmap: 'LocalMAP' }
 
-/** Split projection keys like "pacmap3d" into a method and dimensionality. */
+/** Split projection keys like "pacmap3d_r8" into a method, dimensionality and digit resolution. */
 function parseKey(key: string) {
-  const m = key.match(/^(.*?)([23])d$/)
-  return m ? { method: m[1], dims: Number(m[2]) } : { method: key, dims: 2 }
+  const m = key.match(/^(.*?)([23])d_r(\d+)$/)
+  return m ? { method: m[1], dims: Number(m[2]), resolution: Number(m[3]) } : { method: key, dims: 2, resolution: 0 }
 }
 
 interface Rotation {
@@ -135,6 +135,8 @@ function project(p: Vec3, pivot: Vec3, { yaw, pitch }: Rotation, { zoom, panX, p
 
 export function ProjectionPlot({
   meta,
+  resolution,
+  onResolution,
   paths,
   pathsLabel,
   hovered,
@@ -143,6 +145,9 @@ export function ProjectionPlot({
   onSelect,
 }: {
   meta: Meta
+  /** Digit side length whose projections are shown; shared with the matrices and previews. */
+  resolution: number
+  onResolution: (resolution: number) => void
   /** One path per group of the active sorting, in sort order. */
   paths: GroupPath[]
   pathsLabel: string
@@ -158,9 +163,16 @@ export function ProjectionPlot({
   const methods = [...new Set(keys.map((k) => parseKey(k).method))]
   const [method, setMethod] = useState(methods[0])
   const [dims, setDims] = useState(parseKey(keys[0]).dims)
-  const dimsForMethod = keys.map(parseKey).filter((k) => k.method === method).map((k) => k.dims)
+  const available = keys.map(parseKey).filter((k) => k.method === method && k.resolution === resolution)
+  const dimsForMethod = available.map((k) => k.dims)
   // Fall back to whatever dimensionality this method has if the chosen one is missing.
-  const name = keys.find((k) => parseKey(k).method === method && parseKey(k).dims === dims) ?? keys.find((k) => parseKey(k).method === method)!
+  const matches = (k: string, d?: number) => {
+    const p = parseKey(k)
+    return p.method === method && p.resolution === resolution && (d === undefined || p.dims === d)
+  }
+  const name = keys.find((k) => matches(k, dims)) ?? keys.find((k) => matches(k))!
+  // Smallest first, so stepping left to right adds detail.
+  const resolutions = [...meta.resolutions].sort((a, b) => a - b)
   const [rotation, setRotation] = useState<Rotation>(INITIAL_ROTATION)
   const [view, setView] = useState<View>(INITIAL_VIEW)
   const [showPaths, setShowPaths] = useState(false)
@@ -183,7 +195,7 @@ export function ProjectionPlot({
   } | null>(null)
 
   const is3d = (meta.projections[name][0]?.length ?? 2) === 3
-  // Every projection, normalised and aligned to the first one of the same dimensionality.
+  // Every projection, normalised and aligned to the first one of the same dimensionality (UMAP at full resolution).
   const aligned = useMemo(() => {
     const out: Record<string, Vec3[]> = {}
     const references = new Map<number, Vec3[]>()
@@ -198,7 +210,7 @@ export function ProjectionPlot({
   }, [meta])
   const target = aligned[name]
 
-  // Morph between methods of the same dimensionality; switching 2D/3D just jumps.
+  // Morph between methods or resolutions of the same dimensionality; switching 2D/3D just jumps.
   const [points, setPoints] = useState(target)
   const shown = useRef({ name, points })
   useEffect(() => {
@@ -271,7 +283,7 @@ export function ProjectionPlot({
     setView(INITIAL_VIEW)
   }
 
-  // Keep the camera when only the method changes, so the morph plays out in place.
+  // Keep the camera when only the method (or resolution) changes, so the morph plays out in place.
   const selectProjection = (next: { method?: string; dims?: number }) => {
     if (next.method) setMethod(next.method)
     if (next.dims) {
@@ -407,6 +419,21 @@ export function ProjectionPlot({
 
   return (
     <div className="projection">
+      <div className="projection-head">
+        <div className="segmented" role="tablist" aria-label="Digit resolution">
+          {resolutions.map((r) => (
+            <button
+              key={r}
+              role="tab"
+              aria-selected={r === resolution}
+              className={r === resolution ? 'on' : ''}
+              onClick={() => onResolution(r)}
+            >
+              {r}×{r}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="projection-head">
         <div className="segmented" role="tablist" aria-label="Projection method">
           {methods.map((m) => (

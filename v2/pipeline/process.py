@@ -1,15 +1,22 @@
-"""Subsample MNIST, cluster it scanpy-style with Leiden, and export a cluster-sorted matrix.
+"""Subsample MNIST at several resolutions, cluster it scanpy-style with Leiden, and export sorted matrices.
 
 The source sprite (mnist_images.png) is a 784 x 65000 image: each row is one
 28x28 digit flattened. Labels are 65000 one-hot rows of 10 uint8 bytes.
 
-Outputs (written to ../web/public/data/):
-  matrix_original.png  N x 784 grayscale, subsample in random order
-  matrix_sorted_<group>_<within>.png
+Each digit is zero-padded to 32x32, then average-pooled down to 16x16, 8x8,
+4x4 and 2x2. Leiden clusters and matrix sortings come from the full 32x32
+pixels (padding doesn't change distances, so this matches 28x28); projections
+are computed separately at every resolution.
+
+Outputs (written to ../web/public/data/), for each resolution r in RESOLUTIONS:
+  matrix_original_r<r>.png
+                       N x r*r grayscale, subsample in random order
+  matrix_sorted_<group>_<within>_r<r>.png
                        same rows, grouped by Leiden cluster or true label
                        (group = leiden|label), ordered within each group
                        randomly or by the group's own PC1 (within = random|pc1)
-  meta.json            per-row cluster/label, projections (UMAP / PaCMAP / LocalMAP, 2D + 3D), per-cluster summaries
+  meta.json            per-row cluster/label, projections (UMAP / PaCMAP / LocalMAP, 2D + 3D,
+                       at every resolution), per-cluster summaries
 """
 
 import argparse
@@ -34,6 +41,9 @@ IMAGES_URL = "https://storage.googleapis.com/learnjs-data/model-builder/mnist_im
 LABELS_URL = "https://storage.googleapis.com/learnjs-data/model-builder/mnist_labels_uint8"
 N_TOTAL = 65000
 N_PIXELS = 784
+PADDED = 32
+# Largest first: the 32x32 projections are the reference the others are aligned to in the app.
+RESOLUTIONS = (32, 16, 8, 4, 2)
 N_CLASSES = 10
 
 HERE = Path(__file__).parent
@@ -67,6 +77,37 @@ def load_mnist() -> tuple[np.ndarray, np.ndarray]:
     return sprite, labels
 
 
+def downsample(digits: np.ndarray, side: int) -> np.ndarray:
+    """Average-pool N x 28*28 digits, zero-padded to 32x32, down to N x side*side floats in [0, 255]."""
+    n = len(digits)
+    pad = (PADDED - 28) // 2
+    padded = np.pad(digits.reshape(n, 28, 28).astype(np.float32), ((0, 0), (pad, pad), (pad, pad)))
+    block = PADDED // side
+    return padded.reshape(n, side, block, side, block).mean(axis=(2, 4)).reshape(n, side * side)
+
+
+def project(X: np.ndarray, n_pcs: int, n_neighbors: int, seed: int) -> dict[str, np.ndarray]:
+    """UMAP (scanpy-style, via PCA when there are enough pixels), PaCMAP and LocalMAP, each in 2D and 3D."""
+    ad = AnnData(X=X)
+    if X.shape[1] > n_pcs:
+        sc.pp.pca(ad, n_comps=n_pcs, random_state=seed)
+        sc.pp.neighbors(ad, n_neighbors=n_neighbors, n_pcs=n_pcs, random_state=seed)
+    else:
+        # Too few pixels to reduce: build the kNN graph on the pixels themselves.
+        sc.pp.neighbors(ad, n_neighbors=n_neighbors, use_rep="X", random_state=seed)
+    out = {}
+    # scanpy always writes X_umap, so stash each embedding under its own key.
+    for dims in (2, 3):
+        sc.tl.umap(ad, n_components=dims, random_state=seed)
+        out[f"umap{dims}d"] = ad.obsm["X_umap"].copy()
+    # PaCMAP and LocalMAP take raw pixels; they apply their own PCA preprocessing above 100 dims.
+    for name, cls in (("pacmap", pacmap.PaCMAP), ("localmap", pacmap.LocalMAP)):
+        for dims in (2, 3):
+            reducer = cls(n_components=dims, random_state=seed)
+            out[f"{name}{dims}d"] = reducer.fit_transform(X)
+    return out
+
+
 def within_cluster_order(X: np.ndarray) -> np.ndarray:
     """Order rows of one cluster along its own first principal component."""
     if len(X) < 3:
@@ -89,9 +130,9 @@ def main() -> None:
 
     rng = np.random.default_rng(args.seed)
     idx = rng.choice(N_TOTAL, size=args.n_samples, replace=False)
-    pixels = sprite[idx]
+    by_res = {r: downsample(sprite[idx], r) for r in RESOLUTIONS}
 
-    adata = AnnData(X=pixels.astype(np.float32) / 255.0)
+    adata = AnnData(X=by_res[PADDED] / 255.0)
     adata.obs["label"] = labels[idx].astype(str)
     adata.obs["source_index"] = idx
 
@@ -107,16 +148,12 @@ def main() -> None:
         directed=False,
         random_state=args.seed,
     )
-    # scanpy always writes X_umap, so stash each embedding under its own key.
+    # Keyed like "umap2d_r8": method, dimensionality, resolution.
     projections = {}
-    for dims in (2, 3):
-        sc.tl.umap(adata, n_components=dims, random_state=args.seed)
-        projections[f"umap{dims}d"] = adata.obsm["X_umap"].copy()
-    # PaCMAP and LocalMAP take raw pixels; they apply their own PCA preprocessing.
-    for name, cls in (("pacmap", pacmap.PaCMAP), ("localmap", pacmap.LocalMAP)):
-        for dims in (2, 3):
-            reducer = cls(n_components=dims, random_state=args.seed)
-            projections[f"{name}{dims}d"] = reducer.fit_transform(adata.X)
+    for r in RESOLUTIONS:
+        print(f"Projecting {r}x{r}")
+        for name, coords in project(by_res[r] / 255.0, args.n_pcs, args.n_neighbors, args.seed).items():
+            projections[f"{name}_r{r}"] = coords
     # Hierarchical ordering of clusters so similar clusters sit next to each other.
     sc.tl.dendrogram(adata, groupby="leiden", n_pcs=args.n_pcs)
 
@@ -150,14 +187,16 @@ def main() -> None:
     }
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for stale in OUT_DIR.glob("matrix_sorted_*.png"):
+    for stale in OUT_DIR.glob("matrix_*.png"):
         stale.unlink()
-    Image.fromarray(pixels).save(OUT_DIR / "matrix_original.png", optimize=True)
-    for group, by_within in sortings.items():
-        for within, sorting in by_within.items():
-            Image.fromarray(pixels[sorting["order"]]).save(
-                OUT_DIR / f"matrix_sorted_{group}_{within}.png", optimize=True
-            )
+    for r in RESOLUTIONS:
+        pixels = np.round(by_res[r]).astype(np.uint8)
+        Image.fromarray(pixels).save(OUT_DIR / f"matrix_original_r{r}.png", optimize=True)
+        for group, by_within in sortings.items():
+            for within, sorting in by_within.items():
+                Image.fromarray(pixels[sorting["order"]]).save(
+                    OUT_DIR / f"matrix_sorted_{group}_{within}_r{r}.png", optimize=True
+                )
 
     cluster_summaries = []
     start = 0
@@ -178,19 +217,20 @@ def main() -> None:
     meta = {
         "params": vars(args),
         "nSamples": args.n_samples,
-        "nPixels": N_PIXELS,
+        # Side length of each available resolution, largest first.
+        "resolutions": list(RESOLUTIONS),
         "nClusters": len(cluster_order),
         "clusters": cluster_summaries,
-        # Per-row arrays, indexed by row of matrix_original.png.
+        # Per-row arrays, indexed by row of matrix_original_r<r>.png.
         "rows": {
             "sourceIndex": idx.tolist(),
             "label": int_labels.tolist(),
             "cluster": clusters.tolist(),
         },
-        # Per-row coordinates for each projection, keyed by name (e.g. umap2d, umap3d).
+        # Per-row coordinates for each projection, keyed by name (e.g. umap2d_r32, pacmap3d_r4).
         "projections": {name: np.round(coords, 3).tolist() for name, coords in projections.items()},
         # sortings[group][within].order[i] = original row shown at row i of
-        # matrix_sorted_<group>_<within>.png; boundaries are the display rows where a
+        # matrix_sorted_<group>_<within>_r<r>.png; boundaries are the display rows where a
         # new group (cluster / digit) starts.
         "sortings": {
             group: {
