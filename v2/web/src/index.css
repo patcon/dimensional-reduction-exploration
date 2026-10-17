@@ -79,9 +79,12 @@ button.link { font: inherit; font-size: 0.8rem; background: none; border: 0; col
 .checkbox input { margin: 0; accent-color: var(--fg); }
 .plot.rotatable:active, .plot.pannable:active { cursor: grabbing; }
 .projection .section-note { margin-top: 6px; }
-.evolution { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 0.8rem; }
+.timeline { display: flex; align-items: center; gap: 10px; margin: 8px 0 6px; font-size: 0.8rem; }
+.timeline input { flex: 1; margin: 0; accent-color: var(--accent); }
+.timeline span { min-width: 9.5em; text-align: right; font-variant-numeric: tabular-nums; }
 .button { font: inherit; font-size: 0.8rem; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
-.button:hover { border-color: var(--muted); }
+.button:hover:not(:disabled) { border-color: var(--muted); }
+.button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .clusters { border-collapse: collapse; width: 100%; max-width: 900px; font-size: 0.85rem; }
 .clusters th, .clusters td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }

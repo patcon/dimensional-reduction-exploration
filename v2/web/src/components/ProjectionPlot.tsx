@@ -230,65 +230,113 @@ export function ProjectionPlot({
   })
   const morphing = useRef(false)
 
-  // Replay the optimiser's snapshots for the current projection, ending on its final layout.
-  const [evolution, setEvolution] = useState<{ name: string; status: 'loading' | 'playing'; iteration: number } | null>(
-    null,
-  )
-  const evolutionRun = useRef(0)
-  const stopEvolution = () => {
-    evolutionRun.current++
-    setEvolution(null)
-    setPoints(target)
-  }
-  const playEvolution = async () => {
-    const run = ++evolutionRun.current
-    const { iterations } = meta.evolution[name]
+  // Timeline through the optimiser's snapshots for the current projection. At rest it sits at the end
+  // (the final layout); winding back or dragging it scrubs through the snapshots, and it then plays forward.
+  const { iterations } = meta.evolution[name]
+  const last = iterations.length - 1
+  type Phase = 'rest' | 'winding' | 'dragging' | 'playing'
+  const [timeline, setTimeline] = useState<{ name: string; phase: Phase; pos: number }>({ name, phase: 'rest', pos: last })
+  // A new projection starts at rest at its own end.
+  const { phase, pos } = timeline.name === name ? timeline : { phase: 'rest' as Phase, pos: last }
+  const busy = phase !== 'rest'
+  const posRef = useRef(pos)
+  const frames = useRef<{ name: string; frames: Vec3[][] } | null>(null)
+  const timelineRun = useRef(0)
+
+  /** Fetch and prepare this projection's snapshots: each normalised on its own, then turned like the final layout. */
+  const loadFrames = async () => {
+    if (frames.current?.name === name) return frames.current.frames
+    const raw = await loadEvolution(name)
     const dims = parseKey(name).dims
     const width = is3d ? 3 : 2
     const n = meta.rows.label.length
-    setEvolution({ name, status: 'loading', iteration: 0 })
-    let raw: Float32Array
-    try {
-      raw = await loadEvolution(name)
-    } catch {
-      if (run === evolutionRun.current) setEvolution(null)
-      return
-    }
-    // Switching projection abandons a replay; the morph then starts from wherever it had got to.
-    const abandoned = () => run !== evolutionRun.current || shown.current.name !== name
-    if (abandoned()) {
-      if (run === evolutionRun.current) setEvolution(null)
-      return
-    }
     const { rotation } = aligned[name]
-    // Normalise each snapshot on its own (early layouts are much smaller or larger than the final one),
-    // then turn it like the final layout; the last snapshot is the projection itself.
-    const frames = iterations.map((_, s) => {
-      if (s === iterations.length - 1) return target
+    const prepared = iterations.map((_, s) => {
+      // The last snapshot is the projection itself.
+      if (s === last) return target
       const coords = Array.from({ length: n }, (_, i) => Array.from(raw.subarray((s * n + i) * width, (s * n + i + 1) * width)))
       return rotate(normalize(coords), rotation, dims)
     })
-    const t0 = performance.now()
-    const step = (now: number) => {
-      if (abandoned()) {
-        if (run === evolutionRun.current) setEvolution(null)
-        return
-      }
-      // rAF timestamps are the frame's start, which can be just before t0.
-      const pos = Math.min(frames.length - 1, Math.max(0, (now - t0) / EVOLUTION_STEP_MS))
-      const s = Math.min(frames.length - 2, Math.floor(pos))
-      const t = pos - s
-      const [a, b] = [frames[s], frames[s + 1]]
-      setPoints(a.map((p, i) => p.map((v, d) => v + (b[i][d] - v) * t) as Vec3))
-      setEvolution({ name, status: 'playing', iteration: Math.round(iterations[s] + (iterations[s + 1] - iterations[s]) * t) })
-      if (pos < frames.length - 1) requestAnimationFrame(step)
-      else {
-        setPoints(target)
-        setEvolution(null)
-      }
-    }
-    requestAnimationFrame(step)
+    frames.current = { name, frames: prepared }
+    return prepared
   }
+
+  /** Move the timeline (and the points, once snapshots are loaded) to `next`. */
+  const scrubTo = (next: number, nextPhase: Phase) => {
+    posRef.current = next
+    setTimeline({ name, phase: nextPhase, pos: next })
+    const f = frames.current?.name === name ? frames.current.frames : null
+    if (!f) return
+    if (next >= last) {
+      setPoints(target)
+      return
+    }
+    const s = Math.floor(next)
+    const t = next - s
+    const [a, b] = [f[s], f[s + 1]]
+    setPoints(a.map((p, i) => p.map((v, d) => v + (b[i][d] - v) * t) as Vec3))
+  }
+
+  /** Animate the timeline from its current position to `to`; resolves false if interrupted. */
+  const animateTo = (to: number, durationMs: number, ease: (t: number) => number, nextPhase: Phase) =>
+    new Promise<boolean>((resolve) => {
+      const run = ++timelineRun.current
+      const from = posRef.current
+      const t0 = performance.now()
+      const step = (now: number) => {
+        if (run !== timelineRun.current) return resolve(false)
+        // rAF timestamps are the frame's start, which can be just before t0.
+        const t = durationMs <= 0 ? 1 : Math.min(1, Math.max(0, (now - t0) / durationMs))
+        scrubTo(from + (to - from) * ease(t), nextPhase)
+        if (t < 1) requestAnimationFrame(step)
+        else resolve(true)
+      }
+      requestAnimationFrame(step)
+    })
+
+  /** Play forward from wherever the timeline is, at one snapshot per EVOLUTION_STEP_MS. */
+  const playForward = async () => {
+    if (await animateTo(last, (last - posRef.current) * EVOLUTION_STEP_MS, (t) => t, 'playing')) scrubTo(last, 'rest')
+  }
+
+  // Wind the timeline back to the start, like pulling back a wind-up toy, then let it go.
+  const regenerate = async () => {
+    const run = ++timelineRun.current
+    setTimeline({ name, phase: 'winding', pos: posRef.current })
+    try {
+      await loadFrames()
+    } catch {
+      if (run === timelineRun.current) scrubTo(last, 'rest')
+      return
+    }
+    if (run !== timelineRun.current) return
+    const windMs = 300 + 500 * (posRef.current / last)
+    if (!(await animateTo(0, windMs, easeInOut, 'winding'))) return
+    // A brief hold at the start before letting go, unless the slider is grabbed meanwhile.
+    const wound = timelineRun.current
+    await new Promise((r) => setTimeout(r, 150))
+    if (wound === timelineRun.current) playForward()
+  }
+
+  // Dragging the slider takes over from any animation; letting go plays forward from there.
+  const startDrag = () => {
+    timelineRun.current++
+    setTimeline({ name, phase: 'dragging', pos: posRef.current })
+    loadFrames()
+      .then(() => scrubTo(posRef.current, 'dragging'))
+      .catch(() => scrubTo(last, 'rest'))
+    window.addEventListener('pointerup', () => playForward(), { once: true })
+  }
+
+  useEffect(() => {
+    posRef.current = last
+  }, [name, last])
+
+  const iterationAt = (p: number) => {
+    const s = Math.min(last - 1, Math.floor(p))
+    return Math.round(iterations[s] + (iterations[s + 1] - iterations[s]) * (p - s))
+  }
+
   useEffect(() => {
     const { name: fromName, points: from } = shown.current
     shown.current.name = name
@@ -301,7 +349,13 @@ export function ProjectionPlot({
     morphing.current = true
     const t0 = performance.now()
     let frame = 0
+    // Touching the timeline mid-morph takes over the points.
+    const timelineAtStart = timelineRun.current
     const step = (now: number) => {
+      if (timelineRun.current !== timelineAtStart) {
+        morphing.current = false
+        return
+      }
       const t = easeInOut(Math.min(1, (now - t0) / MORPH_MS))
       if (t < 1) {
         setPoints(from.map((p, i) => p.map((v, d) => v + (target[i][d] - v) * t) as Vec3))
@@ -499,6 +553,7 @@ export function ProjectionPlot({
               role="tab"
               aria-selected={r === resolution}
               className={r === resolution ? 'on' : ''}
+              disabled={busy}
               onClick={() => onResolution(r)}
             >
               {r}×{r}
@@ -514,6 +569,7 @@ export function ProjectionPlot({
               role="tab"
               aria-selected={m === method}
               className={m === method ? 'on' : ''}
+              disabled={busy}
               onClick={() => selectProjection({ method: m })}
             >
               {METHOD_NAMES[m] ?? m}
@@ -527,7 +583,7 @@ export function ProjectionPlot({
               role="tab"
               aria-selected={d === (is3d ? 3 : 2)}
               className={d === (is3d ? 3 : 2) ? 'on' : ''}
-              disabled={!dimsForMethod.includes(d)}
+              disabled={busy || !dimsForMethod.includes(d)}
               onClick={() => selectProjection({ dims: d })}
             >
               {d}D
@@ -554,33 +610,38 @@ export function ProjectionPlot({
           onHover(null)
         }}
       />
-      <div className="evolution">
-        {evolution?.name === name ? (
-          <>
-            <button className="button" onClick={stopEvolution}>
-              {evolution.status === 'loading' ? 'Loading…' : 'Skip to end'}
-            </button>
-            {evolution.status === 'playing' && (
-              <span className="muted">
-                {method === 'umap' ? 'Epoch' : 'Iteration'} {evolution.iteration} of{' '}
-                {meta.evolution[name].iterations.at(-1)}
-              </span>
-            )}
-          </>
-        ) : (
-          <button
-            className="button"
-            onClick={playEvolution}
-            title="Replay how the optimiser moved points from its starting layout to this one"
-          >
-            Show algorithmic evolution
-          </button>
-        )}
+      <div className="timeline">
+        <input
+          type="range"
+          min={0}
+          max={last}
+          step="any"
+          value={pos}
+          aria-label="Optimisation progress"
+          onPointerDown={startDrag}
+          onChange={(e) => scrubTo(Number(e.target.value), phase === 'dragging' ? 'dragging' : 'playing')}
+          onKeyDown={() => {
+            timelineRun.current++
+            loadFrames().catch(() => {})
+          }}
+          onKeyUp={() => phase !== 'dragging' && playForward()}
+        />
+        <span className="muted">
+          {method === 'umap' ? 'Epoch' : 'Iteration'} {iterationAt(pos)} of {iterations[last]}
+        </span>
       </div>
+      <button
+        className="button"
+        onClick={regenerate}
+        disabled={busy}
+        title="Wind back to the optimiser's starting layout and replay how it reached this one"
+      >
+        ↻ Regenerate projection
+      </button>
       <p className="section-note">
         {showPaths && <>Paths follow {pathsLabel}. </>}
         Scroll to zoom; {is3d ? `drag to ${pinnedPoint ? 'orbit the pinned sample' : 'rotate'}, shift-drag to pan.` : 'drag to pan.'}{' '}
-        {transformed && (
+        {transformed && !busy && (
           <button className="link" onClick={resetView}>
             Reset view
           </button>
