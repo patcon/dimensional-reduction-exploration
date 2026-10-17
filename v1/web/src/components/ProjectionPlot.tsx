@@ -8,6 +8,7 @@ const DRAG_SPEED = 0.01
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 40
 const GLIDE_MS = 450
+const MORPH_MS = 900
 
 const METHOD_NAMES: Record<string, string> = { umap: 'UMAP', pacmap: 'PaCMAP', localmap: 'LocalMAP' }
 
@@ -53,6 +54,68 @@ function normalize(coords: number[][]): Vec3[] {
   return coords.map((p) => {
     const [x, y, z = 0] = p.map((v, d) => (v - centre[d]) / radius)
     return [x, y, z]
+  })
+}
+
+/** Eigen-decomposition of a small symmetric matrix by cyclic Jacobi rotations; returns eigenvalues and column eigenvectors. */
+function symmetricEigen(a: number[][]) {
+  const n = a.length
+  const m = a.map((row) => [...row])
+  const v: number[][] = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)))
+  for (let sweep = 0; sweep < 50; sweep++) {
+    let off = 0
+    for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) off += m[p][q] ** 2
+    if (off < 1e-20) break
+    for (let p = 0; p < n; p++) {
+      for (let q = p + 1; q < n; q++) {
+        if (Math.abs(m[p][q]) < 1e-30) continue
+        const theta = (m[q][q] - m[p][p]) / (2 * m[p][q])
+        const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1))
+        const c = 1 / Math.sqrt(t * t + 1)
+        const s = t * c
+        for (let k = 0; k < n; k++) {
+          const [mkp, mkq] = [m[k][p], m[k][q]]
+          m[k][p] = c * mkp - s * mkq
+          m[k][q] = s * mkp + c * mkq
+        }
+        for (let k = 0; k < n; k++) {
+          const [mpk, mqk] = [m[p][k], m[q][k]]
+          m[p][k] = c * mpk - s * mqk
+          m[q][k] = s * mpk + c * mqk
+        }
+        for (let k = 0; k < n; k++) {
+          const [vkp, vkq] = [v[k][p], v[k][q]]
+          v[k][p] = c * vkp - s * vkq
+          v[k][q] = s * vkp + c * vkq
+        }
+      }
+    }
+  }
+  return { values: m.map((row, i) => row[i]), vectors: v }
+}
+
+/**
+ * Rotate (or mirror) `points` to best match `reference` (orthogonal Procrustes), so that
+ * morphing between methods shows how layouts differ rather than their arbitrary orientation.
+ * R = M (MᵀM)^-½ with M = XᵀY, which equals UVᵀ from the SVD of M.
+ */
+function alignTo(points: Vec3[], reference: Vec3[], dims: number): Vec3[] {
+  const mean = (ps: Vec3[]) => Array.from({ length: dims }, (_, d) => ps.reduce((s, p) => s + p[d], 0) / ps.length)
+  const [mx, my] = [mean(points), mean(reference)]
+  const m = Array.from({ length: dims }, (_, i) =>
+    Array.from({ length: dims }, (_, j) => points.reduce((s, p, k) => s + (p[i] - mx[i]) * (reference[k][j] - my[j]), 0)),
+  )
+  const mtm = m.map((_, i) => m.map((__, j) => m.reduce((s, row) => s + row[i] * row[j], 0)))
+  const { values, vectors } = symmetricEigen(mtm)
+  const invSqrt = mtm.map((_, i) =>
+    mtm.map((__, j) => values.reduce((s, val, k) => s + (vectors[i][k] * vectors[j][k]) / Math.sqrt(Math.max(val, 1e-12)), 0)),
+  )
+  const r = m.map((row) => invSqrt.map((_, j) => row.reduce((s, mik, k) => s + mik * invSqrt[k][j], 0)))
+  // Orthogonal maps preserve distances from the centre, so points stay within the unit sphere.
+  return points.map((p) => {
+    const out: Vec3 = [0, 0, 0]
+    for (let j = 0; j < dims; j++) for (let i = 0; i < dims; i++) out[j] += p[i] * r[i][j]
+    return out
   })
 }
 
@@ -120,15 +183,66 @@ export function ProjectionPlot({
   } | null>(null)
 
   const is3d = (meta.projections[name][0]?.length ?? 2) === 3
-  const points = useMemo(() => normalize(meta.projections[name]), [meta, name])
+  // Every projection, normalised and aligned to the first one of the same dimensionality.
+  const aligned = useMemo(() => {
+    const out: Record<string, Vec3[]> = {}
+    const references = new Map<number, Vec3[]>()
+    for (const key of Object.keys(meta.projections)) {
+      const { dims } = parseKey(key)
+      const pts = normalize(meta.projections[key])
+      const reference = references.get(dims)
+      if (reference) out[key] = alignTo(pts, reference, dims)
+      else references.set(dims, (out[key] = pts))
+    }
+    return out
+  }, [meta])
+  const target = aligned[name]
+
+  // Morph between methods of the same dimensionality; switching 2D/3D just jumps.
+  const [points, setPoints] = useState(target)
+  const shown = useRef({ name, points })
+  useEffect(() => {
+    shown.current.points = points
+  })
+  const morphing = useRef(false)
+  useEffect(() => {
+    const { name: fromName, points: from } = shown.current
+    shown.current.name = name
+    if (from === target) return
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduceMotion || parseKey(fromName).dims !== parseKey(name).dims) {
+      setPoints(target)
+      return
+    }
+    morphing.current = true
+    const t0 = performance.now()
+    let frame = 0
+    const step = (now: number) => {
+      const t = easeInOut(Math.min(1, (now - t0) / MORPH_MS))
+      if (t < 1) {
+        setPoints(from.map((p, i) => p.map((v, d) => v + (target[i][d] - v) * t) as Vec3))
+        frame = requestAnimationFrame(step)
+      } else {
+        setPoints(target)
+        morphing.current = false
+      }
+    }
+    frame = requestAnimationFrame(step)
+    return () => {
+      cancelAnimationFrame(frame)
+      morphing.current = false
+    }
+  }, [name, target])
   const screen = useMemo(
     () => points.map((p) => (is3d ? project(p, pivot, rotation, view) : project(p, ORIGIN, { yaw: 0, pitch: 0 }, view))),
     [points, pivot, rotation, view, is3d],
   )
 
   // Glide the pivot to the pinned sample (centring it) or back to the origin on unpin.
-  const pinnedPoint = is3d && selected !== null ? points[selected] : null
+  // Aim at where the sample ends up; during a morph, glide in step with it so it stays centred.
+  const pinnedPoint = is3d && selected !== null ? target[selected] : null
   useEffect(() => {
+    const duration = morphing.current ? MORPH_MS : GLIDE_MS
     const from = pivotRef.current
     const to = pinnedPoint ?? ORIGIN
     const fromPan = viewRef.current
@@ -136,7 +250,7 @@ export function ProjectionPlot({
     const t0 = performance.now()
     let frame = 0
     const step = (now: number) => {
-      const t = easeInOut(Math.min(1, (now - t0) / GLIDE_MS))
+      const t = easeInOut(Math.min(1, (now - t0) / duration))
       setPivot(from.map((v, d) => v + (to[d] - v) * t) as Vec3)
       if (recentre) setView((v) => ({ ...v, panX: fromPan.panX * (1 - t), panY: fromPan.panY * (1 - t) }))
       if (t < 1) frame = requestAnimationFrame(step)
@@ -157,10 +271,13 @@ export function ProjectionPlot({
     setView(INITIAL_VIEW)
   }
 
+  // Keep the camera when only the method changes, so the morph plays out in place.
   const selectProjection = (next: { method?: string; dims?: number }) => {
     if (next.method) setMethod(next.method)
-    if (next.dims) setDims(next.dims)
-    resetView()
+    if (next.dims) {
+      setDims(next.dims)
+      resetView()
+    }
   }
 
   useEffect(() => {
