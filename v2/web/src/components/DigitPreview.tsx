@@ -10,6 +10,7 @@ export function DigitPreview({
   data,
   row,
   resolution,
+  pixelOrder,
   pinned,
   sweep,
   onUnpin,
@@ -17,6 +18,7 @@ export function DigitPreview({
   data: MnistData
   row: number | null
   resolution: number
+  pixelOrder: number[] | null
   pinned: boolean
   sweep: Sweep | null
   onUnpin: () => void
@@ -53,13 +55,14 @@ export function DigitPreview({
     const img = ctx.createImageData(resolution, resolution)
     if (row !== null) {
       const offset = row * nPixels
+      // Fold the row back into a square in its current column order, so a shuffle scrambles the digit too.
       for (let i = 0; i < nPixels; i++) {
-        const v = pixels[resolution][offset + i]
+        const v = pixels[resolution][offset + (pixelOrder ? pixelOrder[i] : i)]
         img.data.set([v, v, v, 255], i * 4)
       }
     }
     ctx.putImageData(img, 0, 0)
-  }, [row, pixels, resolution, nPixels])
+  }, [row, pixels, resolution, nPixels, pixelOrder])
 
   const cluster = row === null ? null : meta.clusters.find((c) => c.id === meta.rows.cluster[row])!
   const label = row === null ? null : meta.rows.label[row]

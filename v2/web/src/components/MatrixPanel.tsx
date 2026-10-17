@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { Meta } from '../types'
 import { DIGIT_COLORS } from '../palette'
 import { useSweepFrames, type Sweep } from '../sweep'
+import { usePermutedImage } from '../pixelOrder'
 
 interface Props {
   title: string
@@ -12,6 +13,8 @@ interface Props {
   order: number[]
   /** Digit side length: the image has resolution² columns, always drawn MATRIX_WIDTH wide. */
   resolution: number
+  /** pixelOrder[column] = row-major pixel drawn at that column; null keeps row-major. */
+  pixelOrder: number[] | null
   height: number
   /** Display rows at which to draw a group separator line. */
   boundaries?: number[]
@@ -48,9 +51,10 @@ function Strip({ colors, height, title }: { colors: string[]; height: number; ti
   )
 }
 
-export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution, height, boundaries = [], controls, hovered, selected, sweep, onHover, onSelect }: Props) {
+export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution, pixelOrder, height, boundaries = [], controls, hovered, selected, sweep, onHover, onSelect }: Props) {
   const n = order.length
   const nPixels = resolution * resolution
+  const imageSrc = usePermutedImage(imageUrl, pixelOrder)
   const majorityByCluster = useMemo(
     () => new Map(meta.clusters.map((c) => [c.id, c.majorityLabel])),
     [meta],
@@ -122,7 +126,7 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution
           <div className="matrix-image">
             {/* Stretch narrow (low-resolution) matrices into crisp blocks; let wide ones scale down smoothly. */}
             <img
-              src={imageUrl}
+              src={imageSrc}
               alt={title}
               className={nPixels < MATRIX_WIDTH ? 'blocky' : ''}
               style={{ width: MATRIX_WIDTH, height }}

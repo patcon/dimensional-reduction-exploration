@@ -8,12 +8,18 @@ import { ClusterSamples } from './components/ClusterSamples'
 import { DIGIT_COLORS } from './palette'
 import type { GroupKey, WithinKey } from './types'
 import { SWEEP_DWELL_MS, type Sweep } from './sweep'
+import { pixelOrderFor, type PixelOrderKey } from './pixelOrder'
 
 const MATRIX_HEIGHT = 720
 
 const GROUPS: Record<GroupKey, { label: string; describe: string }> = {
   leiden: { label: 'Leiden', describe: 'Leiden clusters in dendrogram order' },
   label: { label: 'Labels', describe: 'Digits 0–9' },
+}
+
+const PIXEL_ORDER_OPTIONS: Record<PixelOrderKey, { label: string }> = {
+  rowMajor: { label: 'Row by row' },
+  shuffled: { label: 'Shuffled' },
 }
 
 const WITHINS: Record<WithinKey, { label: string; describe: string }> = {
@@ -53,6 +59,7 @@ export default function App() {
   const [within, setWithin] = useState<WithinKey>('pc1')
   // Digit resolution (side length) shown everywhere; null until data arrives, then the largest.
   const [resolutionChoice, setResolution] = useState<number | null>(null)
+  const [pixelOrderKey, setPixelOrderKey] = useState<PixelOrderKey>('rowMajor')
   const identity = useMemo(() => (data ? data.meta.rows.label.map((_, i) => i) : []), [data])
 
   // One path per group of the active sorting, coloured like that group in the strips.
@@ -93,6 +100,7 @@ export default function App() {
   const { meta } = data
   const p = meta.params
   const resolution = resolutionChoice ?? meta.resolutions[0]
+  const pixelOrder = pixelOrderFor(pixelOrderKey, resolution * resolution)
   const sorting = meta.sortings[groupBy][within]
 
   return (
@@ -112,6 +120,15 @@ export default function App() {
           Pick a resolution above the projection to watch the layout morph.
         </p>
         <p>Hover any digit to find it in every view, pause to watch its pixels become a row, and click to pin it.</p>
+        <div className="page-controls">
+          <span className="muted">Pixel order</span>
+          <Segmented options={PIXEL_ORDER_OPTIONS} value={pixelOrderKey} onChange={setPixelOrderKey} ariaLabel="Pixel order" />
+          <span className="muted">
+            {pixelOrderKey === 'shuffled'
+              ? `Every row gets the same shuffle of its ${resolution * resolution} pixels (after pooling). The projections are unchanged: they never used the pixel layout.`
+              : 'Shuffle the pixel columns to see what the projections actually rely on.'}
+          </span>
+        </div>
         <ul className="legend">
           {DIGIT_COLORS.map((c, d) => (
             <li key={d}>
@@ -129,6 +146,7 @@ export default function App() {
           meta={meta}
           order={identity}
           resolution={resolution}
+          pixelOrder={pixelOrder}
           height={MATRIX_HEIGHT}
           hovered={hovered}
           selected={selected}
@@ -150,6 +168,7 @@ export default function App() {
           meta={meta}
           order={sorting.order}
           resolution={resolution}
+          pixelOrder={pixelOrder}
           height={MATRIX_HEIGHT}
           boundaries={sorting.boundaries}
           hovered={hovered}
@@ -163,6 +182,7 @@ export default function App() {
             data={data}
             row={focus}
             resolution={resolution}
+            pixelOrder={pixelOrder}
             pinned={selected !== null}
             sweep={sweep}
             onUnpin={() => setSelected(null)}
@@ -185,7 +205,7 @@ export default function App() {
       <p className="section-note">
         Evenly spaced along each cluster's sorted order. Outlined digits disagree with the cluster's majority label.
       </p>
-      <ClusterSamples data={data} resolution={resolution} hovered={hovered} selected={selected} onHover={setHovered} onSelect={toggleSelected} />
+      <ClusterSamples data={data} resolution={resolution} pixelOrder={pixelOrder} hovered={hovered} selected={selected} onHover={setHovered} onSelect={toggleSelected} />
 
       <h3>Clusters</h3>
       <ClusterTable meta={meta} />
