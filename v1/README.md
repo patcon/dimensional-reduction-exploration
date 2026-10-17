@@ -1,7 +1,9 @@
-# v1 — MNIST × Leiden
+# v1 — MNIST, from pixels to projections
 
-Subsample MNIST, cluster it with a scanpy-style pipeline (PCA → kNN graph → Leiden),
-and render the original vs. cluster-sorted pixel matrix in a Vite + React app.
+Subsample MNIST, flatten each digit into a 784-pixel row, cluster the rows with a
+scanpy-style pipeline (PCA → kNN graph → Leiden), and explore them in a Vite + React
+app: the original vs. sorted pixel matrix (by Leiden cluster or label), linked UMAP /
+PaCMAP / LocalMAP projections in 2D and 3D, per-cluster samples and composition.
 
 ```sh
 # 1. Process data (downloads MNIST sprite on first run; writes web/public/data/)

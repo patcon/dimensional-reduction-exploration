@@ -44,6 +44,10 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 .strip-labels { display: flex; flex-direction: column; justify-content: flex-start; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.7rem; color: var(--muted); gap: 8px; }
 .matrix { position: relative; display: flex; gap: 2px; cursor: crosshair; border: 1px solid var(--border); background: #000; }
 .matrix img { display: block; user-select: none; }
+.matrix-image { position: relative; }
+.sweep-dot, .sweep-tail { position: absolute; left: 0; top: 0; opacity: 0; pointer-events: none; will-change: transform; }
+.sweep-dot { width: 5px; height: 5px; margin: -2px 0 0 -2.5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px var(--accent), 0 0 8px 3px var(--accent); }
+.sweep-tail { height: 3px; margin-top: -1px; border-radius: 2px; background: linear-gradient(to right, transparent, var(--accent)); filter: drop-shadow(0 0 3px var(--accent)); }
 .strip { display: block; image-rendering: pixelated; }
 .boundary { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid rgba(255, 255, 255, 0.55); pointer-events: none; }
 .cursor { position: absolute; left: -6px; right: -6px; height: 0; border-top: 1px solid var(--accent); pointer-events: none; }
@@ -51,7 +55,9 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 
 .sidebar { width: 320px; }
 .digit-preview { display: flex; gap: 16px; align-items: flex-start; min-height: 140px; }
-.digit-preview canvas { width: 112px; height: 112px; image-rendering: pixelated; border: 1px solid var(--border); background: #000; flex-shrink: 0; }
+.digit-canvas { position: relative; flex-shrink: 0; width: 114px; height: 114px; }
+.digit-preview canvas { width: 112px; height: 112px; image-rendering: pixelated; border: 1px solid var(--border); background: #000; box-sizing: content-box; }
+.digit-preview canvas.sweep-overlay { position: absolute; inset: 0; background: transparent; border-color: transparent; image-rendering: auto; color: var(--accent); pointer-events: none; }
 .digit-preview dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 0.85rem; }
 .digit-preview dt { color: var(--muted); }
 .digit-preview dd { margin: 0; }

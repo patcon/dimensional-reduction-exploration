@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { Meta } from '../types'
 import { DIGIT_COLORS } from '../palette'
+import { N_PIXELS, useSweepFrames, type Sweep } from '../sweep'
 
 interface Props {
   title: string
@@ -15,11 +16,13 @@ interface Props {
   controls?: ReactNode
   hovered: number | null
   selected: number | null
+  sweep: Sweep | null
   onHover: (row: number | null) => void
   onSelect: (row: number) => void
 }
 
 const STRIP_WIDTH = 14
+const SWEEP_TAIL = 90 // pixels of trail behind the dot
 const MATRIX_WIDTH = 392 // 784 px columns at 0.5x
 
 function Strip({ colors, height, title }: { colors: string[]; height: number; title: string }) {
@@ -43,7 +46,7 @@ function Strip({ colors, height, title }: { colors: string[]; height: number; ti
   )
 }
 
-export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, boundaries = [], controls, hovered, selected, onHover, onSelect }: Props) {
+export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, boundaries = [], controls, hovered, selected, sweep, onHover, onSelect }: Props) {
   const n = order.length
   const majorityByCluster = useMemo(
     () => new Map(meta.clusters.map((c) => [c.id, c.majorityLabel])),
@@ -61,6 +64,29 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, bo
   }, [order, n])
 
   const toY = (row: number) => (row / n) * height
+
+  // The sweep dot travels along the focused row's line, one matrix column per pixel.
+  const dotRef = useRef<HTMLDivElement>(null)
+  const tailRef = useRef<HTMLDivElement>(null)
+  useSweepFrames(sweep, SWEEP_TAIL, (frame) => {
+    const dot = dotRef.current
+    const tail = tailRef.current
+    if (!dot || !tail) return
+    // Hide as soon as focus moves on, without waiting for the sweep itself to be cleared.
+    if (!frame || frame.row !== (selected ?? hovered)) {
+      dot.style.opacity = tail.style.opacity = '0'
+      return
+    }
+    const y = toY(displayRowOf[frame.row])
+    const toX = (px: number) => (Math.min(Math.max(px, 0), N_PIXELS) / N_PIXELS) * MATRIX_WIDTH
+    const head = toX(frame.pixel)
+    const start = toX(frame.pixel - SWEEP_TAIL)
+    dot.style.opacity = frame.pixel <= N_PIXELS ? '1' : '0'
+    dot.style.transform = `translate(${head}px, ${y}px)`
+    tail.style.opacity = '1'
+    tail.style.transform = `translate(${start}px, ${y}px)`
+    tail.style.width = `${head - start}px`
+  })
 
   const rowAtPointer = (e: React.MouseEvent<HTMLDivElement>) => {
     const y = e.clientY - e.currentTarget.getBoundingClientRect().top
@@ -90,7 +116,11 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, bo
         >
           <Strip colors={clusterColors} height={height} title="Leiden cluster (coloured by majority digit)" />
           <Strip colors={labelColors} height={height} title="True digit label" />
-          <img src={imageUrl} alt={title} style={{ width: MATRIX_WIDTH, height }} draggable={false} />
+          <div className="matrix-image">
+            <img src={imageUrl} alt={title} style={{ width: MATRIX_WIDTH, height }} draggable={false} />
+            <div ref={tailRef} className="sweep-tail" />
+            <div ref={dotRef} className="sweep-dot" />
+          </div>
           {boundaries.map((row) => (
             <div key={row} className="boundary" style={{ top: toY(row) }} />
           ))}

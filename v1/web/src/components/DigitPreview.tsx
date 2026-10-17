@@ -1,19 +1,47 @@
 import { useEffect, useRef } from 'react'
 import type { MnistData } from '../useMnistData'
 import { DIGIT_COLORS } from '../palette'
+import { N_PIXELS, useSweepFrames, type Sweep } from '../sweep'
+
+const PREVIEW_SIZE = 112
+const CELL = PREVIEW_SIZE / 28
+const SWEEP_TAIL = 16 // pixels of trail behind the head
 
 export function DigitPreview({
   data,
   row,
   pinned,
+  sweep,
   onUnpin,
 }: {
   data: MnistData
   row: number | null
   pinned: boolean
+  sweep: Sweep | null
   onUnpin: () => void
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
+  const overlayRef = useRef<HTMLCanvasElement>(null)
+  const dpr = window.devicePixelRatio || 1
+
+  // Walk a red pixel through the digit in row-major order: the same order its row is laid out in the matrix.
+  useSweepFrames(sweep, SWEEP_TAIL, (frame) => {
+    const canvas = overlayRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')!
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, PREVIEW_SIZE, PREVIEW_SIZE)
+    if (!frame || frame.row !== row) return
+    ctx.fillStyle = getComputedStyle(canvas).color
+    const head = Math.floor(frame.pixel)
+    for (let k = SWEEP_TAIL; k >= 0; k--) {
+      const i = head - k
+      if (i < 0 || i >= N_PIXELS) continue
+      ctx.globalAlpha = (1 - k / (SWEEP_TAIL + 1)) ** 1.5
+      ctx.fillRect((i % 28) * CELL, Math.floor(i / 28) * CELL, CELL, CELL)
+    }
+    ctx.globalAlpha = 1
+  })
   const { meta, pixels } = data
 
   useEffect(() => {
@@ -34,7 +62,16 @@ export function DigitPreview({
 
   return (
     <div className="digit-preview">
-      <canvas ref={ref} width={28} height={28} />
+      <div className="digit-canvas">
+        <canvas ref={ref} width={28} height={28} />
+        <canvas
+          ref={overlayRef}
+          className="sweep-overlay"
+          width={PREVIEW_SIZE * dpr}
+          height={PREVIEW_SIZE * dpr}
+          aria-hidden
+        />
+      </div>
       {row === null ? (
         <p className="muted">Hover a row in either matrix, a sample, or a point in the projection. Click to pin it.</p>
       ) : (

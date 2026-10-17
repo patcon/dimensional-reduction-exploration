@@ -7,6 +7,7 @@ import { ClusterTable } from './components/ClusterTable'
 import { ClusterSamples } from './components/ClusterSamples'
 import { DIGIT_COLORS } from './palette'
 import type { GroupKey, WithinKey } from './types'
+import { SWEEP_DWELL_MS, type Sweep } from './sweep'
 
 const MATRIX_HEIGHT = 720
 
@@ -66,6 +67,18 @@ export default function App() {
     })
   }, [data, groupBy, within])
 
+  // Once the focused digit (pinned, else hovered) holds still, sweep through its pixels.
+  const focus = selected ?? hovered
+  const [sweep, setSweep] = useState<Sweep | null>(null)
+  useEffect(() => {
+    if (focus === null || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const timer = setTimeout(() => setSweep({ row: focus, start: performance.now() }), SWEEP_DWELL_MS)
+    return () => {
+      clearTimeout(timer)
+      setSweep(null)
+    }
+  }, [focus])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setSelected(null)
     window.addEventListener('keydown', onKey)
@@ -82,11 +95,15 @@ export default function App() {
   return (
     <main>
       <header className="page-header">
-        <h1>MNIST × Leiden</h1>
+        <h1>MNIST, from pixels to projections</h1>
         <p>
-          {meta.nSamples.toLocaleString()} digits, each a row of {meta.nPixels} pixels. PCA ({p.n_pcs}) → kNN graph (k=
-          {p.n_neighbors}) → Leiden (resolution {p.resolution}) found <strong>{meta.nClusters} clusters</strong>.
+          Each 28×28 digit is flattened into a single row of {meta.nPixels} pixels, and{' '}
+          {meta.nSamples.toLocaleString()} of those rows are stacked into a matrix. PCA ({p.n_pcs} components) → kNN
+          graph (k={p.n_neighbors}) → Leiden (resolution {p.resolution}) finds{' '}
+          <strong>{meta.nClusters} clusters</strong>. The sorted matrix regroups rows by cluster or true label, and
+          UMAP, PaCMAP and LocalMAP lay the same digits out in 2D and 3D.
         </p>
+        <p>Hover any digit to find it in every view, pause to watch its pixels become a row, and click to pin it.</p>
         <ul className="legend">
           {DIGIT_COLORS.map((c, d) => (
             <li key={d}>
@@ -106,6 +123,7 @@ export default function App() {
           height={MATRIX_HEIGHT}
           hovered={hovered}
           selected={selected}
+          sweep={sweep}
           onHover={setHovered}
           onSelect={toggleSelected}
         />
@@ -126,11 +144,18 @@ export default function App() {
           boundaries={sorting.boundaries}
           hovered={hovered}
           selected={selected}
+          sweep={sweep}
           onHover={setHovered}
           onSelect={toggleSelected}
         />
         <aside className="sidebar">
-          <DigitPreview data={data} row={selected ?? hovered} pinned={selected !== null} onUnpin={() => setSelected(null)} />
+          <DigitPreview
+            data={data}
+            row={focus}
+            pinned={selected !== null}
+            sweep={sweep}
+            onUnpin={() => setSelected(null)}
+          />
           <ProjectionPlot
             meta={meta}
             paths={paths}
