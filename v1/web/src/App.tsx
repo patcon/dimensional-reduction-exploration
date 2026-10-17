@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { MATRIX_URLS, useMnistData } from './useMnistData'
 import { MatrixPanel } from './components/MatrixPanel'
 import { DigitPreview } from './components/DigitPreview'
-import { ProjectionPlot } from './components/ProjectionPlot'
+import { ProjectionPlot, type GroupPath } from './components/ProjectionPlot'
 import { ClusterTable } from './components/ClusterTable'
 import { ClusterSamples } from './components/ClusterSamples'
 import { DIGIT_COLORS } from './palette'
@@ -48,6 +48,20 @@ export default function App() {
   const [groupBy, setGroupBy] = useState<GroupKey>('leiden')
   const [within, setWithin] = useState<WithinKey>('pc1')
   const identity = useMemo(() => (data ? data.meta.rows.label.map((_, i) => i) : []), [data])
+
+  // One path per group of the active sorting, coloured like that group in the strips.
+  const paths = useMemo<GroupPath[]>(() => {
+    if (!data) return []
+    const { meta } = data
+    const { order, boundaries } = meta.sortings[groupBy][within]
+    const majority = new Map(meta.clusters.map((c) => [c.id, c.majorityLabel]))
+    const starts = [0, ...boundaries]
+    return starts.map((start, i) => {
+      const rows = order.slice(start, starts[i + 1] ?? order.length)
+      const digit = groupBy === 'leiden' ? majority.get(meta.rows.cluster[rows[0]])! : meta.rows.label[rows[0]]
+      return { rows, color: DIGIT_COLORS[digit] }
+    })
+  }, [data, groupBy, within])
 
   if (error) return <main className="status">Failed to load data: {error}</main>
   if (!data) return <main className="status">Loading…</main>
@@ -104,7 +118,13 @@ export default function App() {
         />
         <aside className="sidebar">
           <DigitPreview data={data} row={hovered} />
-          <ProjectionPlot meta={meta} hovered={hovered} onHover={setHovered} />
+          <ProjectionPlot
+            meta={meta}
+            paths={paths}
+            pathsLabel={`${GROUPS[groupBy].label} groups in ${within === 'pc1' ? 'PC1' : 'random'} order`}
+            hovered={hovered}
+            onHover={setHovered}
+          />
         </aside>
       </div>
 

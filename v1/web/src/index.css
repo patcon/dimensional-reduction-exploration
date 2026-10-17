@@ -63,8 +63,10 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 .segmented button.on { background: var(--fg); color: var(--bg); }
 button.link { font: inherit; font-size: 0.8rem; background: none; border: 0; color: var(--muted); cursor: pointer; text-decoration: underline; }
 .plot { display: block; border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: crosshair; }
-.plot.rotatable { cursor: grab; }
-.plot.rotatable:active { cursor: grabbing; }
+.plot.rotatable, .plot.pannable { cursor: grab; }
+.checkbox { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); cursor: pointer; user-select: none; }
+.checkbox input { margin: 0; accent-color: var(--fg); }
+.plot.rotatable:active, .plot.pannable:active { cursor: grabbing; }
 .projection .section-note { margin-top: 6px; }
 
 .clusters { border-collapse: collapse; width: 100%; max-width: 900px; font-size: 0.85rem; }
