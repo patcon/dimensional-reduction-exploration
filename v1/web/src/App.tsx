@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { MATRIX_URLS, useMnistData } from './useMnistData'
 import { MatrixPanel } from './components/MatrixPanel'
 import { DigitPreview } from './components/DigitPreview'
-import { UmapPlot } from './components/UmapPlot'
+import { ProjectionPlot } from './components/ProjectionPlot'
 import { ClusterTable } from './components/ClusterTable'
 import { ClusterSamples } from './components/ClusterSamples'
 import { DIGIT_COLORS } from './palette'
@@ -61,8 +61,7 @@ export default function App() {
         />
         <aside className="sidebar">
           <DigitPreview data={data} row={hovered} />
-          <h3>UMAP</h3>
-          <UmapPlot meta={meta} hovered={hovered} onHover={setHovered} />
+          <ProjectionPlot meta={meta} hovered={hovered} onHover={setHovered} />
         </aside>
       </div>
 

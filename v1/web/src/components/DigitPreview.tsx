@@ -26,7 +26,7 @@ export function DigitPreview({ data, row }: { data: MnistData; row: number | nul
     <div className="digit-preview">
       <canvas ref={ref} width={28} height={28} />
       {row === null ? (
-        <p className="muted">Hover a row in either matrix, or a point in the UMAP.</p>
+        <p className="muted">Hover a row in either matrix, or a point in the projection.</p>
       ) : (
         <dl>
           <dt>Label</dt>

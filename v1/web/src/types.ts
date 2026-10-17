@@ -17,8 +17,9 @@ export interface Meta {
     sourceIndex: number[]
     label: number[]
     cluster: number[]
-    umap: [number, number][]
   }
+  /** Per-row coordinates keyed by projection name, e.g. umap2d -> [x, y], umap3d -> [x, y, z]. */
+  projections: Record<string, number[][]>
   sortedOrder: number[]
 }
 
