@@ -5,7 +5,8 @@ The source sprite (mnist_images.png) is a 784 x 65000 image: each row is one
 
 Outputs (written to ../web/public/data/):
   matrix_original.png  N x 784 grayscale, subsample in random order
-  matrix_sorted.png    same rows, reordered so Leiden clusters are contiguous
+  matrix_sorted_leiden.png  same rows, reordered so Leiden clusters are contiguous
+  matrix_sorted_label.png   same rows, reordered by true digit label
   meta.json            per-row cluster/label, projections (UMAP 2D/3D), per-cluster summaries
 """
 
@@ -107,17 +108,41 @@ def main() -> None:
     cluster_order = [int(c) for c in adata.uns["dendrogram_leiden"]["categories_ordered"]]
     clusters = adata.obs["leiden"].astype(int).to_numpy()
 
+    int_labels = labels[idx]
+    pcs = adata.obsm["X_pca"]
+
+    # Leiden sort: clusters in dendrogram order, then each cluster's own PC1.
     order_parts = []
     for c in cluster_order:
         members = np.flatnonzero(clusters == c)
-        order_parts.append(members[within_cluster_order(adata.obsm["X_pca"][members])])
-    order = np.concatenate(order_parts)
+        order_parts.append(members[within_cluster_order(pcs[members])])
+
+    # Label sort: digits 0-9, then Leiden cluster (dendrogram order) so you can see
+    # how each digit splits across clusters, then PC1 within each sub-block.
+    label_parts = []
+    for digit in range(N_CLASSES):
+        for c in cluster_order:
+            members = np.flatnonzero((int_labels == digit) & (clusters == c))
+            label_parts.append(members[within_cluster_order(pcs[members])])
+    label_order = np.concatenate(label_parts)
+    label_sizes = np.bincount(int_labels, minlength=N_CLASSES)
+
+    sortings = {
+        "leiden": {
+            "order": np.concatenate(order_parts),
+            "boundaries": np.cumsum([len(p) for p in order_parts])[:-1],
+        },
+        "label": {
+            "order": label_order,
+            "boundaries": np.cumsum(label_sizes)[:-1],
+        },
+    }
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     Image.fromarray(pixels).save(OUT_DIR / "matrix_original.png", optimize=True)
-    Image.fromarray(pixels[order]).save(OUT_DIR / "matrix_sorted.png", optimize=True)
+    for name, sorting in sortings.items():
+        Image.fromarray(pixels[sorting["order"]]).save(OUT_DIR / f"matrix_sorted_{name}.png", optimize=True)
 
-    int_labels = labels[idx]
     cluster_summaries = []
     start = 0
     for c, part in zip(cluster_order, order_parts):
@@ -148,8 +173,12 @@ def main() -> None:
         },
         # Per-row coordinates for each projection, keyed by name (e.g. umap2d, umap3d).
         "projections": {name: np.round(coords, 3).tolist() for name, coords in projections.items()},
-        # sortedOrder[i] = original row shown at row i of matrix_sorted.png
-        "sortedOrder": order.tolist(),
+        # sortings[name].order[i] = original row shown at row i of matrix_sorted_<name>.png;
+        # boundaries are the display rows where a new group (cluster / digit) starts.
+        "sortings": {
+            name: {"order": s["order"].tolist(), "boundaries": s["boundaries"].tolist()}
+            for name, s in sortings.items()
+        },
     }
     (OUT_DIR / "meta.json").write_text(json.dumps(meta))
 

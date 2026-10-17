@@ -44,5 +44,8 @@ export function useMnistData() {
 
 export const MATRIX_URLS = {
   original: `${base}/matrix_original.png`,
-  sorted: `${base}/matrix_sorted.png`,
+  sorted: {
+    leiden: `${base}/matrix_sorted_leiden.png`,
+    label: `${base}/matrix_sorted_label.png`,
+  },
 }

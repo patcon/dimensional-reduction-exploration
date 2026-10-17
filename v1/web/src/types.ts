@@ -20,7 +20,16 @@ export interface Meta {
   }
   /** Per-row coordinates keyed by projection name, e.g. umap2d -> [x, y], umap3d -> [x, y, z]. */
   projections: Record<string, number[][]>
-  sortedOrder: number[]
+  sortings: Record<SortKey, Sorting>
+}
+
+export type SortKey = 'leiden' | 'label'
+
+export interface Sorting {
+  /** order[displayRow] = original row index in matrix_original.png */
+  order: number[]
+  /** Display rows where a new group (cluster or digit) begins. */
+  boundaries: number[]
 }
 
 /** Shared view of one matrix: which original row is drawn at each display row. */

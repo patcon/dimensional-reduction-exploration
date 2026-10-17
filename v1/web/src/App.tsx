@@ -6,12 +6,25 @@ import { ProjectionPlot } from './components/ProjectionPlot'
 import { ClusterTable } from './components/ClusterTable'
 import { ClusterSamples } from './components/ClusterSamples'
 import { DIGIT_COLORS } from './palette'
+import type { SortKey } from './types'
 
 const MATRIX_HEIGHT = 720
+
+const SORTS: Record<SortKey, { label: string; subtitle: string }> = {
+  leiden: {
+    label: 'Leiden',
+    subtitle: 'Clusters in dendrogram order; rows within a cluster ordered by its own PC1',
+  },
+  label: {
+    label: 'Labels',
+    subtitle: 'Digits 0–9; within each digit, grouped by Leiden cluster, then ordered by PC1',
+  },
+}
 
 export default function App() {
   const { data, error } = useMnistData()
   const [hovered, setHovered] = useState<number | null>(null)
+  const [sortBy, setSortBy] = useState<SortKey>('leiden')
   const identity = useMemo(() => (data ? data.meta.rows.label.map((_, i) => i) : []), [data])
 
   if (error) return <main className="status">Failed to load data: {error}</main>
@@ -49,13 +62,28 @@ export default function App() {
           onHover={setHovered}
         />
         <MatrixPanel
-          title="Sorted by cluster"
-          subtitle="Clusters in dendrogram order; rows within a cluster ordered by its own PC1"
-          imageUrl={MATRIX_URLS.sorted}
+          title="Sorted by"
+          subtitle={SORTS[sortBy].subtitle}
+          controls={
+            <div className="segmented" role="tablist" aria-label="Sort rows by">
+              {(Object.keys(SORTS) as SortKey[]).map((key) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={key === sortBy}
+                  className={key === sortBy ? 'on' : ''}
+                  onClick={() => setSortBy(key)}
+                >
+                  {SORTS[key].label}
+                </button>
+              ))}
+            </div>
+          }
+          imageUrl={MATRIX_URLS.sorted[sortBy]}
           meta={meta}
-          order={meta.sortedOrder}
+          order={meta.sortings[sortBy].order}
           height={MATRIX_HEIGHT}
-          showBoundaries
+          boundaries={meta.sortings[sortBy].boundaries}
           hovered={hovered}
           onHover={setHovered}
         />

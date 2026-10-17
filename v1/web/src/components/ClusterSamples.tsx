@@ -36,7 +36,7 @@ export function ClusterSamples({
         const k = Math.min(SAMPLES_PER_CLUSTER, c.size)
         const rows = Array.from({ length: k }, (_, i) => {
           const pos = c.start + Math.round((i * (c.size - 1)) / Math.max(1, k - 1))
-          return meta.sortedOrder[pos]
+          return meta.sortings.leiden.order[pos]
         })
         return (
           <div key={c.id} className="sample-row">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { Meta } from '../types'
 import { DIGIT_COLORS } from '../palette'
 
@@ -10,7 +10,9 @@ interface Props {
   /** order[displayRow] = original row index */
   order: number[]
   height: number
-  showBoundaries?: boolean
+  /** Display rows at which to draw a group separator line. */
+  boundaries?: number[]
+  controls?: ReactNode
   hovered: number | null
   onHover: (row: number | null) => void
 }
@@ -39,7 +41,7 @@ function Strip({ colors, height, title }: { colors: string[]; height: number; ti
   )
 }
 
-export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, showBoundaries, hovered, onHover }: Props) {
+export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, boundaries = [], controls, hovered, onHover }: Props) {
   const n = order.length
   const majorityByCluster = useMemo(
     () => new Map(meta.clusters.map((c) => [c.id, c.majorityLabel])),
@@ -67,7 +69,10 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, sh
   return (
     <section className="panel">
       <header>
-        <h2>{title}</h2>
+        <div className="panel-title">
+          <h2>{title}</h2>
+          {controls}
+        </div>
         <p>{subtitle}</p>
       </header>
       <div className="matrix-row">
@@ -79,10 +84,9 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, height, sh
           <Strip colors={clusterColors} height={height} title="Leiden cluster (coloured by majority digit)" />
           <Strip colors={labelColors} height={height} title="True digit label" />
           <img src={imageUrl} alt={title} style={{ width: MATRIX_WIDTH, height }} draggable={false} />
-          {showBoundaries &&
-            meta.clusters.slice(1).map((c) => (
-              <div key={c.id} className="boundary" style={{ top: toY(c.start) }} />
-            ))}
+          {boundaries.map((row) => (
+            <div key={row} className="boundary" style={{ top: toY(row) }} />
+          ))}
           {hovered !== null && <div className="cursor" style={{ top: toY(displayRowOf[hovered]) }} />}
         </div>
       </div>
