@@ -46,6 +46,7 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .toolbar .segmented button + button { border-left: 1px solid var(--border); }
 .toolbar .segmented button.on { background: var(--fg); color: var(--bg); }
 .rate { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 190px; }
+.smooth { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
 .legend { margin-top: 8px; }
 
 .stage { display: flex; gap: 16px; align-items: stretch; }

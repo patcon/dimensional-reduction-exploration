@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Engine } from './engine'
 import { PAIR_TYPES, type Weights } from './types'
 
 /**
  * idle: waiting at iteration 0 for the first non-zero force.
  * running: stepping at `rate` iterations per second. Keeps going even if every force returns to 0.
- * paused: stopped by hand; resume() picks up where it left off.
+ * paused: stopped by hand; resume() picks up where it left off. Resetting keeps it paused.
  */
 export type ClockStatus = 'idle' | 'running' | 'paused'
 
 /** Never step more than this per frame, so a backgrounded tab doesn't come back to a burst. */
 const MAX_STEPS_PER_FRAME = 4
+
+/** How often the layout is redrawn, whatever the step rate. */
+const DRAW_FPS = 30
 
 const anyForce = (w: Weights) => PAIR_TYPES.some((type) => w[type] !== 0)
 
@@ -20,6 +23,10 @@ const anyForce = (w: Weights) => PAIR_TYPES.some((type) => w[type] !== 0)
  *
  * The playhead wraps to 0 after `length` iterations but the layout and optimiser carry on;
  * only reset() returns them to the initial layout.
+ *
+ * `display` is the layout to draw, refreshed at up to DRAW_FPS. With `interpolate` on, it
+ * glides from the layout before the latest step to the one after it, timed to arrive as the
+ * next step is due, so slow rates move smoothly (one step behind) instead of jumping.
  */
 export function useLoopClock(
   engine: Engine,
@@ -31,8 +38,16 @@ export function useLoopClock(
   const [status, setStatus] = useState<ClockStatus>('idle')
   const [rate, setRate] = useState(10)
   const [playhead, setPlayhead] = useState(0)
-  /** Bumped after every step, to redraw anything that reads the engine's layout. */
+  const [interpolate, setInterpolate] = useState(true)
+  /** Bumped whenever `display` changes, to redraw it. */
   const [version, setVersion] = useState(0)
+
+  /** The layout before the latest step, and the one to draw. */
+  const prevY = useMemo(() => new Float32Array(engine.Y), [engine])
+  const display = useMemo(() => new Float32Array(engine.Y), [engine])
+  /** Fractional steps owed, so slow rates step on time rather than once per frame; also how far
+   * `display` has glided towards the latest step. */
+  const owedRef = useRef(0)
 
   const getWeightsRef = useRef(getWeights)
   const onStepRef = useRef(onStep)
@@ -42,17 +57,23 @@ export function useLoopClock(
   })
   const statusRef = useRef(status)
   const rateRef = useRef(rate)
+  const interpolateRef = useRef(interpolate)
   const playheadRef = useRef(0)
+  /** Set when `display` must be refreshed even though nothing stepped (reset, toggling interpolation). */
+  const dirtyRef = useRef(false)
   useEffect(() => {
     statusRef.current = status
     rateRef.current = rate
-  }, [status, rate])
+    interpolateRef.current = interpolate
+    dirtyRef.current = true
+  }, [status, rate, interpolate])
 
   useEffect(() => {
     let frame = 0
     let last = performance.now()
-    /** Fractional steps owed, so slow rates step on time rather than once per frame. */
-    let owed = 0
+    let lastDraw = -Infinity
+    /** Whether anything has stepped since `display` was last refreshed. */
+    let stale = false
     const tick = (now: number) => {
       const dt = (now - last) / 1000
       last = now
@@ -60,13 +81,14 @@ export function useLoopClock(
         statusRef.current = 'running'
         setStatus('running')
         // Step straight away, so the first touch moves something.
-        owed = 1
+        owedRef.current = 1
       }
       if (statusRef.current === 'running') {
-        owed = Math.min(owed + dt * rateRef.current, MAX_STEPS_PER_FRAME)
+        owedRef.current = Math.min(owedRef.current + dt * rateRef.current, MAX_STEPS_PER_FRAME)
         let stepped = false
-        while (owed >= 1) {
-          owed -= 1
+        while (owedRef.current >= 1) {
+          owedRef.current -= 1
+          prevY.set(engine.Y)
           const w = getWeightsRef.current(playheadRef.current)
           engine.step(w)
           onStepRef.current?.(playheadRef.current, w)
@@ -75,25 +97,47 @@ export function useLoopClock(
         }
         if (stepped) {
           setPlayhead(playheadRef.current)
-          setVersion((v) => v + 1)
+          stale = true
         }
-      } else owed = 0
+      }
+      // Paused keeps owedRef as it was, so the glide resumes from the same point.
+      else if (statusRef.current === 'idle') owedRef.current = 0
+
+      const gliding = interpolateRef.current && statusRef.current === 'running'
+      if ((stale || gliding || dirtyRef.current) && now - lastDraw >= 1000 / DRAW_FPS - 1) {
+        if (interpolateRef.current) {
+          const a = Math.min(1, owedRef.current)
+          for (let k = 0; k < display.length; k++) display[k] = prevY[k] + (engine.Y[k] - prevY[k]) * a
+        } else display.set(engine.Y)
+        lastDraw = now
+        stale = false
+        dirtyRef.current = false
+        setVersion((v) => v + 1)
+      }
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [engine, length])
+  }, [engine, length, prevY, display])
 
   const pause = useCallback(() => setStatus((s) => (s === 'running' ? 'paused' : s)), [])
   const resume = useCallback(() => setStatus((s) => (s === 'paused' ? 'running' : s)), [])
   const reset = useCallback(() => {
     engine.reset()
+    prevY.set(engine.Y)
+    owedRef.current = 0
     playheadRef.current = 0
-    statusRef.current = 'idle'
-    setStatus('idle')
+    dirtyRef.current = true
+    // A paused loop stays paused (resume() restarts it); otherwise wait for the next force.
+    if (statusRef.current !== 'paused') {
+      statusRef.current = 'idle'
+      setStatus('idle')
+    }
     setPlayhead(0)
-    setVersion((v) => v + 1)
-  }, [engine])
+  }, [engine, prevY])
 
-  return { status, rate, setRate, playhead, steps: engine.steps, version, pause, resume, reset }
+  return {
+    status, rate, setRate, interpolate, setInterpolate, playhead, steps: engine.steps,
+    display, version, pause, resume, reset,
+  }
 }

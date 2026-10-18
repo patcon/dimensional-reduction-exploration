@@ -13,9 +13,11 @@ interface Props {
   onReset: () => void
   autopilot: boolean
   onAutopilot: (on: boolean) => void
+  interpolate: boolean
+  onInterpolate: (on: boolean) => void
 }
 
-/** Play/pause, reset, speed and autopilot, with where the loop is up to. */
+/** Play/pause, reset, speed, autopilot and smoothing, with where the loop is up to. */
 export function Transport(p: Props) {
   return (
     <div className="toolbar">
@@ -36,6 +38,9 @@ export function Transport(p: Props) {
       <label className="rate">
         <input type="range" min={1} max={60} value={p.rate} onChange={(e) => p.onRate(Number(e.target.value))} />
         {p.rate} it/s
+      </label>
+      <label className="smooth" title="Glide between steps (drawn at 30 fps, one step behind)">
+        <input type="checkbox" checked={p.interpolate} onChange={(e) => p.onInterpolate(e.target.checked)} /> smooth
       </label>
       <span className="readout">
         {p.status === 'idle' ? (

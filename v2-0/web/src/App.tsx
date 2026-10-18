@@ -94,9 +94,11 @@ function Playground({ data }: { data: PacmapData }) {
         onReset={reset}
         autopilot={autopilot}
         onAutopilot={setAutopilot}
+        interpolate={clock.interpolate}
+        onInterpolate={clock.setInterpolate}
       />
       <div className="stage">
-        <Scatter Y={engine.Y} labels={meta.labels} version={clock.version} />
+        <Scatter Y={clock.display} labels={meta.labels} version={clock.version} />
         <ForceSliders
           values={shown}
           scale={scale}

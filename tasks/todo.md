@@ -209,6 +209,12 @@ resets the optimiser's internal state.
 - [ ] A full loop can be played with mouse only; the graph and sliders agree
 - [ ] Review with human: rate, range, deadzone and optimiser feel
 
+## After the Playable review (2026-10-18)
+- [x] Reset while paused stays paused; Resume restarts from the initial layout.
+- [x] "smooth" toggle (on by default): the layout redraws at 30 fps, gliding from the layout
+  before each step to the one after it (one step behind). Off: it redraws once per step,
+  capped at 30 fps. Headless at 5 it/s: about 28 draws/s on, 5 off, 0 when paused.
+
 ## Task 7: Web MIDI input (device picker, MIDI-learn, pitch bend and CC)
 
 **Description:** `midi.ts`, using `navigator.requestMIDIAccess`:
