@@ -63,6 +63,8 @@ const DEFAULT_METHOD = 'localmap'
 const DEFAULT_DIMS = 3
 const INITIAL_ROTATION: Rotation = { yaw: 0.5, pitch: 0.3 }
 const INITIAL_VIEW: View = { zoom: 1, panX: 0, panY: 0 }
+/** Auto-rotation speed in radians of yaw per second (a full turn in about half a minute). */
+const AUTO_ROTATE_SPEED = 0.2
 const ORIGIN: Vec3 = [0, 0, 0]
 
 type Vec3 = [number, number, number]
@@ -213,6 +215,8 @@ export function ProjectionPlot({
   const [rotation, setRotation] = useState<Rotation>(INITIAL_ROTATION)
   const [view, setView] = useState<View>(INITIAL_VIEW)
   const [showPaths, setShowPaths] = useState(false)
+  // Spin the 3D cloud slowly so its depth reads, unless the viewer prefers reduced motion.
+  const [autoRotate, setAutoRotate] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   // Rotation centre: the pinned sample in 3D, otherwise the middle of the cloud.
   const [pivot, setPivot] = useState<Vec3>(ORIGIN)
   const pivotRef = useRef(pivot)
@@ -442,6 +446,21 @@ export function ProjectionPlot({
     [paths, focus],
   )
 
+  // Turn the yaw a little each frame; holding the mouse down on the plot pauses it, so dragging takes over.
+  useEffect(() => {
+    if (!autoRotate || !is3d) return
+    let prev = performance.now()
+    let frame = 0
+    const step = (now: number) => {
+      const dt = (now - prev) / 1000
+      prev = now
+      if (!drag.current) setRotation((r) => ({ ...r, yaw: r.yaw + dt * AUTO_ROTATE_SPEED }))
+      frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
+  }, [autoRotate, is3d])
+
   const resetView = () => {
     setRotation(INITIAL_ROTATION)
     setView(INITIAL_VIEW)
@@ -594,7 +613,9 @@ export function ProjectionPlot({
 
   const endDrag = () => (drag.current = null)
 
-  const transformed = view !== INITIAL_VIEW || rotation !== INITIAL_ROTATION
+  // While auto-rotating the yaw always drifts, so only a changed pitch counts as the viewer turning it.
+  const rotated = is3d && autoRotate ? rotation.pitch !== INITIAL_ROTATION.pitch : rotation !== INITIAL_ROTATION
+  const transformed = view !== INITIAL_VIEW || rotated
 
   return (
     <div className="projection">
@@ -655,6 +676,10 @@ export function ProjectionPlot({
           <label className="checkbox" title={`Connect points within each group in the sorted matrix's order (${pathsLabel})`}>
             <input type="checkbox" checked={showPaths} onChange={(e) => setShowPaths(e.target.checked)} />
             Sort paths
+          </label>
+          <label className="checkbox" title="Slowly spin the 3D layout to show its depth">
+            <input type="checkbox" checked={autoRotate} disabled={!is3d} onChange={(e) => setAutoRotate(e.target.checked)} />
+            Auto-rotate
           </label>
         </div>
       </div>
