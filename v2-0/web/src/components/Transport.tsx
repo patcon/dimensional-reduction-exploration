@@ -29,9 +29,16 @@ export function Transport(p: Props) {
           Autopilot
         </button>
       </div>
-      <button type="button" onClick={p.status === 'paused' ? p.onResume : p.onPause} disabled={p.status === 'idle'}>
-        {p.status === 'paused' ? 'Resume' : 'Pause'}
-      </button>
+      {p.status === 'paused' || p.status === 'ended' ? (
+        // Resuming a finished autopilot run would only replay it; that's what Reset is for.
+        <button type="button" onClick={p.onResume} disabled={p.status === 'ended' && p.autopilot}>
+          Resume
+        </button>
+      ) : (
+        <button type="button" onClick={p.onPause} disabled={p.status === 'idle'}>
+          Pause
+        </button>
+      )}
       <button type="button" onClick={p.onReset} disabled={p.status === 'idle' && p.steps === 0}>
         Reset
       </button>
@@ -49,6 +56,8 @@ export function Transport(p: Props) {
           <>
             iteration {p.playhead} / {p.length} · phase {p.phase} · {p.steps} steps total
             {p.status === 'paused' && ' · paused'}
+            {p.status === 'ended' &&
+              (p.autopilot ? ' · autopilot finished: Reset to replay, or switch to Manual to carry on' : ' · ended')}
           </>
         )}
       </span>

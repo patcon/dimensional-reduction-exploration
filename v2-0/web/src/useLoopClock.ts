@@ -6,8 +6,10 @@ import { PAIR_TYPES, type Weights } from './types'
  * idle: waiting at iteration 0 for the first non-zero force.
  * running: stepping at `rate` iterations per second. Keeps going even if every force returns to 0.
  * paused: stopped by hand; resume() picks up where it left off. Resetting keeps it paused.
+ * ended: reached the end of the schedule with looping off. Reset starts over (from idle);
+ *   resume() carries on, wrapping to iteration 0 with the layout as it is.
  */
-export type ClockStatus = 'idle' | 'running' | 'paused'
+export type ClockStatus = 'idle' | 'running' | 'paused' | 'ended'
 
 /** Never step more than this per frame, so a backgrounded tab doesn't come back to a burst. */
 const MAX_STEPS_PER_FRAME = 4
@@ -21,8 +23,8 @@ const anyForce = (w: Weights) => PAIR_TYPES.some((type) => w[type] !== 0)
  * A playhead looping over PaCMAP's schedule, stepping the engine once per tick with whatever
  * weights `getWeights` returns at that moment (read fresh every tick, so it can follow live input).
  *
- * The playhead wraps to 0 after `length` iterations but the layout and optimiser carry on;
- * only reset() returns them to the initial layout.
+ * With `loop` on, the playhead wraps to 0 after `length` iterations but the layout and optimiser
+ * carry on; only reset() returns them to the initial layout. With it off, the clock ends there.
  *
  * `display` is the layout to draw, refreshed at up to DRAW_FPS. With `interpolate` on, it
  * glides from the layout before the latest step to the one after it, timed to arrive as the
@@ -32,6 +34,7 @@ export function useLoopClock(
   engine: Engine,
   length: number,
   getWeights: (playhead: number) => Weights,
+  loop: boolean,
   /** Called after each step with the playhead it was taken at and the forces it used. */
   onStep?: (playhead: number, weights: Weights) => void,
 ) {
@@ -51,9 +54,11 @@ export function useLoopClock(
 
   const getWeightsRef = useRef(getWeights)
   const onStepRef = useRef(onStep)
+  const loopRef = useRef(loop)
   useEffect(() => {
     getWeightsRef.current = getWeights
     onStepRef.current = onStep
+    loopRef.current = loop
   })
   const statusRef = useRef(status)
   const rateRef = useRef(rate)
@@ -87,6 +92,8 @@ export function useLoopClock(
         owedRef.current = Math.min(owedRef.current + dt * rateRef.current, MAX_STEPS_PER_FRAME)
         let stepped = false
         while (owedRef.current >= 1) {
+          // Carrying on after the end: start the next loop.
+          if (playheadRef.current === length) playheadRef.current = 0
           owedRef.current -= 1
           prevY.set(engine.Y)
           const w = getWeightsRef.current(playheadRef.current)
@@ -94,6 +101,15 @@ export function useLoopClock(
           onStepRef.current?.(playheadRef.current, w)
           playheadRef.current = (playheadRef.current + 1) % length
           stepped = true
+          if (playheadRef.current === 0 && !loopRef.current) {
+            // Stop at the end, showing iteration `length`, with the final layout drawn.
+            playheadRef.current = length
+            owedRef.current = 0
+            prevY.set(engine.Y)
+            statusRef.current = 'ended'
+            setStatus('ended')
+            break
+          }
         }
         if (stepped) {
           setPlayhead(playheadRef.current)
@@ -121,7 +137,7 @@ export function useLoopClock(
   }, [engine, length, prevY, display])
 
   const pause = useCallback(() => setStatus((s) => (s === 'running' ? 'paused' : s)), [])
-  const resume = useCallback(() => setStatus((s) => (s === 'paused' ? 'running' : s)), [])
+  const resume = useCallback(() => setStatus((s) => (s === 'paused' || s === 'ended' ? 'running' : s)), [])
   const reset = useCallback(() => {
     engine.reset()
     prevY.set(engine.Y)

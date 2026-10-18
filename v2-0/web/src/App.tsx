@@ -50,7 +50,8 @@ function Playground({ data }: { data: PacmapData }) {
   // What's been played this loop, for the schedule graph; cleared as the loop wraps.
   const trail = useMemo(() => new Trail(length), [length])
   const onStep = useCallback((playhead: number, w: Weights) => trail.record(playhead, w), [trail])
-  const clock = useLoopClock(engine, length, getWeights, onStep)
+  // Autopilot plays PaCMAP's schedule once and stops; manual play loops.
+  const clock = useLoopClock(engine, length, getWeights, !autopilot, onStep)
   const reset = () => {
     trail.clear()
     clock.reset()
