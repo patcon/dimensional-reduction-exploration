@@ -30,7 +30,9 @@ export function useMnistData() {
   useEffect(() => {
     fetch(`${base}/meta.json`)
       .then((r) => {
-        if (!r.ok) throw new Error(`meta.json: ${r.status}. Run the Python pipeline first.`)
+        // Vite's dev server answers a missing file with index.html, so check it really is JSON.
+        if (!r.ok || !r.headers.get('content-type')?.includes('json'))
+          throw new Error(`No meta.json yet. Generate the data first: cd pipeline && uv run v2.py`)
         return r.json() as Promise<Meta>
       })
       .then(async (meta) => {
