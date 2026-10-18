@@ -4,6 +4,8 @@ import { DIGIT_COLORS } from '../palette'
 import { useSweepFrames, type Sweep } from '../sweep'
 
 const PREVIEW_SIZE = 112
+// Mid-grey so the lines show over both black background and white ink.
+const GRID_COLOR = 'rgba(128, 128, 128, 0.3)'
 const SWEEP_TAIL_MS = 30 // trail behind the head, in time (so it shrinks as the head slows)
 
 export function DigitPreview({
@@ -24,6 +26,7 @@ export function DigitPreview({
   onUnpin: () => void
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
+  const gridRef = useRef<HTMLCanvasElement>(null)
   const overlayRef = useRef<HTMLCanvasElement>(null)
   const dpr = window.devicePixelRatio || 1
   // The preview stays the same size at every resolution; cells just get bigger.
@@ -64,6 +67,20 @@ export function DigitPreview({
     ctx.putImageData(img, 0, 0)
   }, [row, pixels, resolution, nPixels, pixelOrder])
 
+  // Faint 1px lines between cells, snapped to device pixels so they stay crisp at fractional cell sizes.
+  useEffect(() => {
+    const ctx = gridRef.current!.getContext('2d')!
+    const size = PREVIEW_SIZE * dpr
+    const line = Math.max(1, Math.round(dpr))
+    ctx.clearRect(0, 0, size, size)
+    ctx.fillStyle = GRID_COLOR
+    for (let i = 1; i < resolution; i++) {
+      const at = Math.round(i * cell * dpr) - Math.floor(line / 2)
+      ctx.fillRect(at, 0, line, size)
+      ctx.fillRect(0, at, size, line)
+    }
+  }, [resolution, cell, dpr])
+
   const cluster = row === null ? null : meta.clusters.find((c) => c.id === meta.rows.cluster[row])!
   const label = row === null ? null : meta.rows.label[row]
 
@@ -71,6 +88,13 @@ export function DigitPreview({
     <div className="digit-preview">
       <div className="digit-canvas">
         <canvas ref={ref} width={resolution} height={resolution} />
+        <canvas
+          ref={gridRef}
+          className="grid-overlay"
+          width={PREVIEW_SIZE * dpr}
+          height={PREVIEW_SIZE * dpr}
+          aria-hidden
+        />
         <canvas
           ref={overlayRef}
           className="sweep-overlay"

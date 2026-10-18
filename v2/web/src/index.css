@@ -66,6 +66,7 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 .digit-preview { display: flex; gap: 16px; align-items: flex-start; min-height: 140px; }
 .digit-canvas { position: relative; flex-shrink: 0; width: 114px; height: 114px; }
 .digit-preview canvas { width: 112px; height: 112px; image-rendering: pixelated; border: 1px solid var(--border); background: #000; box-sizing: content-box; }
+.digit-preview canvas.grid-overlay { position: absolute; inset: 0; background: transparent; border-color: transparent; image-rendering: auto; pointer-events: none; }
 .digit-preview canvas.sweep-overlay { position: absolute; inset: 0; background: transparent; border-color: transparent; image-rendering: auto; color: var(--accent); pointer-events: none; }
 .digit-preview dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 0.85rem; }
 .digit-preview dt { color: var(--muted); }
