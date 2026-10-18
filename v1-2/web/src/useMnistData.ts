@@ -32,7 +32,7 @@ export function useMnistData() {
       .then((r) => {
         // Vite's dev server answers a missing file with index.html, so check it really is JSON.
         if (!r.ok || !r.headers.get('content-type')?.includes('json'))
-          throw new Error(`No meta.json yet. Generate the data first: cd pipeline && uv run v3.py`)
+          throw new Error(`No meta.json yet. Generate the data first: cd pipeline && uv run v1-2.py`)
         return r.json() as Promise<Meta>
       })
       .then(async (meta) => {

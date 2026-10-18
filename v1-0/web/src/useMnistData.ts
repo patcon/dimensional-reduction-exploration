@@ -32,7 +32,7 @@ export function useMnistData() {
       fetch(`${base}/meta.json`).then((r) => {
         // Vite's dev server answers a missing file with index.html, so check it really is JSON.
         if (!r.ok || !r.headers.get('content-type')?.includes('json'))
-          throw new Error(`No meta.json yet. Generate the data first: cd pipeline && uv run v1.py`)
+          throw new Error(`No meta.json yet. Generate the data first: cd pipeline && uv run v1-0.py`)
         return r.json() as Promise<Meta>
       }),
       loadPixels(`${base}/matrix_original.png`),

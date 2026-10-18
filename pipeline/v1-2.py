@@ -10,7 +10,7 @@ Everything downstream sees only those two levels. Leiden clusters and matrix sor
 pixels (padding doesn't change distances, so this matches 28x28); projections
 are computed separately at every resolution.
 
-Outputs (written to ../v3/web/public/data/), for each resolution r in RESOLUTIONS:
+Outputs (written to ../v1-2/web/public/data/), for each resolution r in RESOLUTIONS:
   matrix_original_r<r>.png
                        N x r*r grayscale, subsample in random order
   matrix_sorted_<group>_<within>_r<r>.png
@@ -58,7 +58,7 @@ N_CLASSES = 10
 
 HERE = Path(__file__).parent
 RAW_DIR = HERE / "data" / "raw"
-OUT_DIR = HERE.parent / "v3" / "web" / "public" / "data"
+OUT_DIR = HERE.parent / "v1-2" / "web" / "public" / "data"
 
 
 def fetch(url: str, dest: Path) -> Path:

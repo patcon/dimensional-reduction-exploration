@@ -3,7 +3,7 @@
 The source sprite (mnist_images.png) is a 784 x 65000 image: each row is one
 28x28 digit flattened. Labels are 65000 one-hot rows of 10 uint8 bytes.
 
-Outputs (written to ../v1/web/public/data/):
+Outputs (written to ../v1-0/web/public/data/):
   matrix_original.png  N x 784 grayscale, subsample in random order
   matrix_sorted_<group>_<within>.png
                        same rows, grouped by Leiden cluster or true label
@@ -38,7 +38,7 @@ N_CLASSES = 10
 
 HERE = Path(__file__).parent
 RAW_DIR = HERE / "data" / "raw"
-OUT_DIR = HERE.parent / "v1" / "web" / "public" / "data"
+OUT_DIR = HERE.parent / "v1-0" / "web" / "public" / "data"
 
 
 def fetch(url: str, dest: Path) -> Path:
