@@ -91,6 +91,7 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; }
 .preview-close { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; font-size: 14px; line-height: 1; background: rgba(0, 0, 0, 0.55); color: #fff; cursor: pointer; }
 .preview-close:hover { background: rgba(0, 0, 0, 0.8); }
+.digit-preview canvas.digit-stack.sweep { position: absolute; inset: 0; color: var(--accent); pointer-events: none; }
 .digit-preview canvas.digit-stack { border: 0; background: none; image-rendering: auto; color: var(--fg); cursor: pointer; }
 .projection { margin-top: 20px; }
 .projection-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }

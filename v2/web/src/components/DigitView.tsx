@@ -87,6 +87,7 @@ export function DigitView({
       resolution={resolution}
       shuffle={shuffle}
       pinned={pinned}
+      sweep={sweep}
       flatten={flatten}
       onResolution={onResolution}
       onExpand={(side) => {
