@@ -74,6 +74,7 @@ function Playground({ data }: { data: PacmapData }) {
     ? mapValues(pacmapWeights(clock.playhead, meta.schedule), (w) => toU(w, scale))
     : controls
   const liveWeights = getWeights(clock.playhead)
+  // Leaving autopilot, by grabbing a slider or pressing Manual, keeps its forces where they are.
   const takeOver = () => {
     if (!autopilot) return
     store.setAll(shown)
@@ -94,7 +95,7 @@ function Playground({ data }: { data: PacmapData }) {
         onResume={clock.resume}
         onReset={reset}
         autopilot={autopilot}
-        onAutopilot={setAutopilot}
+        onAutopilot={(on) => (on ? setAutopilot(true) : takeOver())}
         interpolate={clock.interpolate}
         onInterpolate={clock.setInterpolate}
       />
