@@ -6,7 +6,7 @@ export const PREVIEW_SIZE = 112
 export const TILE = 84 // side of each stack layer before the isometric squash
 export const GAP = 20 // vertical distance between stacked layers
 export const PAD = 6
-const LABEL_WIDTH = 56 // resolution label plus its expand button
+const LABEL_WIDTH = 44 // room for each layer's resolution label
 export const COS30 = Math.cos(Math.PI / 6)
 export const DIAMOND_WIDTH = 2 * TILE * COS30
 

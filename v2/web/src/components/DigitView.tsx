@@ -7,6 +7,7 @@ import { stackSize } from './digitLayout'
 import { DigitPreview } from './DigitPreview'
 
 const FLATTEN_MS = 450
+const TOGGLE_SIZE = 18
 
 const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2)
 
@@ -67,36 +68,67 @@ export function DigitView({
     }
   }
 
-  if (mode === 'single') {
-    return (
-      <DigitPreview
-        data={data}
-        row={row}
-        resolution={resolution}
-        pixelOrder={pixelOrder}
-        pinned={pinned}
-        sweep={sweep}
-        onUnpin={onUnpin}
-        onClose={() => switchTo(false)}
-        footprint={stackSize(data.meta.resolutions.length)}
-      />
-    )
+  const footprint = stackSize(data.meta.resolutions.length)
+  const expanded = mode === 'single' || mode === 'expanding'
+  const toggle = (
+    <button
+      className="view-toggle"
+      style={{ left: footprint.width - TOGGLE_SIZE, top: footprint.height - TOGGLE_SIZE }}
+      onClick={() => switchTo(!expanded)}
+      title={expanded ? 'Back to the stack' : 'Expand the selected layer'}
+      aria-label={expanded ? 'Back to the stack' : 'Expand the selected layer'}
+    >
+      <ExpandCloseIcon t={flatten} />
+    </button>
+  )
+
+  return (
+    <div className="digit-view">
+      {mode === 'single' ? (
+        <DigitPreview
+          data={data}
+          row={row}
+          resolution={resolution}
+          pixelOrder={pixelOrder}
+          pinned={pinned}
+          sweep={sweep}
+          onUnpin={onUnpin}
+          footprint={footprint}
+        />
+      ) : (
+        <DigitStack
+          data={data}
+          row={row}
+          resolution={resolution}
+          shuffle={shuffle}
+          pinned={pinned}
+          sweep={sweep}
+          flatten={flatten}
+          onResolution={onResolution}
+          onUnpin={onUnpin}
+        />
+      )}
+      {toggle}
+    </div>
+  )
+}
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t
+
+/**
+ * Expand (two arrows out to opposite corners) at t = 0, morphing into × at t = 1: the arrow
+ * shafts swing into the cross's two strokes while the arrowheads fade away.
+ */
+function ExpandCloseIcon({ t }: { t: number }) {
+  const line = (from: number[], to: number[]) => {
+    const [x1, y1, x2, y2] = from.map((v, i) => lerp(v, to[i], t))
+    return <line x1={x1} y1={y1} x2={x2} y2={y2} />
   }
   return (
-    <DigitStack
-      data={data}
-      row={row}
-      resolution={resolution}
-      shuffle={shuffle}
-      pinned={pinned}
-      sweep={sweep}
-      flatten={flatten}
-      onResolution={onResolution}
-      onExpand={(side) => {
-        onResolution(side)
-        switchTo(true)
-      }}
-      onUnpin={onUnpin}
-    />
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {line([7, 5, 11, 1], [2, 10, 10, 2])}
+      {line([5, 7, 1, 11], [2, 2, 10, 10])}
+      <path d="M7 1h4v4M5 11H1V7" opacity={1 - t} />
+    </svg>
   )
 }

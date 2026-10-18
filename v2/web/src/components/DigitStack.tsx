@@ -57,7 +57,6 @@ export function DigitStack({
   sweep,
   flatten = 0,
   onResolution,
-  onExpand,
   onUnpin,
 }: {
   data: MnistData
@@ -68,8 +67,6 @@ export function DigitStack({
   sweep: Sweep | null
   flatten?: number
   onResolution: (resolution: number) => void
-  /** Open the flat single-resolution preview at this resolution. */
-  onExpand: (resolution: number) => void
   onUnpin: () => void
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -165,7 +162,7 @@ export function DigitStack({
           style={{ width, height }}
           aria-hidden
         />
-        {/* Labels beside each layer's right vertex, with a button to open that layer on its own. */}
+        {/* Labels beside each layer's right vertex; clicking one picks that resolution. */}
         {layers.map((side, i) => (
           <div
             key={side}
@@ -180,22 +177,10 @@ export function DigitStack({
             <button className="stack-label-name" onClick={() => onResolution(side)}>
               {side}×{side}
             </button>
-            <button className="icon-button" onClick={() => onExpand(side)} title={`Expand ${side}×${side}`} aria-label={`Expand ${side}×${side}`}>
-              <ExpandIcon />
-            </button>
           </div>
         ))}
       </div>
       <DigitDetails data={data} row={row} pinned={pinned} onUnpin={onUnpin} />
     </div>
-  )
-}
-
-/** Two arrows pointing out to opposite corners. */
-function ExpandIcon() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M7 1h4v4M11 1 7 5M5 11H1V7M1 11l4-4" />
-    </svg>
   )
 }

@@ -16,7 +16,6 @@ export function DigitPreview({
   pinned,
   sweep,
   onUnpin,
-  onClose,
   footprint,
 }: {
   data: MnistData
@@ -26,8 +25,6 @@ export function DigitPreview({
   pinned: boolean
   sweep: Sweep | null
   onUnpin: () => void
-  /** Shown as a × in the corner, e.g. to return to the stacked view. */
-  onClose?: () => void
   /** Reserve this much room for the digit (e.g. the stack's), laid out like the stack, so swapping views doesn't shift anything. */
   footprint?: { width: number; height: number }
 }) {
@@ -110,11 +107,6 @@ export function DigitPreview({
             style={{ width: size, height: size }}
             aria-hidden
           />
-          {onClose && (
-            <button className="icon-button preview-close" onClick={onClose} title="Back to the stack" aria-label="Back to the stack">
-              ×
-            </button>
-          )}
         </div>
       </div>
       <DigitDetails data={data} row={row} pinned={pinned} onUnpin={onUnpin} />

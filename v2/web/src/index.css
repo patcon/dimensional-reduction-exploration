@@ -93,9 +93,10 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 .stack-label button:hover { opacity: 1; color: var(--fg); }
 .stack-label.on button { color: var(--accent); opacity: 1; }
 .stack-label.on .stack-label-name { font-weight: 600; }
-.icon-button { display: inline-flex; align-items: center; justify-content: center; }
-.preview-close { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; font-size: 14px; line-height: 1; background: rgba(0, 0, 0, 0.55); color: #fff; cursor: pointer; }
-.preview-close:hover { background: rgba(0, 0, 0, 0.8); }
+.digit-view { position: relative; }
+/* One button in the footprint's bottom-right corner for both views; its icon morphs between expand and ×. */
+.view-toggle { position: absolute; width: 18px; height: 18px; padding: 0; border: 0; background: none; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.view-toggle:hover { color: var(--fg); }
 .digit-preview canvas.digit-stack.sweep { position: absolute; inset: 0; color: var(--accent); pointer-events: none; }
 .digit-preview canvas.digit-stack { border: 0; background: none; image-rendering: auto; color: var(--fg); cursor: pointer; }
 .projection { margin-top: 20px; }
