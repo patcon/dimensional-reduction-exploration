@@ -95,6 +95,8 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .opt-field > span:first-child { color: var(--muted); }
 .opt-field select { font: inherit; }
 .opt-knobs input[type='range'] { width: 120px; }
+/* Speed's label changes with the optimiser; a fixed width keeps its slider from shifting. */
+.opt-knobs > .opt-field:first-child > span:first-child { min-width: 6.5em; }
 .opt-value { font-variant-numeric: tabular-nums; min-width: 3.5em; }
 .opt-help { flex: 1; min-width: 240px; margin: 0; color: var(--muted); }
 

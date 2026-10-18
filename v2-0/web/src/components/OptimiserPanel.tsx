@@ -76,16 +76,7 @@ export function OptimiserPanel({ settings, onChange }: Props) {
         <p className="opt-help">{current.help}</p>
       </div>
       <div className="opt-row opt-knobs">
-        {settings.kind === 'adam-short' && (
-          <RangeField label="beta2" value={settings.shortBeta2} min={0.5} max={0.999} step={0.001} onChange={(v) => set({ shortBeta2: v })} />
-        )}
-        {settings.kind === 'momentum' && (
-          <>
-            <RangeField label="lr" value={settings.momentum.lr} min={0.05} max={10} step={0.05} onChange={(v) => setMomentum({ lr: v })} />
-            <RangeField label="coast" value={settings.momentum.momentum} min={0} max={0.99} step={0.01} onChange={(v) => setMomentum({ momentum: v })} />
-            <RangeField label="step cap" value={settings.momentum.maxStep} min={0.05} max={5} step={0.05} onChange={(v) => setMomentum({ maxStep: v })} />
-          </>
-        )}
+        {/* Speed first, so it stays put when switching optimisers. */}
         <label className="opt-field">
           {/* For Adam, speed × PaCMAP's lr of 1 is the learning rate; momentum has its own lr, which speed multiplies. */}
           <span>{settings.kind === 'momentum' ? 'speed (× lr)' : 'speed (lr)'}</span>
@@ -100,6 +91,16 @@ export function OptimiserPanel({ settings, onChange }: Props) {
           />
           <span className="opt-value">{speed}×</span>
         </label>
+        {settings.kind === 'adam-short' && (
+          <RangeField label="beta2" value={settings.shortBeta2} min={0.5} max={0.999} step={0.001} onChange={(v) => set({ shortBeta2: v })} />
+        )}
+        {settings.kind === 'momentum' && (
+          <>
+            <RangeField label="lr" value={settings.momentum.lr} min={0.05} max={10} step={0.05} onChange={(v) => setMomentum({ lr: v })} />
+            <RangeField label="coast" value={settings.momentum.momentum} min={0} max={0.99} step={0.01} onChange={(v) => setMomentum({ momentum: v })} />
+            <RangeField label="step cap" value={settings.momentum.maxStep} min={0.05} max={5} step={0.05} onChange={(v) => setMomentum({ maxStep: v })} />
+          </>
+        )}
       </div>
     </section>
   )
