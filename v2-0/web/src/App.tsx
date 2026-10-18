@@ -1,80 +1,52 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Scatter } from './components/Scatter'
+import { Transport } from './components/Transport'
 import { Engine } from './engine'
 import { DIGIT_COLORS } from './palette'
 import { pacmapWeights, phaseOf, scheduleLength } from './schedule'
+import type { Weights } from './types'
 import { useData, type PacmapData } from './useData'
+import { useLoopClock } from './useLoopClock'
 
-/** Time to spend stepping per animation frame while autopilot runs flat out. */
-const FRAME_BUDGET_MS = 12
+const NO_FORCES: Weights = { nb: 0, mn: 0, fp: 0 }
 
 function Playground({ data }: { data: PacmapData }) {
   const { meta } = data
   const engine = useMemo(() => new Engine(data.pairs, data.init, meta.adam), [data, meta.adam])
-  const total = scheduleLength(meta.schedule)
+  const length = scheduleLength(meta.schedule)
 
-  const [running, setRunning] = useState(false)
-  const [version, setVersion] = useState(0)
-  const [msPerIter, setMsPerIter] = useState(0)
-
-  // Autopilot: PaCMAP's own schedule, as fast as the frame budget allows, until the schedule ends.
-  useEffect(() => {
-    if (!running) return
-    let frame = 0
-    const tick = () => {
-      const start = performance.now()
-      let stepped = 0
-      let ms = 0
-      while (engine.steps < total && performance.now() - start < FRAME_BUDGET_MS) {
-        engine.step(pacmapWeights(engine.steps, meta.schedule))
-        stepped++
-      }
-      if (stepped) {
-        ms = (performance.now() - start) / stepped
-        setMsPerIter(ms)
-      }
-      setVersion((v) => v + 1)
-      if (engine.steps < total) frame = requestAnimationFrame(tick)
-      else {
-        console.log(`autopilot: ${total} iterations, ~${ms.toFixed(1)} ms each in the last frame`)
-        setRunning(false)
-      }
-    }
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [running, engine, total, meta.schedule])
-
-  const reset = () => {
-    setRunning(false)
-    engine.reset()
-    setVersion((v) => v + 1)
-  }
-
-  const iter = engine.steps
-  const done = iter >= total
+  const [autopilot, setAutopilot] = useState(false)
+  // Manual forces arrive with the on-screen and MIDI controls; until then manual mode stays idle.
+  const getWeights = useCallback(
+    (playhead: number) => (autopilot ? pacmapWeights(playhead, meta.schedule) : NO_FORCES),
+    [autopilot, meta.schedule],
+  )
+  const clock = useLoopClock(engine, length, getWeights)
 
   return (
     <div className="playground">
-      <div className="toolbar">
-        <button type="button" onClick={() => (done ? reset() : setRunning((r) => !r))}>
-          {running ? 'Pause' : done ? 'Reset' : iter ? 'Resume autopilot' : 'Autopilot'}
-        </button>
-        <button type="button" onClick={reset} disabled={!iter}>
-          Reset
-        </button>
-        <span className="readout">
-          iteration {iter} / {total} · phase {phaseOf(Math.min(iter, total - 1), meta.schedule)}
-          {msPerIter > 0 && ` · ${msPerIter.toFixed(1)} ms/iteration`}
-        </span>
-        <ul className="legend">
-          {DIGIT_COLORS.map((color, digit) => (
-            <li key={digit}>
-              <span className="swatch" style={{ background: color }} /> {digit}
-            </li>
-          ))}
-        </ul>
-      </div>
-      <Scatter Y={engine.Y} labels={meta.labels} version={version} />
+      <Transport
+        status={clock.status}
+        playhead={clock.playhead}
+        length={length}
+        phase={phaseOf(clock.playhead, meta.schedule)}
+        steps={clock.steps}
+        rate={clock.rate}
+        onRate={clock.setRate}
+        onPause={clock.pause}
+        onResume={clock.resume}
+        onReset={clock.reset}
+        autopilot={autopilot}
+        onAutopilot={setAutopilot}
+      />
+      <Scatter Y={engine.Y} labels={meta.labels} version={clock.version} />
+      <ul className="legend">
+        {DIGIT_COLORS.map((color, digit) => (
+          <li key={digit}>
+            <span className="swatch" style={{ background: color }} /> {digit}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -88,8 +60,8 @@ export default function App() {
         <h1>Playable PaCMAP</h1>
         <p>
           PaCMAP's optimisation, live in the browser on {data ? data.meta.nSamples.toLocaleString() : '20,000'} MNIST
-          digits. The neighbour, mid-near and far pairs are fixed; the forces on them are yours to play. For now,
-          autopilot replays PaCMAP's own schedule.
+          digits. The neighbour, mid-near and far pairs are fixed; the forces on them are yours to play. A loop runs
+          over PaCMAP's 450-iteration schedule; autopilot plays PaCMAP's own forces along it.
         </p>
       </header>
       {error ? <p className="status">{error}</p> : data ? <Playground data={data} /> : <p className="status">Loading…</p>}

@@ -41,5 +41,12 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .toolbar button:disabled { opacity: 0.4; cursor: not-allowed; }
 .readout { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: auto; }
 
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.toolbar .segmented button { border: 0; border-radius: 0; }
+.toolbar .segmented button + button { border-left: 1px solid var(--border); }
+.toolbar .segmented button.on { background: var(--fg); color: var(--bg); }
+.rate { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 190px; }
+.legend { margin-top: 8px; }
+
 .scatter { height: min(75vh, 900px); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .scatter canvas { display: block; }

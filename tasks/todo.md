@@ -81,15 +81,18 @@ control, default 10) and steps the engine once per tick.
   itself (its weights are non-zero).
 
 **Acceptance criteria:**
-- [ ] The clock does not tick while every force is 0; it starts on the first non-zero force.
-- [ ] Wrapping at 450 keeps the layout; reset returns to init and idle.
-- [ ] Rate changes apply immediately; pause/resume works. The playhead, total steps and
+- [x] The clock does not tick while every force is 0; it starts on the first non-zero force.
+- [x] Wrapping at 450 keeps the layout; reset returns to init and idle.
+- [x] Rate changes apply immediately; pause/resume works. The playhead, total steps and
   phase label (1/2/3) are shown.
 
 **Verification:**
-- [ ] Build and lint pass
-- [ ] Manual: wiggling a control inside the deadzone doesn't start it. At 2 it/s, autopilot
-  visibly progresses and wraps at 450 without the layout jumping.
+- [x] Build and lint pass
+- [x] Manual, headless: autopilot starts the clock, the playhead wraps (465 steps total at
+  iteration 15), pause holds and reset returns to idle. The deadzone part is checked in Task 4,
+  once there are controls.
+- **Found:** 60 it/s actually delivers about 32 it/s (15 ms per step plus redraw, on the main
+  thread). Revisit at the Playable checkpoint, e.g. by moving the engine to a Web Worker.
 
 **Dependencies:** Task 2
 **Files likely touched:** `src/useLoopClock.ts`, `src/App.tsx`, `src/components/Transport.tsx`
