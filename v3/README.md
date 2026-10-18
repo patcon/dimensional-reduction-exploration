@@ -1,10 +1,11 @@
-# v3 — MNIST, from pixels to projections, in three shades
+# v3 — MNIST, from pixels to projections, in black and white
 
-Like v2, but every digit is posterised to black, mid-grey or white after pooling, at
-each resolution. Pixels in the middle 15% of the brightness range become grey
-(`--grey-band`, default `0.15`, sets that share); darker ones go black, lighter ones
-white. Leiden clusters and projections are computed from those three levels only. A checkbox
-re-colours the three shades as agree / pass / disagree.
+Like v2, but every digit is binarised after pooling, at each resolution: pixels brighter
+than `--threshold` (default `24` of 255) count as stroke and go white, the rest black.
+Pooling thins strokes at low resolutions, so a low cut keeps the coarse digits legible; 24
+sits at or near the best 5-NN digit accuracy on the binarised pixels from 16×16 down to 2×2.
+Leiden clusters and projections are computed from those two levels only. A checkbox
+re-colours them as agree / disagree.
 
 From v2: like v1, but at several digit resolutions. Each digit is zero-padded from 28×28 to
 32×32, then average-pooled to 16×16, 8×8, 4×4 and 2×2; UMAP / PaCMAP / LocalMAP are
@@ -21,7 +22,7 @@ PaCMAP / LocalMAP projections in 2D and 3D, per-cluster samples and composition.
 cd ../pipeline
 uv run v3.py                            # defaults: -n 10000 --resolution 0.5
 uv run v3.py -n 3000 --resolution 1.0   # smaller, faster run
-uv run v3.py --grey-band 0.5            # grey for the middle half of the range
+uv run v3.py --threshold 64             # only brighter pixels count as stroke
 
 # 2. View
 cd ../v3/web

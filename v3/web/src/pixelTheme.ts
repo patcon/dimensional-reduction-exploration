@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react'
 
 export type RGB = readonly [number, number, number]
 
-/** How a pixel value (black 0, mid-grey 128 or white 255 after posterising) is drawn, and what fills an empty digit. */
+/** How a pixel value (black 0 or white 255 after binarising; mid-grey 128 if ever posterised) is drawn, and what fills an empty digit. */
 export interface PixelTheme {
   shade: (v: number) => RGB
   blank: RGB

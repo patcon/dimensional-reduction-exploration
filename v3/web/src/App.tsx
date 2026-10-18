@@ -100,7 +100,7 @@ export default function App() {
   // Digit resolution (side length) shown everywhere; null until data arrives, then the largest.
   const [resolutionChoice, setResolution] = useState<number | null>(null)
   const [shuffle, setShuffle] = useState<PixelShuffle>({ rows: false, columns: false, all: false })
-  // Draw black, grey and white pixels as disagree, pass and agree.
+  // Draw black and white pixels as disagree and agree.
   const [asVotes, setAsVotes] = useState(false)
 
   // Each row's colour under the active grouping: its Leiden cluster's majority digit, or its own label.
@@ -156,14 +156,14 @@ export default function App() {
     <div className="page-controls" style={{ margin: '8px 0 0', justifyContent: 'flex-end' }}>
       {asVotes && (
         <ul className="legend">
-          {(['agree', 'pass', 'disagree'] as const).map((vote) => (
+          {(['agree', 'disagree'] as const).map((vote) => (
             <li key={vote}>
               <span className="swatch" style={{ background: VOTE_COLORS[vote] }} /> {vote}
             </li>
           ))}
         </ul>
       )}
-      <label className="checkbox" title="Draw black, grey and white pixels as disagree, pass and agree">
+      <label className="checkbox" title="Draw black and white pixels as disagree and agree">
         <input type="checkbox" checked={asVotes} onChange={(e) => setAsVotes(e.target.checked)} />
         Theme as votes
       </label>
@@ -188,9 +188,8 @@ export default function App() {
             Pick a resolution above the projection to watch the layout morph.
           </p>
           <p>
-            Every pooled digit is then posterised to just three shades: the middle{' '}
-            {Math.round((p.grey_band ?? 0.15) * 100)}% of the brightness range becomes mid-grey, darker pixels black and
-            lighter ones white. Clusters and projections only ever see those three levels.
+            Every pooled digit is then binarised: pixels brighter than {p.threshold ?? 24} (of 255) count as stroke and
+            go white, the rest black. Clusters and projections only ever see those two levels.
           </p>
           <p>Hover any digit to find it in every view, pause to watch its pixels become a row, and click to pin it.</p>
           <div className="page-controls">

@@ -4,10 +4,9 @@ The source sprite (mnist_images.png) is a 784 x 65000 image: each row is one
 28x28 digit flattened. Labels are 65000 one-hot rows of 10 uint8 bytes.
 
 Each digit is zero-padded to 32x32, then average-pooled down to 16x16, 8x8,
-4x4 and 2x2. Each pooled digit is then posterised to three levels: pixels in
-the middle --grey-band of the 0-255 range (15% by default) become mid-grey,
-darker ones black and lighter ones white. Everything downstream sees only those
-three levels. Leiden clusters and matrix sortings come from the full 32x32
+4x4 and 2x2. Each pooled digit is then binarised: pixels brighter than
+--threshold (24 of 255 by default) become white stroke, the rest black.
+Everything downstream sees only those two levels. Leiden clusters and matrix sortings come from the full 32x32
 pixels (padding doesn't change distances, so this matches 28x28); projections
 are computed separately at every resolution.
 
@@ -49,7 +48,6 @@ LABELS_URL = "https://storage.googleapis.com/learnjs-data/model-builder/mnist_la
 N_TOTAL = 65000
 N_PIXELS = 784
 PADDED = 32
-MID_GREY = 128
 # Largest first: the 32x32 projections are the reference the others are aligned to in the app.
 RESOLUTIONS = (32, 16, 8, 4, 2)
 # Iterations at which to snapshot each layout. PaCMAP/LocalMAP use PaCMAP's defaults (450
@@ -98,10 +96,9 @@ def downsample(digits: np.ndarray, side: int) -> np.ndarray:
     return padded.reshape(n, side, block, side, block).mean(axis=(2, 4)).reshape(n, side * side)
 
 
-def posterise(pixels: np.ndarray, grey_band: float) -> np.ndarray:
-    """Snap [0, 255] pixels to black, mid-grey or white, with grey for the middle `grey_band` of the range."""
-    low, high = 255 * (1 - grey_band) / 2, 255 * (1 + grey_band) / 2
-    return np.select([pixels < low, pixels > high], [0.0, 255.0], MID_GREY).astype(np.float32)
+def binarise(pixels: np.ndarray, threshold: float) -> np.ndarray:
+    """Snap [0, 255] pixels to white stroke above `threshold`, black otherwise."""
+    return np.where(pixels > threshold, 255.0, 0.0).astype(np.float32)
 
 
 def umap_snapshots(ad: AnnData, rep: np.ndarray, dims: int, seed: int) -> np.ndarray:
@@ -139,7 +136,7 @@ def project(X: np.ndarray, n_pcs: int, n_neighbors: int, seed: int) -> dict[str,
     last entry is the final layout.
     """
     if np.ptp(X) == 0:
-        # Posterising can leave every digit identical (e.g. all black at 2x2): there's nothing to
+        # Binarising can leave every digit identical (e.g. all black at 2x2): there's nothing to
         # lay out, and PaCMAP would divide by the zero range. Put every point at the origin.
         print("  every digit is identical at this resolution; placing all points at the origin")
         return {
@@ -186,10 +183,12 @@ def main() -> None:
     parser.add_argument("--resolution", type=float, default=0.5)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
-        "--grey-band",
+        "--threshold",
         type=float,
-        default=0.15,
-        help="share of the 0-255 range, centred, that becomes mid-grey",
+        # Pooling thins strokes at low resolutions, so a low cut keeps them: 24 is at or near the best
+        # 5-NN digit accuracy on the binarised pixels at every resolution from 16x16 down to 2x2.
+        default=24,
+        help="pooled brightness (0-255) above which a pixel counts as stroke",
     )
     args = parser.parse_args()
 
@@ -197,7 +196,7 @@ def main() -> None:
 
     rng = np.random.default_rng(args.seed)
     idx = rng.choice(N_TOTAL, size=args.n_samples, replace=False)
-    by_res = {r: posterise(downsample(sprite[idx], r), args.grey_band) for r in RESOLUTIONS}
+    by_res = {r: binarise(downsample(sprite[idx], r), args.threshold) for r in RESOLUTIONS}
 
     adata = AnnData(X=by_res[PADDED] / 255.0)
     adata.obs["label"] = labels[idx].astype(str)
