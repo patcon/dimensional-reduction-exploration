@@ -82,6 +82,15 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 .digit-preview p { font-size: 0.85rem; margin: 0; }
 /* Isometric variant: the stack above, details below. */
 .digit-preview.stacked { flex-direction: column; gap: 8px; }
+.digit-stack-wrap { position: relative; }
+.stack-label { position: absolute; display: flex; align-items: center; gap: 2px; transform: translateY(-50%); font-size: 11px; }
+.stack-label button { font: inherit; background: none; border: 0; padding: 1px 2px; color: var(--muted); cursor: pointer; opacity: 0.6; }
+.stack-label button:hover { opacity: 1; color: var(--fg); }
+.stack-label.on button { color: var(--accent); opacity: 1; }
+.stack-label.on .stack-label-name { font-weight: 600; }
+.icon-button { display: inline-flex; align-items: center; justify-content: center; }
+.preview-close { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; font-size: 14px; line-height: 1; background: rgba(0, 0, 0, 0.55); color: #fff; cursor: pointer; }
+.preview-close:hover { background: rgba(0, 0, 0, 0.8); }
 .digit-preview canvas.digit-stack { border: 0; background: none; image-rendering: auto; color: var(--fg); cursor: pointer; }
 .projection { margin-top: 20px; }
 .projection-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }

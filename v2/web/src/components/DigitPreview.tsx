@@ -3,7 +3,7 @@ import type { MnistData } from '../useMnistData'
 import { DIGIT_COLORS } from '../palette'
 import { useSweepFrames, type Sweep } from '../sweep'
 
-const PREVIEW_SIZE = 112
+export const PREVIEW_SIZE = 112
 // Mid-grey so the lines show over both black background and white ink.
 const GRID_COLOR = 'rgba(128, 128, 128, 0.3)'
 const SWEEP_TAIL_MS = 30 // trail behind the head, in time (so it shrinks as the head slows)
@@ -16,6 +16,7 @@ export function DigitPreview({
   pinned,
   sweep,
   onUnpin,
+  onClose,
 }: {
   data: MnistData
   row: number | null
@@ -24,6 +25,8 @@ export function DigitPreview({
   pinned: boolean
   sweep: Sweep | null
   onUnpin: () => void
+  /** Shown as a × in the corner, e.g. to return to the stacked view. */
+  onClose?: () => void
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const gridRef = useRef<HTMLCanvasElement>(null)
@@ -99,6 +102,11 @@ export function DigitPreview({
           height={PREVIEW_SIZE * dpr}
           aria-hidden
         />
+        {onClose && (
+          <button className="icon-button preview-close" onClick={onClose} title="Back to the stack" aria-label="Back to the stack">
+            ×
+          </button>
+        )}
       </div>
       <DigitDetails data={data} row={row} pinned={pinned} onUnpin={onUnpin} />
     </div>
