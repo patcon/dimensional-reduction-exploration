@@ -68,6 +68,9 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 .boundary { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid rgba(255, 255, 255, 0.55); pointer-events: none; }
 .cursor { position: absolute; left: -6px; right: -6px; height: 0; border-top: 1px solid var(--accent); pointer-events: none; }
 .cursor.pinned { border-top-width: 3px; margin-top: -1px; }
+/* The band a drag marks out for the drifting hover; dashed while still being dragged. */
+.drift-band { position: absolute; left: -6px; right: -6px; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none; }
+.drift-band.drifting { border-style: solid; }
 
 /* Stays in view while the matrices scroll past; scrolls itself if taller than the window. */
 .sidebar { flex-shrink: 0; width: 340px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }

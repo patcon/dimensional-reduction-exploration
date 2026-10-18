@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Meta } from '../types'
 import { DIGIT_COLORS } from '../palette'
 import { useSweepFrames, type Sweep } from '../sweep'
@@ -26,12 +26,15 @@ interface Props {
   selected: number | null
   sweep: Sweep | null
   onHover: (row: number | null) => void
-  onSelect: (row: number) => void
+  /** Called with the clicked row, or null to unpin. */
+  onSelect: (row: number | null) => void
 }
 
 const STRIP_WIDTH = 14
 const SWEEP_TAIL_MS = 120 // trail behind the dot, in time (so it shrinks as the dot slows)
 const MATRIX_WIDTH = 392 // the same width at every resolution
+const DRAG_THRESHOLD_PX = 3 // vertical movement before a press counts as a drag rather than a click
+const DRIFT_PX_PER_S = 60 // speed of the drifting hover, like a slow, steady mouse
 
 function Strip({ colors, height, title }: { colors: string[]; height: number; title: string }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -103,6 +106,83 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution
     return order[Math.min(n - 1, Math.max(0, Math.floor((y / height) * n)))]
   }
 
+  // Dragging vertically marks a band of display rows; letting go sets a hover drifting through it,
+  // down and back up at a constant speed, until a click or Escape stops it.
+  const [band, setBand] = useState<{ from: number; to: number } | null>(null)
+  const [drifting, setDrifting] = useState(false)
+  // A drag ends with a click on the matrix; that click shouldn't also stop the drift it just started.
+  const dragged = useRef(false)
+
+  const stopDrift = () => {
+    setDrifting(false)
+    setBand(null)
+  }
+
+  const startDrag = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    // Don't select page text while dragging.
+    e.preventDefault()
+    const top = e.currentTarget.getBoundingClientRect().top
+    const rowAtY = (clientY: number) => Math.min(n - 1, Math.max(0, Math.floor(((clientY - top) / height) * n)))
+    const startY = e.clientY
+    const from = rowAtY(startY)
+    dragged.current = false
+    const move = (ev: MouseEvent) => {
+      if (!dragged.current && Math.abs(ev.clientY - startY) < DRAG_THRESHOLD_PX) return
+      dragged.current = true
+      setDrifting(false)
+      setBand({ from, to: rowAtY(ev.clientY) })
+    }
+    const up = () => {
+      window.removeEventListener('mousemove', move)
+      if (!dragged.current) return
+      // Unpin, so the preview follows the drifting hover as it would a real one.
+      onSelect(null)
+      setDrifting(true)
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up, { once: true })
+  }
+
+  useEffect(() => {
+    if (!drifting || !band) return
+    const lo = Math.min(band.from, band.to)
+    const span = Math.max(band.from, band.to) - lo
+    const rowsPerMs = (DRIFT_PX_PER_S / 1000) * (n / height)
+    const t0 = performance.now()
+    let frame = 0
+    const step = (now: number) => {
+      // A triangle wave: linear down to the bottom of the band, then linear back up.
+      const d = span ? ((now - t0) * rowsPerMs) % (2 * span) : 0
+      onHover(order[lo + Math.round(d <= span ? d : 2 * span - d)])
+      frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      stopDrift()
+      onHover(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [drifting, band, n, height, order, onHover])
+
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (dragged.current) {
+      dragged.current = false
+      return
+    }
+    if (drifting) {
+      stopDrift()
+      onHover(rowAtPointer(e))
+      return
+    }
+    onSelect(rowAtPointer(e))
+  }
+
   return (
     <section className="panel">
       <header>
@@ -120,9 +200,12 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution
         <div
           className="matrix"
           style={{ height }}
-          onMouseMove={(e) => onHover(rowAtPointer(e))}
-          onMouseLeave={() => onHover(null)}
-          onClick={(e) => onSelect(rowAtPointer(e))}
+          onMouseDown={startDrag}
+          // While drifting, the drift owns the hover; the real pointer only takes it back with a click.
+          onMouseMove={(e) => !drifting && !band && onHover(rowAtPointer(e))}
+          onMouseLeave={() => !drifting && !band && onHover(null)}
+          onClick={handleClick}
+          title={drifting ? 'Click or press Escape to stop the drift' : 'Drag up or down to drift the hover through a band of rows'}
         >
           <Strip colors={clusterColors} height={height} title="Leiden cluster (coloured by majority digit)" />
           <Strip colors={labelColors} height={height} title="True digit label" />
@@ -143,6 +226,12 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution
           {boundaries.map((row) => (
             <div key={row} className="boundary" style={{ top: toY(row) }} />
           ))}
+          {band && (
+            <div
+              className={`drift-band${drifting ? ' drifting' : ''}`}
+              style={{ top: toY(Math.min(band.from, band.to)), height: toY(Math.abs(band.to - band.from) + 1) }}
+            />
+          )}
           {selected !== null && <div className="cursor pinned" style={{ top: toY(displayRowOf[selected]) }} />}
           {hovered !== null && hovered !== selected && (
             <div className="cursor" style={{ top: toY(displayRowOf[hovered]) }} />
