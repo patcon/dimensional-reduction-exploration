@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "check:engine": "node scripts/check-engine.ts",
+    "check:scale": "node scripts/check-scale.ts",
     "preview": "vite preview"
   },
   "dependencies": {

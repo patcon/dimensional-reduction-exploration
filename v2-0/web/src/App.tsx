@@ -1,27 +1,46 @@
 import { useCallback, useMemo, useState } from 'react'
+import { ForceSliders } from './components/ForceSliders'
 import { Scatter } from './components/Scatter'
 import { Transport } from './components/Transport'
 import { Engine } from './engine'
+import { DEFAULT_SCALE, toMultiplier, toU, type ForceScale } from './forceScale'
+import { InputStore, useControlValues, type ControlValues } from './inputStore'
 import { DIGIT_COLORS } from './palette'
 import { pacmapWeights, phaseOf, scheduleLength } from './schedule'
-import type { Weights } from './types'
+import type { PairType, Weights } from './types'
 import { useData, type PacmapData } from './useData'
 import { useLoopClock } from './useLoopClock'
 
-const NO_FORCES: Weights = { nb: 0, mn: 0, fp: 0 }
+const mapValues = <A, B>(r: Record<PairType, A>, f: (a: A) => B): Record<PairType, B> =>
+  ({ nb: f(r.nb), mn: f(r.mn), fp: f(r.fp) })
 
 function Playground({ data }: { data: PacmapData }) {
   const { meta } = data
   const engine = useMemo(() => new Engine(data.pairs, data.init, meta.adam), [data, meta.adam])
   const length = scheduleLength(meta.schedule)
 
+  const store = useMemo(() => new InputStore(), [])
+  const controls = useControlValues(store)
+  const [scale, setScale] = useState<ForceScale>(DEFAULT_SCALE)
+  const [spring, setSpring] = useState<Record<PairType, boolean>>({ nb: false, mn: false, fp: false })
   const [autopilot, setAutopilot] = useState(false)
-  // Manual forces arrive with the on-screen and MIDI controls; until then manual mode stays idle.
+
   const getWeights = useCallback(
-    (playhead: number) => (autopilot ? pacmapWeights(playhead, meta.schedule) : NO_FORCES),
-    [autopilot, meta.schedule],
+    (playhead: number): Weights =>
+      autopilot ? pacmapWeights(playhead, meta.schedule) : mapValues(store.get(), (u) => toMultiplier(u, scale)),
+    [autopilot, meta.schedule, store, scale],
   )
   const clock = useLoopClock(engine, length, getWeights)
+
+  // Under autopilot the sliders follow PaCMAP's forces; grabbing one takes over from exactly there.
+  const shown: ControlValues = autopilot
+    ? mapValues(pacmapWeights(clock.playhead, meta.schedule), (w) => toU(w, scale))
+    : controls
+  const takeOver = () => {
+    if (!autopilot) return
+    store.setAll(shown)
+    setAutopilot(false)
+  }
 
   return (
     <div className="playground">
@@ -39,7 +58,18 @@ function Playground({ data }: { data: PacmapData }) {
         autopilot={autopilot}
         onAutopilot={setAutopilot}
       />
-      <Scatter Y={engine.Y} labels={meta.labels} version={clock.version} />
+      <div className="stage">
+        <Scatter Y={engine.Y} labels={meta.labels} version={clock.version} />
+        <ForceSliders
+          values={shown}
+          scale={scale}
+          onScale={setScale}
+          spring={spring}
+          onSpring={(type, s) => setSpring((prev) => ({ ...prev, [type]: s }))}
+          onGrab={takeOver}
+          onChange={(type, u) => store.set(type, u)}
+        />
+      </div>
       <ul className="legend">
         {DIGIT_COLORS.map((color, digit) => (
           <li key={digit}>

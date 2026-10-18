@@ -109,13 +109,25 @@ control, default 10) and steps the engine once per tick.
   the first non-zero multiplier.
 
 **Acceptance criteria:**
-- [ ] Round-trip: `toU(toMultiplier(u)) ≈ u`; 0 inside the deadzone; PaCMAP's values (1, 2, 3, 1000) reachable.
-- [ ] A spring slider returns to 0 on pointer release (forces stop); a latch slider holds.
-- [ ] Flipping NB negative visibly explodes clusters; FP positive collapses the layout.
+- [x] Round-trip: `toU(toMultiplier(u)) ≈ u`; 0 inside the deadzone; PaCMAP's values (1, 2, 3, 1000) reachable.
+- [x] A spring slider returns to 0 on pointer release (forces stop); a latch slider holds.
+- [x] Flipping NB negative visibly explodes clusters; FP positive collapses the layout.
+  From a converged layout:
+  - NB −1 pushes the neighbour distance from 0.99 to 38 in 50 steps.
+  - FP +1 shrinks the spread from 13.7 to 0.2 in 300 steps.
 
 **Verification:**
-- [ ] Build and lint pass; unit check for the scale round-trip
-- [ ] Manual: approximate phase 3 by hand (NB ≈ +1, FP ≈ −1) and see clusters tighten. Note whether Adam feels numb.
+- [x] Build and lint pass; `pnpm run check:scale` covers the round-trip, the deadzone and PaCMAP's values
+- [ ] Manual (human): approximate phase 3 by hand (NB ≈ +1, FP ≈ −1) and see clusters
+  tighten. Note whether Adam feels numb. Headless checks covered the deadzone start, spring vs
+  latch, and taking over from autopilot.
+- **Found:**
+  - FP +1000 collapses at the same pace as FP +1 (spread 0.10 vs 0.20 after 300 steps): Adam
+    ignores magnitude.
+  - Wiping Adam's m/v doesn't speed things up either (Adam's step is about lr per step).
+  - So the kick alone won't make magnitudes matter; momentum descent (Task 5) should.
+- **Added beyond the plan:** under autopilot the sliders mirror PaCMAP's forces, and grabbing
+  one switches to manual from exactly those values.
 
 **Dependencies:** Task 3
 **Files likely touched:** `src/forceScale.ts`, `src/inputStore.ts`, `src/components/ForceSliders.tsx`, `src/engine.ts`, `src/App.tsx`
