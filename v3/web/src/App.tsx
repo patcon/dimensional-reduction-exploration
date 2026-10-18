@@ -170,7 +170,7 @@ export default function App() {
           </p>
           <p>
             Every pooled digit is then posterised to just three shades: the middle{' '}
-            {Math.round((p.grey_band ?? 1 / 3) * 100)}% of the brightness range becomes mid-grey, darker pixels black and
+            {Math.round((p.grey_band ?? 0.15) * 100)}% of the brightness range becomes mid-grey, darker pixels black and
             lighter ones white. Clusters and projections only ever see those three levels.
           </p>
           <p>Hover any digit to find it in every view, pause to watch its pixels become a row, and click to pin it.</p>

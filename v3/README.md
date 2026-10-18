@@ -1,8 +1,8 @@
 # v3 — MNIST, from pixels to projections, in three shades
 
 Like v2, but every digit is posterised to black, mid-grey or white after pooling, at
-each resolution. Pixels in the middle third of the brightness range become grey
-(`--grey-band`, default `1/3`, sets that share); darker ones go black, lighter ones
+each resolution. Pixels in the middle 15% of the brightness range become grey
+(`--grey-band`, default `0.15`, sets that share); darker ones go black, lighter ones
 white. Leiden clusters and projections are computed from those three levels only. A checkbox
 re-colours the three shades as agree / pass / disagree.
 

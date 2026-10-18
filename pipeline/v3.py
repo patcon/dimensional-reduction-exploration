@@ -5,7 +5,7 @@ The source sprite (mnist_images.png) is a 784 x 65000 image: each row is one
 
 Each digit is zero-padded to 32x32, then average-pooled down to 16x16, 8x8,
 4x4 and 2x2. Each pooled digit is then posterised to three levels: pixels in
-the middle --grey-band of the 0-255 range (a third by default) become mid-grey,
+the middle --grey-band of the 0-255 range (15% by default) become mid-grey,
 darker ones black and lighter ones white. Everything downstream sees only those
 three levels. Leiden clusters and matrix sortings come from the full 32x32
 pixels (padding doesn't change distances, so this matches 28x28); projections
@@ -179,7 +179,7 @@ def main() -> None:
     parser.add_argument(
         "--grey-band",
         type=float,
-        default=1 / 3,
+        default=0.15,
         help="share of the 0-255 range, centred, that becomes mid-grey",
     )
     args = parser.parse_args()
