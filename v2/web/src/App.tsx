@@ -15,8 +15,13 @@ const MATRIX_HEIGHT = 720
 // 'none' treats every row as one group, so none + random is the unsorted matrix.
 const GROUPS: Record<GroupKey, { label: string; describe: string }> = {
   none: { label: 'None', describe: 'All rows as one group' },
-  leiden: { label: 'Leiden', describe: 'Leiden clusters in dendrogram order' },
   label: { label: 'Labels', describe: 'Digits 0–9' },
+  leiden: { label: 'Leiden', describe: 'Leiden clusters in dendrogram order' },
+}
+
+const LAYOUTS: Record<'1' | '2', { label: string }> = {
+  1: { label: '1 column' },
+  2: { label: '2 columns' },
 }
 
 type ShuffleAxis = 'rows' | 'columns'
@@ -74,7 +79,9 @@ export default function App() {
     { group: 'none', within: 'random' },
     { group: 'label', within: 'pc1' },
   ])
-  // Colours and sort paths follow the last-changed matrix that has groups, else the other one.
+  // Show just the first matrix, or both side by side for comparison.
+  const [columns, setColumns] = useState<'1' | '2'>('2')
+  // Colours and sort paths follow the last-changed visible matrix that has groups, else the other one.
   // (A single all-rows path would just tangle across the whole plot.)
   const [lastChanged, setLastChanged] = useState<0 | 1>(1)
   const updateSort = (side: 0 | 1, next: Partial<SortChoice>) => {
@@ -85,7 +92,8 @@ export default function App() {
     })
     setLastChanged(side)
   }
-  const pathSort = [sorts[lastChanged], sorts[1 - lastChanged]].find((s) => s.group !== 'none')
+  const visibleSorts = columns === '1' ? [sorts[0]] : [sorts[lastChanged], sorts[1 - lastChanged]]
+  const pathSort = visibleSorts.find((s) => s.group !== 'none')
   const groupBy = pathSort?.group === 'leiden' ? 'leiden' : 'label'
   const within = pathSort?.within ?? null
   // Digit resolution (side length) shown everywhere; null until data arrives, then the largest.
@@ -200,8 +208,11 @@ export default function App() {
 
       <div className="layout">
         <div className="content">
+          <div className="page-controls">
+            <Segmented options={LAYOUTS} value={columns} onChange={setColumns} ariaLabel="Number of matrices" />
+          </div>
           <div className="matrices">
-            {([0, 1] as const).map((side) => {
+            {(columns === '1' ? ([0] as const) : ([0, 1] as const)).map((side) => {
               const sort = sorts[side]
               const sorting = meta.sortings[sort.group][sort.within]
               return (
