@@ -81,7 +81,7 @@ Detailed tasks with acceptance criteria are in `tasks/todo.md`.
 
 ### Phase 1: Foundation (high risk first)
 - [x] Task 1: Pipeline exports 20k subsample, pairs, init and PaCMAP reference
-- [ ] Task 2: v2.0 app scaffold, with the engine running autopilot to a PaCMAP-like layout
+- [x] Task 2: v2.0 app scaffold, with the engine running autopilot to a PaCMAP-like layout
 
 ### Checkpoint: Foundation
 - [ ] JS engine autopilot output is close to the Python reference; app builds

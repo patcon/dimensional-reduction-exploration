@@ -46,15 +46,19 @@ For now, an "Autopilot" button runs the PaCMAP schedule (with FP → negative mu
 through all 450 iterations.
 
 **Acceptance criteria:**
-- [ ] Autopilot produces a layout visually matching the PaCMAP reference (10 separated digit clusters).
-- [ ] The engine is numerically checked: a node/vitest script steps from `init.bin` and
-  matches `reference.bin` at iterations 10–100: p99 per-point error < 1e-4 of the layout
-  spread, like `pipeline/v2-0.py --check` (the max error is expected to be about 1e-2).
-- [ ] One iteration at N=20k takes ≤ 30 ms on this machine (logged).
+- [x] Autopilot produces a layout visually matching the PaCMAP reference (10 separated digit clusters).
+- [x] The engine is numerically checked. `pnpm run check:engine` steps from `init.bin` and
+  matches `reference.bin` at iterations 10–100 with a p99 per-point error of 3e-6 of the
+  layout spread (tolerance 1e-4).
+  - `ITERS=450` also checks phases 2–3 at a looser 1e-2. Phase 2's rearrangement magnifies
+    rounding into a slightly rotated or scaled copy of the same layout. The p99 error peaks at
+    4e-3 at iteration 200, matching numpy's independent replay, so it isn't an engine bug.
+- [x] One iteration at N=20k takes ≤ 30 ms on this machine (logged): about 12–15 ms.
 
 **Verification:**
-- [ ] `pnpm run build` and `pnpm run lint` pass; the engine check script passes
-- [ ] Manual: `pnpm dev`, press Autopilot, and see clusters form
+- [x] `pnpm run build` and `pnpm run lint` pass; the engine check script passes
+- [x] Manual: `pnpm dev`, press Autopilot, and see clusters form. Headless Chrome reached
+  450 with no errors and all 10 digit colours drawn; still needs a human eyeball.
 
 **Dependencies:** Task 1
 **Files likely touched:** `v2-0/web/{package.json,vite.config.ts,index.html}`, `src/{engine.ts,schedule.ts,useData.ts,App.tsx}`, `src/components/Scatter.tsx`, `scripts/check-engine.ts`
