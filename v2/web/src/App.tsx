@@ -154,12 +154,12 @@ export default function App() {
               All pixels
             </button>
           </div>
-          <span className="muted">
+          <span className="muted page-controls-note">
             {shuffle.all
-              ? `Every digit gets the same shuffle of all its ${resolution * resolution} pixels (after pooling). The projections are unchanged: they never used the pixel layout.`
+              ? `Same shuffle of all ${resolution * resolution} pixels in every digit. Projections don't change: they ignore pixel layout.`
               : shuffled.length
-                ? `Every digit's ${resolution}×${resolution} grid gets the same shuffle of its ${shuffled.join(' and ')} (after pooling), so the grid structure survives. The projections are unchanged: they never used the pixel layout.`
-                : "Shuffle each digit's pixel rows and/or columns, or all its pixels, to see what the projections actually rely on."}
+                ? `Same shuffle of ${shuffled.join(' and ')} in every digit, so the grid survives. Projections don't change: they ignore pixel layout.`
+                : 'Shuffle every digit the same way to see what the projections rely on.'}
           </span>
         </div>
         <ul className="legend">
