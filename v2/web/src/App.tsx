@@ -146,44 +146,57 @@ export default function App() {
       </header>
 
       <div className="layout">
-        <MatrixPanel
-          title="Original"
-          subtitle={`Random subsample order; ${resolution}×${resolution} = ${resolution * resolution} pixels per row`}
-          imageUrl={MATRIX_URLS.original(resolution)}
-          meta={meta}
-          order={identity}
-          resolution={resolution}
-          pixelOrder={pixelOrder}
-          height={MATRIX_HEIGHT}
-          hovered={hovered}
-          selected={selected}
-          sweep={sweep}
-          onHover={setHovered}
-          onSelect={toggleSelected}
-        />
-        <MatrixPanel
-          title="Sorted"
-          subtitle={`${GROUPS[groupBy].describe}; ${WITHINS[within].describe}`}
-          controls={
-            <>
-              <Segmented options={GROUPS} value={groupBy} onChange={setGroupBy} ariaLabel="Group rows by" />
-              <span className="muted">then</span>
-              <Segmented options={WITHINS} value={within} onChange={setWithin} ariaLabel="Order within groups by" />
-            </>
-          }
-          imageUrl={MATRIX_URLS.sorted(groupBy, within, resolution)}
-          meta={meta}
-          order={sorting.order}
-          resolution={resolution}
-          pixelOrder={pixelOrder}
-          height={MATRIX_HEIGHT}
-          boundaries={sorting.boundaries}
-          hovered={hovered}
-          selected={selected}
-          sweep={sweep}
-          onHover={setHovered}
-          onSelect={toggleSelected}
-        />
+        <div className="content">
+          <div className="matrices">
+            <MatrixPanel
+              title="Original"
+              subtitle={`Random subsample order; ${resolution}×${resolution} = ${resolution * resolution} pixels per row`}
+              imageUrl={MATRIX_URLS.original(resolution)}
+              meta={meta}
+              order={identity}
+              resolution={resolution}
+              pixelOrder={pixelOrder}
+              height={MATRIX_HEIGHT}
+              hovered={hovered}
+              selected={selected}
+              sweep={sweep}
+              onHover={setHovered}
+              onSelect={toggleSelected}
+            />
+            <MatrixPanel
+              title="Sorted"
+              subtitle={`${GROUPS[groupBy].describe}; ${WITHINS[within].describe}`}
+              controls={
+                <>
+                  <Segmented options={GROUPS} value={groupBy} onChange={setGroupBy} ariaLabel="Group rows by" />
+                  <span className="muted">then</span>
+                  <Segmented options={WITHINS} value={within} onChange={setWithin} ariaLabel="Order within groups by" />
+                </>
+              }
+              imageUrl={MATRIX_URLS.sorted(groupBy, within, resolution)}
+              meta={meta}
+              order={sorting.order}
+              resolution={resolution}
+              pixelOrder={pixelOrder}
+              height={MATRIX_HEIGHT}
+              boundaries={sorting.boundaries}
+              hovered={hovered}
+              selected={selected}
+              sweep={sweep}
+              onHover={setHovered}
+              onSelect={toggleSelected}
+            />
+          </div>
+
+          <h3>Samples per cluster</h3>
+          <p className="section-note">
+            Evenly spaced along each cluster's sorted order. Outlined digits disagree with the cluster's majority label.
+          </p>
+          <ClusterSamples data={data} resolution={resolution} pixelOrder={pixelOrder} hovered={hovered} selected={selected} onHover={setHovered} onSelect={toggleSelected} />
+
+          <h3>Clusters</h3>
+          <ClusterTable meta={meta} />
+        </div>
         <aside className="sidebar">
           <DigitPreview
             data={data}
@@ -208,15 +221,6 @@ export default function App() {
           />
         </aside>
       </div>
-
-      <h3>Samples per cluster</h3>
-      <p className="section-note">
-        Evenly spaced along each cluster's sorted order. Outlined digits disagree with the cluster's majority label.
-      </p>
-      <ClusterSamples data={data} resolution={resolution} pixelOrder={pixelOrder} hovered={hovered} selected={selected} onHover={setHovered} onSelect={toggleSelected} />
-
-      <h3>Clusters</h3>
-      <ClusterTable meta={meta} />
     </main>
   )
 }
