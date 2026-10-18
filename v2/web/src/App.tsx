@@ -20,8 +20,8 @@ const GROUPS: Record<GroupKey, { label: string; describe: string }> = {
 }
 
 const LAYOUTS: Record<'1' | '2', { label: string }> = {
-  1: { label: '1 column' },
-  2: { label: '2 columns' },
+  1: { label: 'Simple (1 column)' },
+  2: { label: 'Comparison (2 column)' },
 }
 
 type ShuffleAxis = 'rows' | 'columns'
