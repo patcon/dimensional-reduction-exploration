@@ -49,9 +49,9 @@
     <main>
       <h1>MNIST, from pixels to projections</h1>
       <p>
-        Each version flattens MNIST digits into rows of pixels, clusters the rows scanpy-style (PCA → kNN graph →
+        Each v1 version flattens MNIST digits into rows of pixels, clusters the rows scanpy-style (PCA → kNN graph →
         Leiden), and links the original and sorted pixel matrices to UMAP, PaCMAP and LocalMAP projections in 2D and 3D.
-        Each builds on the one before.
+        Each builds on the one before. v2 turns to how PaCMAP gets there, running its optimisation live for you to play.
       </p>
       <ol>
         <li>
@@ -75,6 +75,15 @@
             <p>
               Every pooled digit binarised into stroke or background, so clustering and projections see only two
               levels, optionally drawn as agree / disagree votes.
+            </p>
+          </a>
+        </li>
+        <li>
+          <a class="card" href="v2-0/">
+            <h2><span>v2.0</span>Playable PaCMAP</h2>
+            <p>
+              PaCMAP's optimisation running live on 20,000 digits, with its neighbour, mid-near and far forces in your
+              hands: attract or repel each from on-screen sliders or a MIDI controller, against PaCMAP's own schedule.
             </p>
           </a>
         </li>

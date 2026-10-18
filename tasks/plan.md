@@ -97,7 +97,7 @@ Detailed tasks with acceptance criteria are in `tasks/todo.md`.
 
 ### Phase 3: MIDI and ship
 - [x] Task 7: Web MIDI input (device picker, MIDI-learn, pitch bend and CC)
-- [ ] Task 8: Deploy (CI matrix, landing page card, READMEs)
+- [x] Task 8: Deploy (CI matrix, landing page card, READMEs)
 
 ### Checkpoint: Complete
 - [ ] Played end to end with midi-surf; deployed under `/v2-0/`

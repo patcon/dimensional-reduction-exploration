@@ -258,12 +258,13 @@ resets the optimiser's internal state.
   a line to the root README.
 
 **Acceptance criteria:**
-- [ ] CI builds v2-0 alongside v1-x; the app works under `/v2-0/` (base path respected in data fetches).
-- [ ] The landing page links to v2.0.
+- [x] CI builds v2-0 alongside v1-x; the app works under `/v2-0/` (base path respected in data fetches).
+- [x] The landing page links to v2.0.
 
 **Verification:**
-- [ ] `pnpm run build --base /x/v2-0/` then `pnpm preview` loads data
-- [ ] Manual: the deployed page loads after merge
+- [x] `pnpm run build --base /x/v2-0/` then `pnpm preview` loads data (no failed requests;
+  autopilot runs). `reference.bin` (7.4 MB) ships too but is never fetched by the app.
+- [ ] Manual: the deployed page loads after pushing to main
 
 **Dependencies:** Task 2 (best done after Task 7)
 **Files likely touched:** `.github/workflows/pages.yml`, `site/index.html`, `README.md`, `v2-0/README.md`
