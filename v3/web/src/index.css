@@ -1,0 +1,150 @@
+:root {
+  --bg: #fafaf9;
+  --fg: #1c1917;
+  --muted: #78716c;
+  --border: #e7e5e4;
+  --panel: #ffffff;
+  --accent: #e11d48;
+  /* Optimiser phases on the projection timeline. */
+  --phase-1: #7c3aed;
+  --phase-2: #0891b2;
+  --phase-3: #ca8a04;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0a09;
+    --fg: #f5f5f4;
+    --muted: #a8a29e;
+    --border: #292524;
+    --panel: #1c1917;
+    --accent: #fb7185;
+    --phase-1: #a78bfa;
+    --phase-2: #22d3ee;
+    --phase-3: #facc15;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+/* Wide enough for a lone 32×32 matrix at 1px per pixel column beside the sidebar. */
+main { padding: 24px; max-width: 1500px; margin: 0 auto; }
+.status { padding: 48px; color: var(--muted); }
+h1 { margin: 0 0 8px; font-size: 1.6rem; }
+h2 { margin: 0; font-size: 1rem; }
+h3 { margin: 24px 0 8px; font-size: 0.95rem; }
+.muted { color: var(--muted); }
+
+.page-header p { margin: 0 0 12px; color: var(--muted); max-width: 70ch; }
+.page-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; font-size: 0.85rem; }
+/* Own line under the buttons, so long help text never pushes them around. */
+.page-controls-note { flex-basis: 100%; }
+.legend { display: flex; gap: 12px; list-style: none; padding: 0; margin: 0; font-size: 0.85rem; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: baseline; }
+
+/* Two columns: everything below the header, and the sidebar alongside it for the whole page. */
+.layout { display: flex; gap: 24px; margin-top: 20px; align-items: flex-start; }
+.content { flex: 1; min-width: 0; }
+/* Scroll sideways if a lone 1024px matrix doesn't fit; never vertically, so wheel scrolling goes to the page. */
+.matrices { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+.panel header { margin-bottom: 8px; }
+.panel-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 28px; font-size: 0.85rem; }
+.panel header p { margin: 2px 0 0; font-size: 0.8rem; color: var(--muted); max-width: 440px; }
+
+.matrix-row { display: flex; gap: 4px; }
+.strip-labels { display: flex; flex-direction: column; justify-content: flex-start; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.7rem; color: var(--muted); gap: 8px; }
+.matrix { position: relative; display: flex; gap: 2px; cursor: crosshair; border: 1px solid var(--border); background: #000; }
+.matrix img { display: block; user-select: none; }
+.matrix img.blocky { image-rendering: pixelated; }
+.matrix-image { position: relative; }
+.sweep-dot, .sweep-tail { position: absolute; left: 0; top: 0; opacity: 0; pointer-events: none; will-change: transform; }
+.sweep-dot { width: 5px; height: 5px; margin: -2px 0 0 -2.5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px var(--accent), 0 0 8px 3px var(--accent); }
+.sweep-tail { height: 3px; margin-top: -1px; border-radius: 2px; background: linear-gradient(to right, transparent, var(--accent)); filter: drop-shadow(0 0 3px var(--accent)); }
+.strip { display: block; image-rendering: pixelated; }
+.boundary { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid rgba(255, 255, 255, 0.55); pointer-events: none; }
+.cursor { position: absolute; left: -6px; right: -6px; height: 0; border-top: 1px solid var(--accent); pointer-events: none; }
+.cursor.pinned { border-top-width: 3px; margin-top: -1px; }
+
+/* Stays in view while the matrices scroll past; scrolls itself if taller than the window. */
+.sidebar { flex-shrink: 0; width: 340px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.digit-preview { display: flex; gap: 16px; align-items: flex-start; min-height: 140px; }
+.digit-canvas { position: relative; flex-shrink: 0; width: 114px; height: 114px; }
+.digit-preview canvas { width: 112px; height: 112px; image-rendering: pixelated; border: 1px solid var(--border); background: #000; box-sizing: content-box; }
+.digit-preview canvas.grid-overlay { position: absolute; inset: 0; background: transparent; border-color: transparent; image-rendering: auto; pointer-events: none; }
+.digit-preview canvas.sweep-overlay { position: absolute; inset: 0; background: transparent; border-color: transparent; image-rendering: auto; color: var(--accent); pointer-events: none; }
+.digit-preview dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 0.85rem; }
+.digit-preview dt { color: var(--muted); }
+.digit-preview dd { margin: 0; }
+.digit-preview p { font-size: 0.85rem; margin: 0; }
+.unpin { font: inherit; line-height: 1; background: none; border: 0; padding: 0 2px; color: var(--fg); cursor: pointer; }
+.unpin:hover { color: var(--accent); }
+/* Isometric variant: the stack is wide, so its details stack each label above its value. */
+.digit-preview.stacked { gap: 12px; }
+.digit-preview.stacked dl { grid-template-columns: 1fr; gap: 0; }
+.digit-preview.stacked dd { margin-bottom: 6px; }
+.digit-stack-wrap { position: relative; }
+.digit-footprint { flex-shrink: 0; }
+.stack-label { position: absolute; display: flex; align-items: center; gap: 2px; transform: translateY(-50%); font-size: 11px; }
+.stack-label button { font: inherit; background: none; border: 0; padding: 1px 2px; color: var(--muted); cursor: pointer; opacity: 0.6; }
+.stack-label button:hover { opacity: 1; color: var(--fg); }
+.stack-label.on button { color: var(--accent); opacity: 1; }
+.stack-label.on .stack-label-name { font-weight: 600; }
+.digit-view { position: relative; }
+/* One button in the footprint's bottom-right corner for both views; its icon morphs between expand and ×. */
+.view-toggle { position: absolute; width: 18px; height: 18px; padding: 0; border: 0; background: none; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.view-toggle:hover { color: var(--fg); }
+.digit-preview canvas.digit-stack.sweep { position: absolute; inset: 0; color: var(--accent); pointer-events: none; }
+.digit-preview canvas.digit-stack { border: 0; background: none; image-rendering: auto; color: var(--fg); cursor: pointer; }
+.projection { margin-top: 20px; }
+.projection-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.projection-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-basis: 100%; }
+.segmented button:disabled { opacity: 0.4; cursor: not-allowed; }
+.segmented.full-width { display: flex; flex: 1; }
+.segmented.full-width button { flex: 1; }
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.segmented button { font: inherit; font-size: 0.8rem; padding: 4px 10px; border: 0; background: var(--panel); color: var(--muted); cursor: pointer; }
+.segmented button + button { border-left: 1px solid var(--border); }
+.segmented button.on { background: var(--fg); color: var(--bg); }
+button.link { font: inherit; font-size: 0.8rem; background: none; border: 0; color: var(--muted); cursor: pointer; text-decoration: underline; }
+.plot { display: block; border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: crosshair; }
+.plot.rotatable, .plot.pannable { cursor: grab; }
+.checkbox { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); cursor: pointer; user-select: none; }
+.checkbox input { margin: 0; accent-color: var(--fg); }
+.plot.rotatable:active, .plot.pannable:active { cursor: grabbing; }
+.projection .section-note { margin-top: 6px; }
+.timeline { display: flex; align-items: flex-start; gap: 10px; margin: 8px 0 4px; font-size: 0.8rem; }
+.timeline-track { position: relative; flex: 1; }
+.timeline-track input { display: block; width: 100%; margin: 0; accent-color: var(--accent); }
+.phase-bar { position: relative; height: 4px; margin: 3px 8px 0; }
+.phase-bar span { position: absolute; top: 0; height: 100%; border-radius: 2px; opacity: 0.3; transition: opacity 0.2s; }
+.phase-bar span.on { opacity: 1; }
+.timeline-info { display: flex; flex-direction: column; align-items: flex-end; min-width: 9.5em; font-variant-numeric: tabular-nums; }
+.phase-detail { margin: 0 0 8px; min-height: 3.6em; font-size: 0.75rem; color: var(--muted); }
+.button { font: inherit; font-size: 0.8rem; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
+.button:hover:not(:disabled) { border-color: var(--muted); }
+.button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.clusters { border-collapse: collapse; width: 100%; max-width: 900px; font-size: 0.85rem; }
+.clusters th, .clusters td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.clusters th { color: var(--muted); font-weight: 500; }
+.clusters .num { text-align: right; font-variant-numeric: tabular-nums; }
+.clusters td:last-child { width: 60%; }
+.composition { display: flex; height: 18px; border-radius: 3px; overflow: hidden; }
+.composition div { font-size: 0.7rem; color: #fff; display: flex; align-items: center; justify-content: center; min-width: 1px; }
+
+.section-note { margin: 0 0 12px; font-size: 0.8rem; color: var(--muted); }
+.cluster-samples { display: flex; flex-direction: column; gap: 10px; }
+.sample-row { display: flex; align-items: center; gap: 16px; }
+.sample-head { width: 150px; flex-shrink: 0; font-size: 0.85rem; }
+.samples { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.samples li { position: relative; border: 2px solid transparent; border-radius: 3px; line-height: 0; }
+.samples li.mismatch { border-color: var(--accent); }
+.samples li { cursor: pointer; }
+.samples li.active { outline: 1px solid var(--fg); outline-offset: 1px; }
+.samples li.selected { outline: 3px solid var(--fg); outline-offset: 1px; }
+.samples canvas { width: 56px; height: 56px; image-rendering: pixelated; background: #000; }
+.samples .badge { position: absolute; right: 1px; bottom: 1px; font-size: 0.65rem; line-height: 1; padding: 2px 3px; border-radius: 2px; color: #fff; }
