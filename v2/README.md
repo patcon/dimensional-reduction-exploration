@@ -13,8 +13,8 @@ PaCMAP / LocalMAP projections in 2D and 3D, per-cluster samples and composition.
 ```sh
 # 1. Process data (downloads MNIST sprite on first run; writes web/public/data/)
 cd pipeline
-uv run process.py                      # defaults: -n 3000 --resolution 0.5
-uv run process.py -n 5000 --resolution 1.0
+uv run process.py                      # defaults: -n 10000 --resolution 0.5
+uv run process.py -n 3000 --resolution 1.0   # smaller, faster run
 
 # 2. View
 cd ../web

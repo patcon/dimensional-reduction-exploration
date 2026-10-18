@@ -161,7 +161,7 @@ def within_cluster_order(X: np.ndarray) -> np.ndarray:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("-n", "--n-samples", type=int, default=3000)
+    parser.add_argument("-n", "--n-samples", type=int, default=10000)
     parser.add_argument("--n-pcs", type=int, default=50)
     parser.add_argument("--n-neighbors", type=int, default=15)
     parser.add_argument("--resolution", type=float, default=0.5)
