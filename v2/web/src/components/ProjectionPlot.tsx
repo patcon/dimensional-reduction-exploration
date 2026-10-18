@@ -63,6 +63,8 @@ const DEFAULT_METHOD = 'localmap'
 const DEFAULT_DIMS = 3
 const INITIAL_ROTATION: Rotation = { yaw: 0.5, pitch: 0.3 }
 const INITIAL_VIEW: View = { zoom: 1, panX: 0, panY: 0 }
+/** Point size multiplier: about sqrt(3k / 10k), so the 10k-sample cloud covers as much of the plot as 3k samples did. */
+const POINT_SIZE = 0.55
 /** Auto-rotation speed in radians of yaw per second (a full turn in about half a minute). */
 const AUTO_ROTATE_SPEED = 0.2
 const ORIGIN: Vec3 = [0, 0, 0]
@@ -486,7 +488,7 @@ export function ProjectionPlot({
     for (const i of drawOrder) {
       const { sx, sy, depth } = screen[i]
       const t = is3d ? (depth + 1) / 2 : 0.5
-      const r = (1 + t * 1.2) * pointScale
+      const r = (1 + t * 1.2) * pointScale * POINT_SIZE
       ctx.globalAlpha = (0.35 + t * 0.5) * (showPaths ? 0.6 : 1)
       ctx.fillStyle = pointColors[i]
       ctx.fillRect(sx - r, sy - r, r * 2, r * 2)
