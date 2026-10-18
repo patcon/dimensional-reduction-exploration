@@ -39,7 +39,8 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 }
 .toolbar button:hover:not(:disabled) { border-color: var(--accent); }
 .toolbar button:disabled { opacity: 0.4; cursor: not-allowed; }
-.readout { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: auto; }
+/* Always its own line under the controls, so a long status never pushes them around. */
+.readout { flex-basis: 100%; order: 1; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .toolbar .segmented button { border: 0; border-radius: 0; }
