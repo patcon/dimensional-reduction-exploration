@@ -121,6 +121,7 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 
 @media (max-width: 720px) {
   .stage { flex-direction: column; }
-  .scatter { height: 60vh; }
+  /* Stacked, flex: 1 would collapse the plot to nothing; give it a real height. */
+  .scatter { flex: none; height: 60vh; }
   .forces { align-items: center; }
 }
