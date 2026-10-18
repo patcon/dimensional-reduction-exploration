@@ -16,15 +16,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Each version is built in parallel and served from its own subpath (/v1/, /v2/, /v3/).
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: [v1, v2, v3]
     steps:
       - uses: actions/checkout@v4
 
       - id: pages
         uses: actions/configure-pages@v5
 
-      # v3/web/public/data/ is gitignored: regenerate it from MNIST with the pipeline.
+      # <version>/web/public/data/ is gitignored: regenerate it from MNIST with the pipeline.
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.12'
@@ -39,7 +43,7 @@ jobs:
 
       - name: Process data
         working-directory: pipeline
-        run: uv run v3.py
+        run: uv run ${{ matrix.version }}.py
 
       - uses: pnpm/action-setup@v4
         with:
@@ -49,20 +53,40 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: v3/web/pnpm-lock.yaml
+          cache-dependency-path: ${{ matrix.version }}/web/pnpm-lock.yaml
 
-      - name: Build site
-        working-directory: v3/web
+      - name: Build app
+        working-directory: ${{ matrix.version }}/web
         run: |
           pnpm install --frozen-lockfile
-          pnpm run build --base "${{ steps.pages.outputs.base_path }}/"
+          pnpm run build --base "${{ steps.pages.outputs.base_path }}/${{ matrix.version }}/"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.version }}
+          path: ${{ matrix.version }}/web/dist
+          retention-days: 1
+
+  # The landing page at the root, with each version's build beneath it.
+  assemble:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: _site
+
+      - name: Add landing page
+        run: cp -r site/. _site/
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: v3/web/dist
+          path: _site
 
   deploy:
-    needs: build
+    needs: assemble
     runs-on: ubuntu-latest
     environment:
       name: github-pages
