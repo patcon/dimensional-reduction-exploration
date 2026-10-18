@@ -62,19 +62,26 @@ export default function App() {
   const [pixelOrderKey, setPixelOrderKey] = useState<PixelOrderKey>('rowMajor')
   const identity = useMemo(() => (data ? data.meta.rows.label.map((_, i) => i) : []), [data])
 
+  // Each row's colour under the active grouping: its Leiden cluster's majority digit, or its own label.
+  const pointColors = useMemo(() => {
+    if (!data) return []
+    const { meta } = data
+    if (groupBy === 'label') return meta.rows.label.map((d) => DIGIT_COLORS[d])
+    const majority = new Map(meta.clusters.map((c) => [c.id, c.majorityLabel]))
+    return meta.rows.cluster.map((c) => DIGIT_COLORS[majority.get(c)!])
+  }, [data, groupBy])
+
   // One path per group of the active sorting, coloured like that group in the strips.
   const paths = useMemo<GroupPath[]>(() => {
     if (!data) return []
     const { meta } = data
     const { order, boundaries } = meta.sortings[groupBy][within]
-    const majority = new Map(meta.clusters.map((c) => [c.id, c.majorityLabel]))
     const starts = [0, ...boundaries]
     return starts.map((start, i) => {
       const rows = order.slice(start, starts[i + 1] ?? order.length)
-      const digit = groupBy === 'leiden' ? majority.get(meta.rows.cluster[rows[0]])! : meta.rows.label[rows[0]]
-      return { rows, color: DIGIT_COLORS[digit] }
+      return { rows, color: pointColors[rows[0]] }
     })
-  }, [data, groupBy, within])
+  }, [data, groupBy, within, pointColors])
 
   // Once the focused digit (pinned, else hovered) holds still, sweep through its pixels.
   const focus = selected ?? hovered
@@ -191,6 +198,7 @@ export default function App() {
             meta={meta}
             resolution={resolution}
             onResolution={setResolution}
+            pointColors={pointColors}
             paths={paths}
             pathsLabel={`${GROUPS[groupBy].label} groups in ${within === 'pc1' ? 'PC1' : 'random'} order`}
             hovered={hovered}

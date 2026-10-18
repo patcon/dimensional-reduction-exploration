@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Meta } from '../types'
-import { DIGIT_COLORS } from '../palette'
 import { loadEvolution } from '../useMnistData'
 
 const SIZE = 320
@@ -171,6 +170,7 @@ export function ProjectionPlot({
   meta,
   resolution,
   onResolution,
+  pointColors,
   paths,
   pathsLabel,
   hovered,
@@ -182,6 +182,8 @@ export function ProjectionPlot({
   /** Digit side length whose projections are shown; shared with the matrices and previews. */
   resolution: number
   onResolution: (resolution: number) => void
+  /** Fill colour per row, following the active sorting's grouping. */
+  pointColors: string[]
   /** One path per group of the active sorting, in sort order. */
   paths: GroupPath[]
   pathsLabel: string
@@ -433,7 +435,6 @@ export function ProjectionPlot({
     frame = requestAnimationFrame(step)
     return () => cancelAnimationFrame(frame)
   }, [pinnedPoint])
-  const majority = useMemo(() => new Map(meta.clusters.map((c) => [c.id, c.majorityLabel])), [meta])
   // A pinned point keeps its group's path highlighted; otherwise follow the hover.
   const focus = selected ?? hovered
   const focusPath = useMemo(
@@ -468,7 +469,7 @@ export function ProjectionPlot({
       const t = is3d ? (depth + 1) / 2 : 0.5
       const r = (1 + t * 1.2) * pointScale
       ctx.globalAlpha = (0.35 + t * 0.5) * (showPaths ? 0.6 : 1)
-      ctx.fillStyle = DIGIT_COLORS[majority.get(meta.rows.cluster[i])!]
+      ctx.fillStyle = pointColors[i]
       ctx.fillRect(sx - r, sy - r, r * 2, r * 2)
     }
 
@@ -504,7 +505,7 @@ export function ProjectionPlot({
       ring(selected, 2, 2)
     }
     if (hovered !== null && hovered !== selected) ring(hovered, 6, 1.5)
-  }, [screen, hovered, selected, majority, meta, dpr, is3d, view.zoom, showPaths, paths, focusPath])
+  }, [screen, hovered, selected, pointColors, dpr, is3d, view.zoom, showPaths, paths, focusPath])
 
   // React's onWheel is passive, so attach natively to be able to preventDefault page scroll.
   useEffect(() => {
