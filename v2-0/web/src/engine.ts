@@ -24,7 +24,7 @@ export class Engine {
   readonly Y: Float32Array
   readonly grad: Float32Array
   optimiser: Optimiser
-  /** Scales the optimiser's learning rate (the master speed control); 1 is PaCMAP's. */
+  /** Scales the optimiser's learning rate (the speed control); 1 is PaCMAP's. */
   speed = 1
   /** Steps taken since the last reset. */
   steps = 0

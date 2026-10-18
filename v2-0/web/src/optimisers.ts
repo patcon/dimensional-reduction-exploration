@@ -2,7 +2,7 @@ import type { AdamParams } from './types.ts'
 
 /** Turns the engine's gradient into a step. Each keeps its own state and step count. */
 export interface Optimiser {
-  /** Move Y against grad. `speed` scales the learning rate (the master speed control). */
+  /** Move Y against grad. `speed` scales the learning rate (the speed control). */
   step(Y: Float32Array, grad: Float32Array, speed: number): void
   /** Forget all internal state. */
   reset(): void
@@ -106,16 +106,16 @@ export interface OptimiserSettings {
   /** beta2 for the short-memory Adam. */
   shortBeta2: number
   momentum: MomentumParams
-  /** Master speed: multiplies every optimiser's learning rate. */
-  speed: number
+  /** Speed: multiplies the learning rate. Each optimiser remembers its own. */
+  speed: Record<OptimiserKind, number>
 }
 
-/** Momentum's defaults come close to PaCMAP's own result when run on its schedule. */
+/** Momentum descent is tuned slow and lightly coasting, so it's easy to steer by hand. */
 export const DEFAULT_OPTIMISER: OptimiserSettings = {
   kind: 'adam',
   shortBeta2: 0.9,
-  momentum: { lr: 1, momentum: 0.9, maxStep: 1 },
-  speed: 1,
+  momentum: { lr: 1, momentum: 0.5, maxStep: 1 },
+  speed: { adam: 1, 'adam-kick': 1, 'adam-short': 1, momentum: 0.15 },
 }
 
 /** One instance of each optimiser, so switching back and forth is cheap. */

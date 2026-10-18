@@ -1,4 +1,4 @@
-import type { OptimiserKind, OptimiserSettings } from '../optimisers'
+import { DEFAULT_OPTIMISER, type OptimiserKind, type OptimiserSettings } from '../optimisers'
 
 const KINDS: { kind: OptimiserKind; label: string; help: string }[] = [
   {
@@ -23,7 +23,7 @@ const KINDS: { kind: OptimiserKind; label: string; help: string }[] = [
   },
 ]
 
-/** Master speed slider position in [-1, 1] ↔ 0.1x to 10x. */
+/** Speed slider position in [-1, 1] ↔ 0.1x to 10x. */
 const speedToPos = (speed: number) => Math.log10(speed)
 const posToSpeed = (pos: number) => 10 ** pos
 
@@ -51,12 +51,14 @@ interface Props {
   onChange: (settings: OptimiserSettings) => void
 }
 
-/** Which optimiser turns forces into motion, its knobs, and the master speed. */
+/** Which optimiser turns forces into motion, its knobs, and its speed. */
 export function OptimiserPanel({ settings, onChange }: Props) {
   const set = (patch: Partial<OptimiserSettings>) => onChange({ ...settings, ...patch })
   const setMomentum = (patch: Partial<OptimiserSettings['momentum']>) =>
     set({ momentum: { ...settings.momentum, ...patch } })
   const current = KINDS.find((k) => k.kind === settings.kind)!
+  const speed = settings.speed[settings.kind]
+  const setSpeed = (s: number) => set({ speed: { ...settings.speed, [settings.kind]: s } })
 
   return (
     <section className="optimiser" aria-label="Optimiser">
@@ -88,11 +90,11 @@ export function OptimiserPanel({ settings, onChange }: Props) {
           min={-1}
           max={1}
           step={0.01}
-          value={speedToPos(settings.speed)}
-          onChange={(e) => set({ speed: Number(posToSpeed(Number(e.target.value)).toPrecision(2)) })}
-          onDoubleClick={() => set({ speed: 1 })}
+          value={speedToPos(speed)}
+          onChange={(e) => setSpeed(Number(posToSpeed(Number(e.target.value)).toPrecision(2)))}
+          onDoubleClick={() => setSpeed(DEFAULT_OPTIMISER.speed[settings.kind])}
         />
-        <span className="opt-value">{settings.speed}×</span>
+        <span className="opt-value">{speed}×</span>
       </label>
     </section>
   )

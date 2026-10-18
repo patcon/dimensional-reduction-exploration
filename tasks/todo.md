@@ -214,6 +214,9 @@ resets the optimiser's internal state.
 - [x] "smooth" toggle (on by default): the layout redraws at 30 fps, gliding from the layout
   before each step to the one after it (one step behind). Off: it redraws once per step,
   capped at 30 fps. Headless at 5 it/s: about 28 draws/s on, 5 off, 0 when paused.
+- [x] Momentum descent defaults are now coast 0.5, step cap 1 and speed 0.15×. Speed is
+  remembered per optimiser (Adam variants default to 1×); double-clicking the speed slider
+  restores the current optimiser's default.
 
 ## Task 7: Web MIDI input (device picker, MIDI-learn, pitch bend and CC)
 

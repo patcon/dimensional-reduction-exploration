@@ -31,7 +31,7 @@ function Playground({ data }: { data: PacmapData }) {
 
   const [optimiser, setOptimiser] = useState<OptimiserSettings>(DEFAULT_OPTIMISER)
   useEffect(() => {
-    engine.setSpeed(optimiser.speed)
+    engine.setSpeed(optimiser.speed[optimiser.kind])
     const next = optimisers.configure(optimiser)
     if (engine.optimiser !== next) engine.setOptimiser(next)
   }, [optimiser, optimisers, engine])
