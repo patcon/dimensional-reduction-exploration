@@ -53,6 +53,25 @@ force (or speed) and move the control to bind it.
 Both read centre as 0. Each control drives one target; learning it for another moves it.
 Bindings and the chosen device are remembered, and MIDI reconnects on reload.
 
+### Don't have a MIDI device? Use your phone as one
+
+1. On an Android phone, open [MIDI Surf](https://midisurf.app) in Chrome: a MIDI
+   controller with faders that runs in the browser.
+2. Plug the phone into the computer by USB. On the phone, tap the USB notification (or
+   find USB under Settings → Connected devices) and choose **MIDI**; the computer then
+   sees the phone as a USB MIDI device. Menu names vary by phone
+   ([more on Android USB MIDI](https://midi.org/developing-midi-applications-on-android)).
+3. In MIDI Surf, send to the USB port (usually "Android USB Peripheral") and add faders.
+4. In the app, connect MIDI, press learn beside a force and move a fader.
+
+**iPhone or iPad:** browsers on iOS don't support Web MIDI
+([WebKit bug 107250](https://bugs.webkit.org/show_bug.cgi?id=107250)), so MIDI Surf
+can't run there. Use a MIDI controller app from the App Store with a Mac instead: plug in
+by USB, open Audio MIDI Setup, choose Window → Show Audio Devices and click Enable under
+your device ([Apple's guide](https://support.apple.com/guide/audio-midi-setup/set-up-audio-devices-ams59f301fda/mac)),
+or connect over Wi-Fi with a
+[network MIDI session](https://support.apple.com/guide/audio-midi-setup/share-midi-information-over-a-network-ams1012/mac).
+
 ## How it works
 
 - `pipeline/v2-0.py` runs PaCMAP once (`save_pairs=True`) and exports its pairs

@@ -4,12 +4,51 @@ import { ALL_DEVICES, type useMidi } from '../useMidi'
 
 const TARGET_LABELS: Record<MidiTarget, string> = { ...FORCE_LABELS, speed: 'Speed' }
 
+/** How to play without a MIDI controller: a phone running MIDI Surf, plugged in over USB. */
+function PhoneAsMidi() {
+  return (
+    <details className="midi-phone">
+      <summary>Don't have a MIDI device? Use your phone as one</summary>
+      <ol>
+        <li>
+          On an Android phone, open <a href="https://midisurf.app" target="_blank" rel="noreferrer">MIDI Surf</a> in
+          Chrome: a MIDI controller with faders that runs in the browser.
+        </li>
+        <li>
+          Plug the phone into this computer by USB. On the phone, tap the USB notification (or find USB under Settings
+          → Connected devices) and choose <strong>MIDI</strong>. Menu names vary by phone (
+          <a href="https://midi.org/developing-midi-applications-on-android" target="_blank" rel="noreferrer">
+            more on Android USB MIDI
+          </a>
+          ).
+        </li>
+        <li>In MIDI Surf, send to the USB port (usually "Android USB Peripheral") and add a few faders.</li>
+        <li>Here, connect MIDI, press learn beside a force and move a fader.</li>
+      </ol>
+      <p>
+        <strong>iPhone or iPad:</strong> browsers on iOS don't support Web MIDI, so MIDI Surf can't run there. Use a
+        MIDI controller app from the App Store with a Mac instead: plug in by USB, open Audio MIDI Setup, choose Window →
+        Show Audio Devices and click Enable under your device (
+        <a href="https://support.apple.com/guide/audio-midi-setup/set-up-audio-devices-ams59f301fda/mac" target="_blank" rel="noreferrer">
+          Apple's guide
+        </a>
+        ), or connect over Wi-Fi with a{' '}
+        <a href="https://support.apple.com/guide/audio-midi-setup/share-midi-information-over-a-network-ams1012/mac" target="_blank" rel="noreferrer">
+          network MIDI session
+        </a>
+        .
+      </p>
+    </details>
+  )
+}
+
 /** Connect a MIDI device and bind its controls: learn, then move the control you want. */
 export function MidiPanel({ midi }: { midi: ReturnType<typeof useMidi> }) {
   if (midi.status === 'unsupported')
     return (
       <section className="midi" aria-label="MIDI">
         <span className="muted">MIDI isn't available in this browser; try Chrome, Edge or Firefox. The sliders work everywhere.</span>
+        <PhoneAsMidi />
       </section>
     )
 
@@ -20,6 +59,7 @@ export function MidiPanel({ midi }: { midi: ReturnType<typeof useMidi> }) {
           {midi.status === 'requesting' ? 'Waiting for permission…' : 'Connect MIDI'}
         </button>
         {midi.status === 'denied' && <span className="muted">MIDI access was refused. Allow it in the site settings, then try again.</span>}
+        <PhoneAsMidi />
       </section>
     )
 
@@ -61,6 +101,7 @@ export function MidiPanel({ midi }: { midi: ReturnType<typeof useMidi> }) {
         })}
       </div>
       <p className="opt-help">Pitch bend springs back to 0 when you let go (the force stops); a fader stays put. Centre is 0 on both.</p>
+      <PhoneAsMidi />
     </section>
   )
 }
