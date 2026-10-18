@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MATRIX_URLS, useMnistData } from './useMnistData'
 import { MatrixPanel } from './components/MatrixPanel'
-import { DigitPreview } from './components/DigitPreview'
+import { DigitStack } from './components/DigitStack'
 import { ProjectionPlot, type GroupPath } from './components/ProjectionPlot'
 import { ClusterTable } from './components/ClusterTable'
 import { ClusterSamples } from './components/ClusterSamples'
@@ -266,13 +266,14 @@ export default function App() {
           <ClusterTable meta={meta} />
         </div>
         <aside className="sidebar">
-          <DigitPreview
+          {/* DigitPreview is the flat single-resolution alternative, with the pixel sweep. */}
+          <DigitStack
             data={data}
             row={focus}
             resolution={resolution}
-            pixelOrder={pixelOrder}
+            shuffle={shuffle}
             pinned={selected !== null}
-            sweep={sweep}
+            onResolution={setResolution}
             onUnpin={() => setSelected(null)}
           />
           <ProjectionPlot

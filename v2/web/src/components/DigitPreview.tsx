@@ -51,7 +51,7 @@ export function DigitPreview({
     }
     ctx.globalAlpha = 1
   })
-  const { meta, pixels } = data
+  const { pixels } = data
 
   useEffect(() => {
     const ctx = ref.current!.getContext('2d')!
@@ -81,9 +81,6 @@ export function DigitPreview({
     }
   }, [resolution, cell, dpr])
 
-  const cluster = row === null ? null : meta.clusters.find((c) => c.id === meta.rows.cluster[row])!
-  const label = row === null ? null : meta.rows.label[row]
-
   return (
     <div className="digit-preview">
       <div className="digit-canvas">
@@ -103,35 +100,53 @@ export function DigitPreview({
           aria-hidden
         />
       </div>
-      {row === null ? (
-        <p className="muted">Hover a row in either matrix, a sample, or a point in the projection. Click to pin it.</p>
-      ) : (
-        <dl>
-          <dt>Label</dt>
-          <dd>
-            <span className="swatch" style={{ background: DIGIT_COLORS[label!] }} /> {label}
-          </dd>
-          <dt>Cluster</dt>
-          <dd>
-            <span className="swatch" style={{ background: DIGIT_COLORS[cluster!.majorityLabel] }} /> #{cluster!.id}{' '}
-            <span className="muted">
-              (mostly {cluster!.majorityLabel}, {Math.round(cluster!.purity * 100)}% pure)
-            </span>
-          </dd>
-          <dt>MNIST index</dt>
-          <dd>{meta.rows.sourceIndex[row]}</dd>
-          <dt>{pinned ? 'Pinned' : ''}</dt>
-          <dd>
-            {pinned ? (
-              <button className="link" onClick={onUnpin}>
-                Unpin (Esc)
-              </button>
-            ) : (
-              <span className="muted">Click to pin</span>
-            )}
-          </dd>
-        </dl>
-      )}
+      <DigitDetails data={data} row={row} pinned={pinned} onUnpin={onUnpin} />
     </div>
+  )
+}
+
+/** Label, cluster and pin state of the focused digit, or a hint when nothing is focused. */
+export function DigitDetails({
+  data,
+  row,
+  pinned,
+  onUnpin,
+}: {
+  data: MnistData
+  row: number | null
+  pinned: boolean
+  onUnpin: () => void
+}) {
+  const { meta } = data
+  const cluster = row === null ? null : meta.clusters.find((c) => c.id === meta.rows.cluster[row])!
+  const label = row === null ? null : meta.rows.label[row]
+  return row === null ? (
+    <p className="muted">Hover a row in either matrix, a sample, or a point in the projection. Click to pin it.</p>
+  ) : (
+    <dl>
+      <dt>Label</dt>
+      <dd>
+        <span className="swatch" style={{ background: DIGIT_COLORS[label!] }} /> {label}
+      </dd>
+      <dt>Cluster</dt>
+      <dd>
+        <span className="swatch" style={{ background: DIGIT_COLORS[cluster!.majorityLabel] }} /> #{cluster!.id}{' '}
+        <span className="muted">
+          (mostly {cluster!.majorityLabel}, {Math.round(cluster!.purity * 100)}% pure)
+        </span>
+      </dd>
+      <dt>MNIST index</dt>
+      <dd>{meta.rows.sourceIndex[row]}</dd>
+      <dt>{pinned ? 'Pinned' : ''}</dt>
+      <dd>
+        {pinned ? (
+          <button className="link" onClick={onUnpin}>
+            Unpin (Esc)
+          </button>
+        ) : (
+          <span className="muted">Click to pin</span>
+        )}
+      </dd>
+    </dl>
   )
 }

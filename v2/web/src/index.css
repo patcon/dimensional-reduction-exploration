@@ -80,6 +80,9 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 .digit-preview dt { color: var(--muted); }
 .digit-preview dd { margin: 0; }
 .digit-preview p { font-size: 0.85rem; margin: 0; }
+/* Isometric variant: the stack above, details below. */
+.digit-preview.stacked { flex-direction: column; gap: 8px; }
+.digit-preview canvas.digit-stack { border: 0; background: none; image-rendering: auto; color: var(--fg); cursor: pointer; }
 .projection { margin-top: 20px; }
 .projection-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .projection-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-basis: 100%; }
