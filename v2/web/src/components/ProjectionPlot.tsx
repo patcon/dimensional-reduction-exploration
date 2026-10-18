@@ -60,6 +60,8 @@ export interface GroupPath {
   color: string
 }
 
+const DEFAULT_METHOD = 'localmap'
+const DEFAULT_DIMS = 3
 const INITIAL_ROTATION: Rotation = { yaw: 0.5, pitch: 0.3 }
 const INITIAL_VIEW: View = { zoom: 1, panX: 0, panY: 0 }
 const ORIGIN: Vec3 = [0, 0, 0]
@@ -193,8 +195,9 @@ export function ProjectionPlot({
   const dpr = window.devicePixelRatio || 1
   const keys = Object.keys(meta.projections)
   const methods = [...new Set(keys.map((k) => parseKey(k).method))]
-  const [method, setMethod] = useState(methods[0])
-  const [dims, setDims] = useState(parseKey(keys[0]).dims)
+  const [method, setMethod] = useState(methods.includes(DEFAULT_METHOD) ? DEFAULT_METHOD : methods[0])
+  // Falls back to whatever the method has if DEFAULT_DIMS is missing (see `name` below).
+  const [dims, setDims] = useState(DEFAULT_DIMS)
   const available = keys.map(parseKey).filter((k) => k.method === method && k.resolution === resolution)
   const dimsForMethod = available.map((k) => k.dims)
   // Fall back to whatever dimensionality this method has if the chosen one is missing.

@@ -55,7 +55,7 @@ export default function App() {
   // A clicked row stays pinned: it drives the preview and path highlight until unpinned.
   const [selected, setSelected] = useState<number | null>(null)
   const toggleSelected = (row: number | null) => setSelected((s) => (row === null || s === row ? null : row))
-  const [groupBy, setGroupBy] = useState<GroupKey>('leiden')
+  const [groupBy, setGroupBy] = useState<GroupKey>('label')
   const [within, setWithin] = useState<WithinKey>('pc1')
   // Digit resolution (side length) shown everywhere; null until data arrives, then the largest.
   const [resolutionChoice, setResolution] = useState<number | null>(null)
