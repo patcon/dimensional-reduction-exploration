@@ -479,7 +479,9 @@ export function ProjectionPlot({
         const focused = focusPath === -1 || focusPath === i
         ctx.globalAlpha = focused ? (focusPath === -1 ? 0.55 : 0.9) : 0.08
         ctx.lineWidth = focusPath === i ? 1.25 : 0.75
-        ctx.strokeStyle = path.color
+        // The focused path is drawn black, then coloured over with fading strength so it
+        // runs from its colour to black, making its direction read at a glance.
+        ctx.strokeStyle = focusPath === i ? '#000' : path.color
         ctx.beginPath()
         path.rows.forEach((row, j) => {
           const { sx, sy } = screen[row]
@@ -487,6 +489,19 @@ export function ProjectionPlot({
           else ctx.lineTo(sx, sy)
         })
         ctx.stroke()
+        if (focusPath === i) {
+          const alpha = ctx.globalAlpha
+          ctx.strokeStyle = path.color
+          for (let j = 1; j < path.rows.length; j++) {
+            const a = screen[path.rows[j - 1]]
+            const b = screen[path.rows[j]]
+            ctx.globalAlpha = alpha * (1 - (j - 1) / (path.rows.length - 1))
+            ctx.beginPath()
+            ctx.moveTo(a.sx, a.sy)
+            ctx.lineTo(b.sx, b.sy)
+            ctx.stroke()
+          }
+        }
       })
     }
 
