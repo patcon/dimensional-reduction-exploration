@@ -8,7 +8,7 @@ Each digit is zero-padded to 32x32, then average-pooled down to 16x16, 8x8,
 pixels (padding doesn't change distances, so this matches 28x28); projections
 are computed separately at every resolution.
 
-Outputs (written to ../web/public/data/), for each resolution r in RESOLUTIONS:
+Outputs (written to ../v2/web/public/data/), for each resolution r in RESOLUTIONS:
   matrix_original_r<r>.png
                        N x r*r grayscale, subsample in random order
   matrix_sorted_<group>_<within>_r<r>.png
@@ -56,7 +56,7 @@ N_CLASSES = 10
 
 HERE = Path(__file__).parent
 RAW_DIR = HERE / "data" / "raw"
-OUT_DIR = HERE.parent / "web" / "public" / "data"
+OUT_DIR = HERE.parent / "v2" / "web" / "public" / "data"
 
 
 def fetch(url: str, dest: Path) -> Path:

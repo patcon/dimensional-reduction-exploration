@@ -24,22 +24,22 @@ jobs:
       - id: pages
         uses: actions/configure-pages@v5
 
-      # web/public/data/ is gitignored: regenerate it from MNIST with the pipeline.
+      # v2/web/public/data/ is gitignored: regenerate it from MNIST with the pipeline.
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.12'
           enable-cache: true
-          cache-dependency-glob: v2/pipeline/uv.lock
+          cache-dependency-glob: pipeline/uv.lock
 
       - name: Cache MNIST download
         uses: actions/cache@v4
         with:
-          path: v2/pipeline/data/raw
+          path: pipeline/data/raw
           key: mnist-raw
 
       - name: Process data
-        working-directory: v2/pipeline
-        run: uv run process.py
+        working-directory: pipeline
+        run: uv run v2.py
 
       - uses: pnpm/action-setup@v4
         with:
