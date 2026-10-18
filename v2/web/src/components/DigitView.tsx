@@ -116,19 +116,19 @@ export function DigitView({
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
 /**
- * Expand (two arrows out to opposite corners) at t = 0, morphing into × at t = 1: the arrow
- * shafts swing into the cross's two strokes while the arrowheads fade away.
+ * Expand (two angles in the top-right and bottom-left corners) at t = 0, morphing into × at t = 1:
+ * each angle's corner slides to the centre while its arm ends sweep counter-clockwise round the edge,
+ * echoing the layer's own counter-clockwise turn as it flattens. The two meet as the cross's halves.
  */
 function ExpandCloseIcon({ t }: { t: number }) {
-  const line = (from: number[], to: number[]) => {
-    const [x1, y1, x2, y2] = from.map((v, i) => lerp(v, to[i], t))
-    return <line x1={x1} y1={y1} x2={x2} y2={y2} />
-  }
+  // Arm end, corner, arm end, for each angle at t = 0 and t = 1.
+  const angle = (from: number[], to: number[]) => (
+    <polyline points={from.map((v, i) => lerp(v, to[i], t)).join(' ')} />
+  )
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      {line([7, 5, 11, 1], [2, 10, 10, 2])}
-      {line([5, 7, 1, 11], [2, 2, 10, 10])}
-      <path d="M7 1h4v4M5 11H1V7" opacity={1 - t} />
+      {angle([7, 1, 11, 1, 11, 5], [2, 2, 6, 6, 10, 2])}
+      {angle([5, 11, 1, 11, 1, 7], [10, 10, 6, 6, 2, 10])}
     </svg>
   )
 }
