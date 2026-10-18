@@ -78,8 +78,10 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 .digit-preview p { font-size: 0.85rem; margin: 0; }
 .projection { margin-top: 20px; }
 .projection-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-.projection-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.projection-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-basis: 100%; }
 .segmented button:disabled { opacity: 0.4; cursor: not-allowed; }
+.segmented.full-width { display: flex; flex: 1; }
+.segmented.full-width button { flex: 1; }
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .segmented button { font: inherit; font-size: 0.8rem; padding: 4px 10px; border: 0; background: var(--panel); color: var(--muted); cursor: pointer; }
 .segmented button + button { border-left: 1px solid var(--border); }

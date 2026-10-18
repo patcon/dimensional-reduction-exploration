@@ -584,7 +584,7 @@ export function ProjectionPlot({
   return (
     <div className="projection">
       <div className="projection-head">
-        <div className="segmented" role="tablist" aria-label="Digit resolution">
+        <div className="segmented full-width" role="tablist" aria-label="Digit resolution">
           {resolutions.map((r) => (
             <button
               key={r}
@@ -600,7 +600,7 @@ export function ProjectionPlot({
         </div>
       </div>
       <div className="projection-head">
-        <div className="segmented" role="tablist" aria-label="Projection method">
+        <div className="segmented full-width" role="tablist" aria-label="Projection method">
           {methods.map((m) => (
             <button
               key={m}
