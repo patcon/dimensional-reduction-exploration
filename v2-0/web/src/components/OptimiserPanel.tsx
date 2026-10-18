@@ -4,7 +4,7 @@ const KINDS: { kind: OptimiserKind; label: string; help: string }[] = [
   {
     kind: 'adam',
     label: 'PaCMAP Adam',
-    help: "PaCMAP's own. Steps at a near-fixed size, so only the forces' ratios and signs matter.",
+    help: "PaCMAP's own. Steps at a near-fixed size, so only the forces' ratios and signs matter; remembers big forces for ~1000 steps.",
   },
   {
     kind: 'adam-kick',
