@@ -8,7 +8,7 @@ import { ClusterSamples } from './components/ClusterSamples'
 import { DIGIT_COLORS } from './palette'
 import type { GroupKey, WithinKey } from './types'
 import { SWEEP_DWELL_MS, type Sweep } from './sweep'
-import { pixelOrderFor, type PixelOrderKey } from './pixelOrder'
+import { pixelOrderFor, type PixelShuffle } from './pixelOrder'
 
 const MATRIX_HEIGHT = 720
 
@@ -17,9 +17,11 @@ const GROUPS: Record<GroupKey, { label: string; describe: string }> = {
   label: { label: 'Labels', describe: 'Digits 0–9' },
 }
 
-const PIXEL_ORDER_OPTIONS: Record<PixelOrderKey, { label: string }> = {
-  rowMajor: { label: 'Row by row' },
-  shuffled: { label: 'Shuffled' },
+type ShuffleAxis = 'rows' | 'columns'
+
+const SHUFFLE_AXES: Record<ShuffleAxis, { label: string }> = {
+  rows: { label: 'Rows' },
+  columns: { label: 'Columns' },
 }
 
 const WITHINS: Record<WithinKey, { label: string; describe: string }> = {
@@ -59,7 +61,7 @@ export default function App() {
   const [within, setWithin] = useState<WithinKey>('pc1')
   // Digit resolution (side length) shown everywhere; null until data arrives, then the largest.
   const [resolutionChoice, setResolution] = useState<number | null>(null)
-  const [pixelOrderKey, setPixelOrderKey] = useState<PixelOrderKey>('rowMajor')
+  const [shuffle, setShuffle] = useState<PixelShuffle>({ rows: false, columns: false, all: false })
   const identity = useMemo(() => (data ? data.meta.rows.label.map((_, i) => i) : []), [data])
 
   // Each row's colour under the active grouping: its Leiden cluster's majority digit, or its own label.
@@ -107,7 +109,8 @@ export default function App() {
   const { meta } = data
   const p = meta.params
   const resolution = resolutionChoice ?? meta.resolutions[0]
-  const pixelOrder = pixelOrderFor(pixelOrderKey, resolution * resolution)
+  const pixelOrder = pixelOrderFor(shuffle, resolution)
+  const shuffled = (Object.keys(SHUFFLE_AXES) as ShuffleAxis[]).filter((axis) => shuffle[axis])
   const sorting = meta.sortings[groupBy][within]
 
   return (
@@ -128,12 +131,35 @@ export default function App() {
         </p>
         <p>Hover any digit to find it in every view, pause to watch its pixels become a row, and click to pin it.</p>
         <div className="page-controls">
-          <span className="muted">Pixel order</span>
-          <Segmented options={PIXEL_ORDER_OPTIONS} value={pixelOrderKey} onChange={setPixelOrderKey} ariaLabel="Pixel order" />
+          <span className="muted">Pixel shuffling</span>
+          {/* Rows and columns combine; all pixels is a different kind of shuffle, so it clears them (and vice versa). */}
+          <div className="segmented" role="group" aria-label="Shuffle pixel rows or columns">
+            {(Object.keys(SHUFFLE_AXES) as ShuffleAxis[]).map((axis) => (
+              <button
+                key={axis}
+                aria-pressed={shuffle[axis]}
+                className={shuffle[axis] ? 'on' : ''}
+                onClick={() => setShuffle((s) => ({ ...s, [axis]: !s[axis], all: false }))}
+              >
+                {SHUFFLE_AXES[axis].label}
+              </button>
+            ))}
+          </div>
+          <div className="segmented" role="group" aria-label="Shuffle all pixels">
+            <button
+              aria-pressed={shuffle.all}
+              className={shuffle.all ? 'on' : ''}
+              onClick={() => setShuffle((s) => ({ rows: false, columns: false, all: !s.all }))}
+            >
+              All pixels
+            </button>
+          </div>
           <span className="muted">
-            {pixelOrderKey === 'shuffled'
-              ? `Every row gets the same shuffle of its ${resolution * resolution} pixels (after pooling). The projections are unchanged: they never used the pixel layout.`
-              : 'Shuffle the pixel columns to see what the projections actually rely on.'}
+            {shuffle.all
+              ? `Every digit gets the same shuffle of all its ${resolution * resolution} pixels (after pooling). The projections are unchanged: they never used the pixel layout.`
+              : shuffled.length
+                ? `Every digit's ${resolution}×${resolution} grid gets the same shuffle of its ${shuffled.join(' and ')} (after pooling), so the grid structure survives. The projections are unchanged: they never used the pixel layout.`
+                : "Shuffle each digit's pixel rows and/or columns, or all its pixels, to see what the projections actually rely on."}
           </span>
         </div>
         <ul className="legend">

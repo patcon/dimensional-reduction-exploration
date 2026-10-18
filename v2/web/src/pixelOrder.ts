@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 
-/** How each digit's pixels are laid out along its matrix row (and folded back into a square). */
-export type PixelOrderKey = 'rowMajor' | 'shuffled'
+/**
+ * How to shuffle each digit's pixel grid before it's laid out along its matrix row: its rows and/or
+ * columns (keeping the grid structure), or all pixels at once (`all` overrides the other two).
+ */
+export type PixelShuffle = { rows: boolean; columns: boolean; all: boolean }
 
 /** Seeded so the same shuffle is used on every load. */
 function seededPermutation(n: number, seed: number) {
@@ -22,20 +25,36 @@ function seededPermutation(n: number, seed: number) {
   return perm
 }
 
-const shuffles = new Map<number, number[]>()
+const orders = new Map<string, number[]>()
 
 /**
  * pixelOrder[column] = original row-major pixel shown at that column, or null for row-major.
- * Each resolution has its own fixed shuffle, applied after pooling and to every row alike, so
- * distances between digits (and every projection) are unchanged.
+ * Each resolution has its own fixed shuffles, applied after pooling and to every
+ * digit alike, so distances between digits (and every projection) are unchanged.
  */
-export function pixelOrderFor(key: PixelOrderKey, nPixels: number): number[] | null {
-  if (key === 'rowMajor') return null
-  if (!shuffles.has(nPixels)) shuffles.set(nPixels, seededPermutation(nPixels, nPixels))
-  return shuffles.get(nPixels)!
+export function pixelOrderFor({ rows, columns, all }: PixelShuffle, side: number): number[] | null {
+  if (all) {
+    const key = `${side}:all`
+    if (!orders.has(key)) orders.set(key, seededPermutation(side * side, side * side))
+    return orders.get(key)!
+  }
+  if (!rows && !columns) return null
+  const key = `${side}:${rows}:${columns}`
+  if (!orders.has(key)) {
+    const identity = Array.from({ length: side }, (_, i) => i)
+    // Different seeds so the two axes don't get the same shuffle.
+    const rowPerm = rows ? seededPermutation(side, side) : identity
+    const colPerm = columns ? seededPermutation(side, side + 1000) : identity
+    orders.set(
+      key,
+      Array.from({ length: side * side }, (_, i) => rowPerm[Math.floor(i / side)] * side + colPerm[i % side]),
+    )
+  }
+  return orders.get(key)!
 }
 
-const permutedUrls = new Map<string, Promise<string>>()
+// Keyed by pixel order (each array is cached above, so identity is stable), then image url.
+const permutedUrls = new WeakMap<number[], Map<string, Promise<string>>>()
 
 async function permuteColumns(url: string, pixelOrder: number[]) {
   const img = new Image()
@@ -50,19 +69,21 @@ async function permuteColumns(url: string, pixelOrder: number[]) {
   return URL.createObjectURL(blob)
 }
 
-/** The matrix image at `url` with its columns rearranged into `pixelOrder` (cached per image; each image has one resolution). */
+/** The matrix image at `url` with its columns rearranged into `pixelOrder` (cached per image and order). */
 export function usePermutedImage(url: string, pixelOrder: number[] | null) {
-  const [permuted, setPermuted] = useState<{ url: string; src: string } | null>(null)
+  const [permuted, setPermuted] = useState<{ url: string; order: number[]; src: string } | null>(null)
   useEffect(() => {
     if (!pixelOrder) return
     let cancelled = false
-    if (!permutedUrls.has(url)) permutedUrls.set(url, permuteColumns(url, pixelOrder))
-    permutedUrls.get(url)!.then((src) => !cancelled && setPermuted({ url, src }))
+    if (!permutedUrls.has(pixelOrder)) permutedUrls.set(pixelOrder, new Map())
+    const cache = permutedUrls.get(pixelOrder)!
+    if (!cache.has(url)) cache.set(url, permuteColumns(url, pixelOrder))
+    cache.get(url)!.then((src) => !cancelled && setPermuted({ url, order: pixelOrder, src }))
     return () => {
       cancelled = true
     }
   }, [url, pixelOrder])
   if (!pixelOrder) return url
   // Keep showing the original until the permuted copy is ready.
-  return permuted?.url === url ? permuted.src : url
+  return permuted?.url === url && permuted.order === pixelOrder ? permuted.src : url
 }
