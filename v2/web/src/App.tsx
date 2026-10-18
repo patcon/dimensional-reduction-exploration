@@ -243,6 +243,8 @@ export default function App() {
                   resolution={resolution}
                   pixelOrder={pixelOrder}
                   height={MATRIX_HEIGHT}
+                  // A lone matrix gets 1px per column at full resolution, and the same width (whole px per column) below it.
+                  width={columns === '1' ? meta.resolutions[0] ** 2 : undefined}
                   boundaries={sorting.boundaries}
                   hovered={hovered}
                   selected={selected}

@@ -11,11 +11,13 @@ interface Props {
   meta: Meta
   /** order[displayRow] = original row index */
   order: number[]
-  /** Digit side length: the image has resolution² columns, always drawn MATRIX_WIDTH wide. */
+  /** Digit side length: the image has resolution² columns, drawn `width` wide at every resolution. */
   resolution: number
   /** pixelOrder[column] = row-major pixel drawn at that column; null keeps row-major. */
   pixelOrder: number[] | null
   height: number
+  /** Matrix image width in px; defaults to MATRIX_WIDTH. */
+  width?: number
   /** Display rows at which to draw a group separator line. */
   boundaries?: number[]
   controls?: ReactNode
@@ -51,7 +53,7 @@ function Strip({ colors, height, title }: { colors: string[]; height: number; ti
   )
 }
 
-export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution, pixelOrder, height, boundaries = [], controls, hovered, selected, sweep, onHover, onSelect }: Props) {
+export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution, pixelOrder, height, width = MATRIX_WIDTH, boundaries = [], controls, hovered, selected, sweep, onHover, onSelect }: Props) {
   const n = order.length
   const nPixels = resolution * resolution
   const imageSrc = usePermutedImage(imageUrl, pixelOrder)
@@ -85,7 +87,7 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution
       return
     }
     const y = toY(displayRowOf[frame.row])
-    const toX = (px: number) => (Math.min(Math.max(px, 0), nPixels) / nPixels) * MATRIX_WIDTH
+    const toX = (px: number) => (Math.min(Math.max(px, 0), nPixels) / nPixels) * width
     const head = toX(frame.pixel)
     const start = toX(frame.tailPixel)
     dot.style.opacity = frame.pixel <= nPixels ? '1' : '0'
@@ -124,12 +126,14 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution
           <Strip colors={clusterColors} height={height} title="Leiden cluster (coloured by majority digit)" />
           <Strip colors={labelColors} height={height} title="True digit label" />
           <div className="matrix-image">
-            {/* Stretch narrow (low-resolution) matrices into crisp blocks; let wide ones scale down smoothly. */}
+            {/* Keep matrices shown at 1px per column or more crisp; let wide ones scale down smoothly.
+                Remount on resize so the browser doesn't upscale a copy it scaled down for the old width. */}
             <img
+              key={width}
               src={imageSrc}
               alt={title}
-              className={nPixels < MATRIX_WIDTH ? 'blocky' : ''}
-              style={{ width: MATRIX_WIDTH, height }}
+              className={nPixels <= width ? 'blocky' : ''}
+              style={{ width, height }}
               draggable={false}
             />
             <div ref={tailRef} className="sweep-tail" />
