@@ -138,6 +138,15 @@ def project(X: np.ndarray, n_pcs: int, n_neighbors: int, seed: int) -> dict[str,
     Returns, per projection, the snapshot iterations and a snapshots x N x dims array whose
     last entry is the final layout.
     """
+    if np.ptp(X) == 0:
+        # Posterising can leave every digit identical (e.g. all black at 2x2): there's nothing to
+        # lay out, and PaCMAP would divide by the zero range. Put every point at the origin.
+        print("  every digit is identical at this resolution; placing all points at the origin")
+        return {
+            f"{name}{dims}d": (iterations, np.zeros((len(iterations), len(X), dims), dtype=np.float32))
+            for name, iterations in (("umap", UMAP_SNAPSHOTS), ("pacmap", PACMAP_SNAPSHOTS), ("localmap", PACMAP_SNAPSHOTS))
+            for dims in (2, 3)
+        }
     ad = AnnData(X=X)
     if X.shape[1] > n_pcs:
         sc.pp.pca(ad, n_comps=n_pcs, random_state=seed)

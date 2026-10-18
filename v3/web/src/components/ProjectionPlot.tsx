@@ -84,7 +84,8 @@ function normalize(coords: number[][]): Vec3[] {
     const vals = coords.map((p) => p[d])
     return (Math.min(...vals) + Math.max(...vals)) / 2
   })
-  const radius = Math.max(...coords.map((p) => Math.hypot(...p.map((v, d) => v - centre[d]))))
+  // A layout with every point in one place (all digits identical) stays there rather than dividing by zero.
+  const radius = Math.max(...coords.map((p) => Math.hypot(...p.map((v, d) => v - centre[d])))) || 1
   return coords.map((p) => {
     const [x, y, z = 0] = p.map((v, d) => (v - centre[d]) / radius)
     return [x, y, z]
