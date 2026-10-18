@@ -151,6 +151,25 @@ export default function App() {
   const pixelOrder = pixelOrderFor(shuffle, resolution)
   const shuffled = (Object.keys(SHUFFLE_AXES) as ShuffleAxis[]).filter((axis) => shuffle[axis])
 
+  // Under the last matrix, right-aligned, with the key to the checkbox's left so the checkbox stays put when it appears.
+  const voteToggle = (
+    <div className="page-controls" style={{ margin: '8px 0 0', justifyContent: 'flex-end' }}>
+      {asVotes && (
+        <ul className="legend">
+          {(['agree', 'pass', 'disagree'] as const).map((vote) => (
+            <li key={vote}>
+              <span className="swatch" style={{ background: VOTE_COLORS[vote] }} /> {vote}
+            </li>
+          ))}
+        </ul>
+      )}
+      <label className="checkbox" title="Draw black, grey and white pixels as disagree, pass and agree">
+        <input type="checkbox" checked={asVotes} onChange={(e) => setAsVotes(e.target.checked)} />
+        Theme as votes
+      </label>
+    </div>
+  )
+
   return (
     <PixelThemeContext value={asVotes ? VOTES : GREYSCALE}>
       <main>
@@ -206,21 +225,6 @@ export default function App() {
                   : 'Shuffle every digit the same way to see what the projections rely on.'}
             </span>
           </div>
-          <div className="page-controls">
-            <label className="checkbox" title="Draw black, grey and white pixels as disagree, pass and agree">
-              <input type="checkbox" checked={asVotes} onChange={(e) => setAsVotes(e.target.checked)} />
-              Theme as votes
-            </label>
-            {asVotes && (
-              <ul className="legend">
-                {(['agree', 'pass', 'disagree'] as const).map((vote) => (
-                  <li key={vote}>
-                    <span className="swatch" style={{ background: VOTE_COLORS[vote] }} /> {vote}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
           <ul className="legend">
             {DIGIT_COLORS.map((c, d) => (
               <li key={d}>
@@ -270,6 +274,7 @@ export default function App() {
                     // A lone matrix gets 1px per column at full resolution, and the same width (whole px per column) below it.
                     width={columns === '1' ? meta.resolutions[0] ** 2 : undefined}
                     boundaries={sorting.boundaries}
+                  footer={side === (columns === '1' ? 0 : 1) ? voteToggle : undefined}
                     hovered={hovered}
                     selected={selected}
                     sweep={sweep}

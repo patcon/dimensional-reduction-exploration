@@ -22,6 +22,8 @@ interface Props {
   /** Display rows at which to draw a group separator line. */
   boundaries?: number[]
   controls?: ReactNode
+  /** Shown under the matrix, at the panel's width. */
+  footer?: ReactNode
   hovered: number | null
   selected: number | null
   sweep: Sweep | null
@@ -57,7 +59,7 @@ function Strip({ colors, height, title }: { colors: string[]; height: number; ti
   )
 }
 
-export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution, pixelOrder, height, width = MATRIX_WIDTH, boundaries = [], controls, hovered, selected, sweep, onHover, onSelect }: Props) {
+export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution, pixelOrder, height, width = MATRIX_WIDTH, boundaries = [], controls, footer, hovered, selected, sweep, onHover, onSelect }: Props) {
   const n = order.length
   const nPixels = resolution * resolution
   const imageSrc = useMatrixImage(imageUrl, pixelOrder, usePixelTheme())
@@ -248,6 +250,7 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution
           )}
         </div>
       </div>
+      {footer}
     </section>
   )
 }
