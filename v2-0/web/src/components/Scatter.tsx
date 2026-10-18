@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DIGIT_COLORS } from '../palette'
 
 interface Props {
@@ -7,9 +7,13 @@ interface Props {
   labels: number[]
   /** Bump to redraw after Y changes. */
   version: number
+  /** Overlaid along the top of the plot (e.g. a legend); points are kept clear of it. */
+  children?: ReactNode
 }
 
 const PAD = 12
+/** Room kept clear at the top for the overlay. */
+const PAD_TOP = 36
 /** Point size in CSS pixels. */
 const DOT = 2
 
@@ -51,7 +55,7 @@ function packedBackground(el: Element) {
  * Every point as a small square, coloured by digit and refitted to the canvas on every draw
  * (the layout grows ~1000x over a run). Points are drawn straight into ImageData.
  */
-export function Scatter({ Y, labels, version }: Props) {
+export function Scatter({ Y, labels, version, children }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
@@ -90,10 +94,12 @@ export function Scatter({ Y, labels, version }: Props) {
     }
     // One scale for both axes, so the layout's shape isn't distorted.
     const pad = PAD * dpr
+    const padTop = PAD_TOP * dpr
     const dot = Math.max(1, Math.round(DOT * dpr))
-    const scale = Math.min((w - 2 * pad - dot) / (maxX - minX || 1), (h - 2 * pad - dot) / (maxY - minY || 1))
+    const scale = Math.min((w - 2 * pad - dot) / (maxX - minX || 1), (h - pad - padTop - dot) / (maxY - minY || 1))
     const offX = (w - (maxX - minX) * scale - dot) / 2
-    const offY = (h - (maxY - minY) * scale - dot) / 2
+    // Distance from the bottom edge, centring the layout in the space below the overlay.
+    const offY = pad + (h - pad - padTop - (maxY - minY) * scale - dot) / 2
 
     const ctx = canvas.getContext('2d')!
     const image = ctx.createImageData(w, h)
@@ -112,6 +118,7 @@ export function Scatter({ Y, labels, version }: Props) {
   return (
     <div ref={wrapRef} className="scatter">
       <canvas ref={canvasRef} style={{ width: size.width, height: size.height }} />
+      {children && <div className="scatter-overlay">{children}</div>}
     </div>
   )
 }

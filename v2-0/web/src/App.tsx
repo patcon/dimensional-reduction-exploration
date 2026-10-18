@@ -113,7 +113,15 @@ function Playground({ data }: { data: PacmapData }) {
         onInterpolate={clock.setInterpolate}
       />
       <div className="stage">
-        <Scatter Y={clock.display} labels={meta.labels} version={clock.version} />
+        <Scatter Y={clock.display} labels={meta.labels} version={clock.version}>
+          <ul className="legend">
+            {DIGIT_COLORS.map((color, digit) => (
+              <li key={digit}>
+                <span className="swatch" style={{ background: color }} /> {digit}
+              </li>
+            ))}
+          </ul>
+        </Scatter>
         <ForceSliders
           values={shown}
           scale={scale}
@@ -133,13 +141,6 @@ function Playground({ data }: { data: PacmapData }) {
       />
       <OptimiserPanel settings={optimiser} onChange={setOptimiser} />
       <MidiPanel midi={midi} />
-      <ul className="legend">
-        {DIGIT_COLORS.map((color, digit) => (
-          <li key={digit}>
-            <span className="swatch" style={{ background: color }} /> {digit}
-          </li>
-        ))}
-      </ul>
     </div>
   )
 }

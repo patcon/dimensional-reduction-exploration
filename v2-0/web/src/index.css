@@ -48,10 +48,17 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .toolbar .segmented button.on { background: var(--fg); color: var(--bg); }
 .rate { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 190px; }
 .smooth { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
-.legend { margin-top: 8px; }
 
 .stage { display: flex; gap: 16px; align-items: stretch; }
-.scatter { flex: 1; min-width: 0; height: min(75vh, 900px); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.scatter { position: relative; flex: 1; min-width: 0; height: min(75vh, 900px); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+/* The digit legend, along the top of the plot (the plot keeps clear of it). */
+.scatter-overlay {
+  position: absolute; top: 8px; left: 8px; right: 8px; display: flex; justify-content: center; pointer-events: none;
+}
+.scatter-overlay .legend {
+  flex-wrap: wrap; justify-content: center; gap: 4px 12px; padding: 3px 10px; border-radius: 6px;
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+}
 
 /* Bipolar vertical force sliders: up attracts, down repels, the centre band is no force. */
 .forces { display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; }
