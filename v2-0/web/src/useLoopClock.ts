@@ -21,7 +21,13 @@ const anyForce = (w: Weights) => PAIR_TYPES.some((type) => w[type] !== 0)
  * The playhead wraps to 0 after `length` iterations but the layout and optimiser carry on;
  * only reset() returns them to the initial layout.
  */
-export function useLoopClock(engine: Engine, length: number, getWeights: (playhead: number) => Weights) {
+export function useLoopClock(
+  engine: Engine,
+  length: number,
+  getWeights: (playhead: number) => Weights,
+  /** Called after each step with the playhead it was taken at and the forces it used. */
+  onStep?: (playhead: number, weights: Weights) => void,
+) {
   const [status, setStatus] = useState<ClockStatus>('idle')
   const [rate, setRate] = useState(10)
   const [playhead, setPlayhead] = useState(0)
@@ -29,8 +35,10 @@ export function useLoopClock(engine: Engine, length: number, getWeights: (playhe
   const [version, setVersion] = useState(0)
 
   const getWeightsRef = useRef(getWeights)
+  const onStepRef = useRef(onStep)
   useEffect(() => {
     getWeightsRef.current = getWeights
+    onStepRef.current = onStep
   })
   const statusRef = useRef(status)
   const rateRef = useRef(rate)
@@ -59,7 +67,9 @@ export function useLoopClock(engine: Engine, length: number, getWeights: (playhe
         let stepped = false
         while (owed >= 1) {
           owed -= 1
-          engine.step(getWeightsRef.current(playheadRef.current))
+          const w = getWeightsRef.current(playheadRef.current)
+          engine.step(w)
+          onStepRef.current?.(playheadRef.current, w)
           playheadRef.current = (playheadRef.current + 1) % length
           stepped = true
         }

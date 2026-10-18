@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ForceSliders } from './components/ForceSliders'
 import { OptimiserPanel } from './components/OptimiserPanel'
 import { Scatter } from './components/Scatter'
+import { ScheduleGraph } from './components/ScheduleGraph'
 import { Transport } from './components/Transport'
 import { Engine } from './engine'
 import { DEFAULT_SCALE, toMultiplier, toU, type ForceScale } from './forceScale'
 import { InputStore, useControlValues, type ControlValues } from './inputStore'
 import { DEFAULT_OPTIMISER, OptimiserBank, type OptimiserSettings } from './optimisers'
 import { DIGIT_COLORS } from './palette'
-import { pacmapWeights, phaseOf, scheduleLength } from './schedule'
+import { pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
 import { PAIR_TYPES, type PairType, type Weights } from './types'
 import { useData, type PacmapData } from './useData'
 import { useLoopClock } from './useLoopClock'
@@ -46,7 +47,14 @@ function Playground({ data }: { data: PacmapData }) {
       autopilot ? pacmapWeights(playhead, meta.schedule) : mapValues(store.get(), (u) => toMultiplier(u, scale)),
     [autopilot, meta.schedule, store, scale],
   )
-  const clock = useLoopClock(engine, length, getWeights)
+  // What's been played this loop, for the schedule graph; cleared as the loop wraps.
+  const trail = useMemo(() => new Trail(length), [length])
+  const onStep = useCallback((playhead: number, w: Weights) => trail.record(playhead, w), [trail])
+  const clock = useLoopClock(engine, length, getWeights, onStep)
+  const reset = () => {
+    trail.clear()
+    clock.reset()
+  }
 
   // Tell the optimiser when a control has moved far enough (only the kicking Adam listens).
   useEffect(() => {
@@ -64,6 +72,7 @@ function Playground({ data }: { data: PacmapData }) {
   const shown: ControlValues = autopilot
     ? mapValues(pacmapWeights(clock.playhead, meta.schedule), (w) => toU(w, scale))
     : controls
+  const liveWeights = getWeights(clock.playhead)
   const takeOver = () => {
     if (!autopilot) return
     store.setAll(shown)
@@ -82,7 +91,7 @@ function Playground({ data }: { data: PacmapData }) {
         onRate={clock.setRate}
         onPause={clock.pause}
         onResume={clock.resume}
-        onReset={clock.reset}
+        onReset={reset}
         autopilot={autopilot}
         onAutopilot={setAutopilot}
       />
@@ -98,6 +107,13 @@ function Playground({ data }: { data: PacmapData }) {
           onChange={(type, u) => store.set(type, u)}
         />
       </div>
+      <ScheduleGraph
+        schedule={meta.schedule}
+        scale={scale}
+        playhead={clock.playhead}
+        current={liveWeights}
+        trail={trail}
+      />
       <OptimiserPanel settings={optimiser} onChange={setOptimiser} />
       <ul className="legend">
         {DIGIT_COLORS.map((color, digit) => (

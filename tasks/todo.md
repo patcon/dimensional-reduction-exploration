@@ -190,13 +190,16 @@ resets the optimiser's internal state.
 - Colours are consistent per force across the graph and sliders.
 
 **Acceptance criteria:**
-- [ ] The reference curves match `find_weight` (MN 1000 → 3 over phase 1, and so on).
-- [ ] Your trail lines up exactly with the slider positions (same scale).
-- [ ] In autopilot, your trail lies on the reference curves.
+- [x] The reference curves match `find_weight` (MN 1000 → 3 over phase 1, and so on).
+- [x] Your trail lines up exactly with the slider positions (same scale).
+  At NB +4.10, the trail's last point and the live dot are both at y 60.4.
+- [x] In autopilot, your trail lies on the reference curves (identical points).
 
 **Verification:**
-- [ ] Build and lint pass
-- [ ] Manual: autopilot loop → trail overlays reference; a manual loop shows where you deviated
+- [x] Build and lint pass
+- [x] Manual, headless: the autopilot trail overlays the reference, the manual trail follows
+  the slider, and the trail clears on wrap.
+- [ ] Manual (human): does the graph help in approximating the schedule by hand?
 
 **Dependencies:** Task 4
 **Files likely touched:** `src/components/ScheduleGraph.tsx`, `src/schedule.ts`, `src/App.tsx`

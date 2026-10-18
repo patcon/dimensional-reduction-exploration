@@ -1,4 +1,4 @@
-import type { Schedule, Weights } from './types.ts'
+import type { PairType, Schedule, Weights } from './types.ts'
 
 export function scheduleLength(s: Schedule) {
   return s.phases[0] + s.phases[1] + s.phases[2]
@@ -23,4 +23,29 @@ export function pacmapWeights(iter: number, s: Schedule): Weights {
   }
   if (iter < p1 + p2) return { nb: 3, mn: 3, fp: -1 }
   return { nb: 1, mn: 0, fp: -1 }
+}
+
+/** The forces applied at each playhead position this loop, for the schedule graph. */
+export class Trail {
+  /** NaN where not yet played this loop. */
+  readonly values: Record<PairType, Float32Array>
+
+  constructor(length: number) {
+    const blank = () => new Float32Array(length).fill(NaN)
+    this.values = { nb: blank(), mn: blank(), fp: blank() }
+  }
+
+  /** Record a step's forces; a step at playhead 0 starts a new loop, so it clears the last one. */
+  record(playhead: number, w: Weights) {
+    if (playhead === 0) this.clear()
+    this.values.nb[playhead] = w.nb
+    this.values.mn[playhead] = w.mn
+    this.values.fp[playhead] = w.fp
+  }
+
+  clear() {
+    this.values.nb.fill(NaN)
+    this.values.mn.fill(NaN)
+    this.values.fp.fill(NaN)
+  }
 }

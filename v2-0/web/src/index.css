@@ -74,6 +74,18 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .force-range input { width: 64px; font: inherit; }
 .scatter canvas { display: block; }
 
+.schedule { margin-top: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px 8px; overflow: hidden; }
+.schedule svg { display: block; font-size: 10px; }
+.sg-deadzone { fill: var(--border); opacity: 0.6; }
+.sg-grid line { stroke: var(--border); }
+.sg-grid text, .sg-axis text { fill: var(--muted); font-variant-numeric: tabular-nums; }
+.sg-axis line { stroke: var(--muted); }
+.sg-axis .sg-phase { stroke: var(--border); stroke-dasharray: 2 3; }
+.sg-reference { fill: none; stroke-width: 1.5; stroke-dasharray: 5 4; opacity: 0.8; }
+.sg-played { fill: none; stroke-width: 2.5; }
+.sg-playhead { stroke: var(--fg); opacity: 0.4; }
+.sg-legend { margin-top: 4px; font-size: 0.75rem; }
+
 .optimiser { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; }
 .opt-field { display: inline-flex; align-items: center; gap: 6px; }
 .opt-field > span:first-child { color: var(--muted); }

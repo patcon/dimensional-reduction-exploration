@@ -90,7 +90,7 @@ Detailed tasks with acceptance criteria are in `tasks/todo.md`.
 - [x] Task 3: Loop clock (slow rate, wrap and carry on, idle until a force acts)
 - [x] Task 4: Symlog force controls on screen (spring/latch), wired into the engine
 - [x] Task 5: Switchable optimisers and a master speed control
-- [ ] Task 6: Schedule graph with PaCMAP's curves, playhead and your settings
+- [x] Task 6: Schedule graph with PaCMAP's curves, playhead and your settings
 
 ### Checkpoint: Playable
 - [ ] The full loop can be played by mouse; the graph matches the controls
