@@ -62,40 +62,44 @@ export function OptimiserPanel({ settings, onChange }: Props) {
 
   return (
     <section className="optimiser" aria-label="Optimiser">
-      <label className="opt-field">
-        <span>Optimiser</span>
-        <select value={settings.kind} onChange={(e) => set({ kind: e.target.value as OptimiserKind })}>
-          {KINDS.map((k) => (
-            <option key={k.kind} value={k.kind}>
-              {k.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="opt-help">{current.help}</p>
-      {settings.kind === 'adam-short' && (
-        <RangeField label="beta2" value={settings.shortBeta2} min={0.5} max={0.999} step={0.001} onChange={(v) => set({ shortBeta2: v })} />
-      )}
-      {settings.kind === 'momentum' && (
-        <>
-          <RangeField label="lr" value={settings.momentum.lr} min={0.05} max={10} step={0.05} onChange={(v) => setMomentum({ lr: v })} />
-          <RangeField label="coast" value={settings.momentum.momentum} min={0} max={0.99} step={0.01} onChange={(v) => setMomentum({ momentum: v })} />
-          <RangeField label="step cap" value={settings.momentum.maxStep} min={0.05} max={5} step={0.05} onChange={(v) => setMomentum({ maxStep: v })} />
-        </>
-      )}
-      <label className="opt-field">
-        <span>Speed</span>
-        <input
-          type="range"
-          min={-1}
-          max={1}
-          step={0.01}
-          value={speedToPos(speed)}
-          onChange={(e) => setSpeed(Number(posToSpeed(Number(e.target.value)).toPrecision(2)))}
-          onDoubleClick={() => setSpeed(DEFAULT_OPTIMISER.speed[settings.kind])}
-        />
-        <span className="opt-value">{speed}×</span>
-      </label>
+      <div className="opt-row">
+        <label className="opt-field">
+          <span>Optimiser</span>
+          <select value={settings.kind} onChange={(e) => set({ kind: e.target.value as OptimiserKind })}>
+            {KINDS.map((k) => (
+              <option key={k.kind} value={k.kind}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="opt-help">{current.help}</p>
+      </div>
+      <div className="opt-row opt-knobs">
+        {settings.kind === 'adam-short' && (
+          <RangeField label="beta2" value={settings.shortBeta2} min={0.5} max={0.999} step={0.001} onChange={(v) => set({ shortBeta2: v })} />
+        )}
+        {settings.kind === 'momentum' && (
+          <>
+            <RangeField label="lr" value={settings.momentum.lr} min={0.05} max={10} step={0.05} onChange={(v) => setMomentum({ lr: v })} />
+            <RangeField label="coast" value={settings.momentum.momentum} min={0} max={0.99} step={0.01} onChange={(v) => setMomentum({ momentum: v })} />
+            <RangeField label="step cap" value={settings.momentum.maxStep} min={0.05} max={5} step={0.05} onChange={(v) => setMomentum({ maxStep: v })} />
+          </>
+        )}
+        <label className="opt-field">
+          <span>Speed</span>
+          <input
+            type="range"
+            min={-1}
+            max={1}
+            step={0.01}
+            value={speedToPos(speed)}
+            onChange={(e) => setSpeed(Number(posToSpeed(Number(e.target.value)).toPrecision(2)))}
+            onDoubleClick={() => setSpeed(DEFAULT_OPTIMISER.speed[settings.kind])}
+          />
+          <span className="opt-value">{speed}×</span>
+        </label>
+      </div>
     </section>
   )
 }
