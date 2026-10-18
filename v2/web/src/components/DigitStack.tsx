@@ -57,6 +57,7 @@ export function DigitStack({
   sweep,
   flatten = 0,
   onResolution,
+  onExpand,
   onUnpin,
 }: {
   data: MnistData
@@ -67,6 +68,8 @@ export function DigitStack({
   sweep: Sweep | null
   flatten?: number
   onResolution: (resolution: number) => void
+  /** Called when the already-selected layer is clicked again. */
+  onExpand: () => void
   onUnpin: () => void
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -133,13 +136,16 @@ export function DigitStack({
     ctx.globalAlpha = 1
   }, [tiles, resolution, layers, dpr, flatten, flatScale])
 
+  // Clicking the selected layer again expands it.
+  const pick = (side: number) => (side === resolution ? onExpand() : onResolution(side))
+
   // Pick the layer whose centre line is nearest the click: layers overlap, so this beats hit-testing diamonds.
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const y = e.clientY - e.currentTarget.getBoundingClientRect().top
     const nearest = layers
       .map((side, i) => ({ side, d: Math.abs(layerTop(i) + TILE / 2 - y) }))
       .reduce((a, b) => (b.d < a.d ? b : a))
-    onResolution(nearest.side)
+    pick(nearest.side)
   }
 
   return (
@@ -152,7 +158,7 @@ export function DigitStack({
           height={height * dpr}
           style={{ width, height }}
           onClick={flatten ? undefined : handleClick}
-          title="Click a layer to switch resolution"
+          title="Click a layer to switch resolution, or the selected one to expand it"
         />
         <canvas
           ref={sweepRef}
@@ -162,7 +168,7 @@ export function DigitStack({
           style={{ width, height }}
           aria-hidden
         />
-        {/* Labels beside each layer's right vertex; clicking one picks that resolution. */}
+        {/* Labels beside each layer's right vertex; clicking one picks that resolution (or expands it). */}
         {layers.map((side, i) => (
           <div
             key={side}
@@ -174,7 +180,7 @@ export function DigitStack({
               pointerEvents: flatten ? 'none' : undefined,
             }}
           >
-            <button className="stack-label-name" onClick={() => onResolution(side)}>
+            <button className="stack-label-name" onClick={() => pick(side)}>
               {side}×{side}
             </button>
           </div>

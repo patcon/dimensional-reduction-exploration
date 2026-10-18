@@ -105,6 +105,7 @@ export function DigitView({
           sweep={sweep}
           flatten={flatten}
           onResolution={onResolution}
+          onExpand={() => switchTo(true)}
           onUnpin={onUnpin}
         />
       )}
