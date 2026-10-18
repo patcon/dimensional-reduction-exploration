@@ -87,7 +87,8 @@ export function OptimiserPanel({ settings, onChange }: Props) {
           </>
         )}
         <label className="opt-field">
-          <span>Speed</span>
+          {/* For Adam, speed × PaCMAP's lr of 1 is the learning rate; momentum has its own lr, which speed multiplies. */}
+          <span>{settings.kind === 'momentum' ? 'speed (× lr)' : 'speed (lr)'}</span>
           <input
             type="range"
             min={-1}
