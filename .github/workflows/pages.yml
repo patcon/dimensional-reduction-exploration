@@ -24,7 +24,7 @@ jobs:
       - id: pages
         uses: actions/configure-pages@v5
 
-      # v2/web/public/data/ is gitignored: regenerate it from MNIST with the pipeline.
+      # v3/web/public/data/ is gitignored: regenerate it from MNIST with the pipeline.
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.12'
@@ -39,7 +39,7 @@ jobs:
 
       - name: Process data
         working-directory: pipeline
-        run: uv run v2.py
+        run: uv run v3.py
 
       - uses: pnpm/action-setup@v4
         with:
@@ -49,17 +49,17 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: v2/web/pnpm-lock.yaml
+          cache-dependency-path: v3/web/pnpm-lock.yaml
 
       - name: Build site
-        working-directory: v2/web
+        working-directory: v3/web
         run: |
           pnpm install --frozen-lockfile
           pnpm run build --base "${{ steps.pages.outputs.base_path }}/"
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: v2/web/dist
+          path: v3/web/dist
 
   deploy:
     needs: build
