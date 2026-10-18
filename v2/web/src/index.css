@@ -32,7 +32,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); }
 /* Wide enough for a lone 32×32 matrix at 1px per pixel column beside the sidebar. */
-main { padding: 24px; max-width: 1480px; margin: 0 auto; }
+main { padding: 24px; max-width: 1500px; margin: 0 auto; }
 .status { padding: 48px; color: var(--muted); }
 h1 { margin: 0 0 8px; font-size: 1.6rem; }
 h2 { margin: 0; font-size: 1rem; }
@@ -70,7 +70,7 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 .cursor.pinned { border-top-width: 3px; margin-top: -1px; }
 
 /* Stays in view while the matrices scroll past; scrolls itself if taller than the window. */
-.sidebar { flex-shrink: 0; width: 320px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.sidebar { flex-shrink: 0; width: 340px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
 .digit-preview { display: flex; gap: 16px; align-items: flex-start; min-height: 140px; }
 .digit-canvas { position: relative; flex-shrink: 0; width: 114px; height: 114px; }
 .digit-preview canvas { width: 112px; height: 112px; image-rendering: pixelated; border: 1px solid var(--border); background: #000; box-sizing: content-box; }
@@ -80,9 +80,14 @@ h3 { margin: 24px 0 8px; font-size: 0.95rem; }
 .digit-preview dt { color: var(--muted); }
 .digit-preview dd { margin: 0; }
 .digit-preview p { font-size: 0.85rem; margin: 0; }
-/* Isometric variant: the stack above, details below. */
-.digit-preview.stacked { flex-direction: column; gap: 8px; }
+.unpin { font: inherit; line-height: 1; background: none; border: 0; padding: 0 2px; color: var(--fg); cursor: pointer; }
+.unpin:hover { color: var(--accent); }
+/* Isometric variant: the stack is wide, so its details stack each label above its value. */
+.digit-preview.stacked { gap: 12px; }
+.digit-preview.stacked dl { grid-template-columns: 1fr; gap: 0; }
+.digit-preview.stacked dd { margin-bottom: 6px; }
 .digit-stack-wrap { position: relative; }
+.digit-footprint { flex-shrink: 0; }
 .stack-label { position: absolute; display: flex; align-items: center; gap: 2px; transform: translateY(-50%); font-size: 11px; }
 .stack-label button { font: inherit; background: none; border: 0; padding: 1px 2px; color: var(--muted); cursor: pointer; opacity: 0.6; }
 .stack-label button:hover { opacity: 1; color: var(--fg); }

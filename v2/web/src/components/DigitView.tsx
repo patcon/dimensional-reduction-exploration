@@ -3,6 +3,7 @@ import type { MnistData } from '../useMnistData'
 import type { PixelShuffle } from '../pixelOrder'
 import type { Sweep } from '../sweep'
 import { DigitStack } from './DigitStack'
+import { stackSize } from './digitLayout'
 import { DigitPreview } from './DigitPreview'
 
 const FLATTEN_MS = 450
@@ -77,6 +78,7 @@ export function DigitView({
         sweep={sweep}
         onUnpin={onUnpin}
         onClose={() => switchTo(false)}
+        footprint={stackSize(data.meta.resolutions.length)}
       />
     )
   }

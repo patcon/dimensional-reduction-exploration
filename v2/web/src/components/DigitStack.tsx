@@ -2,19 +2,12 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { MnistData } from '../useMnistData'
 import { pixelOrderFor, type PixelShuffle } from '../pixelOrder'
 import { useSweepFrames, type Sweep } from '../sweep'
-import { DigitDetails, PREVIEW_SIZE } from './DigitPreview'
+import { DigitDetails } from './DigitPreview'
+import { COS30, DIAMOND_WIDTH, GAP, PAD, TILE, flatSize, stackSize } from './digitLayout'
 
-const TILE = 84 // side of each layer before the isometric squash
-const GAP = 20 // vertical distance between stacked layers
-const PAD = 6
-const LABEL_WIDTH = 64 // resolution label plus its expand button
-const COS30 = Math.cos(Math.PI / 6)
-const DIAMOND_WIDTH = 2 * TILE * COS30
-const WIDTH = Math.ceil(DIAMOND_WIDTH + LABEL_WIDTH + PAD * 2)
 const DIMMED = 0.3
 // Where DigitPreview draws its digit (inside a 1px border), so a fully flattened layer lines up with it.
 const FLAT_OFFSET = 1
-const FLAT_SCALE = PREVIEW_SIZE / TILE
 const SWEEP_TAIL_MS = 30 // as in DigitPreview
 
 /** One layer's digit, white on black like DigitPreview. */
@@ -37,14 +30,14 @@ const layerTop = (i: number) => PAD + i * GAP
 
 /**
  * Isometric: the tile's top-left corner at the diamond's top vertex for layer `i`. With `t` > 0 it
- * blends towards an unskewed square where DigitPreview draws its digit.
+ * blends towards an unskewed square, `flatScale` times the tile, where DigitPreview draws its digit.
  */
-function setLayerTransform(ctx: CanvasRenderingContext2D, i: number, t: number, dpr: number) {
+function setLayerTransform(ctx: CanvasRenderingContext2D, i: number, t: number, flatScale: number, dpr: number) {
   ctx.setTransform(
-    lerp(COS30, FLAT_SCALE, t) * dpr,
+    lerp(COS30, flatScale, t) * dpr,
     lerp(0.5, 0, t) * dpr,
     lerp(-COS30, 0, t) * dpr,
-    lerp(0.5, FLAT_SCALE, t) * dpr,
+    lerp(0.5, flatScale, t) * dpr,
     lerp(PAD + DIAMOND_WIDTH / 2, FLAT_OFFSET, t) * dpr,
     lerp(layerTop(i), FLAT_OFFSET, t) * dpr,
   )
@@ -85,7 +78,8 @@ export function DigitStack({
   const { meta, pixels } = data
   // Top to bottom: coarsest first.
   const layers = useMemo(() => [...meta.resolutions].reverse(), [meta])
-  const height = Math.ceil(TILE + (layers.length - 1) * GAP + PAD * 2)
+  const { width, height } = stackSize(layers.length)
+  const flatScale = flatSize(layers.length) / TILE
   const tiles = useMemo(
     () => new Map(layers.map((side) => [side, digitTile(pixels[side], row, side, pixelOrderFor(shuffle, side))])),
     [layers, pixels, row, shuffle],
@@ -100,7 +94,7 @@ export function DigitStack({
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     if (!frame || frame.row !== row) return
-    setLayerTransform(ctx, layers.indexOf(resolution), flatten, dpr)
+    setLayerTransform(ctx, layers.indexOf(resolution), flatten, flatScale, dpr)
     ctx.fillStyle = getComputedStyle(canvas).color
     const cell = TILE / resolution
     const head = Math.floor(frame.pixel)
@@ -125,13 +119,13 @@ export function DigitStack({
       const on = side === resolution
       if (!on && flatten >= 1) return
       const t = on ? flatten : 0
-      setLayerTransform(ctx, i, t, dpr)
+      setLayerTransform(ctx, i, t, flatScale, dpr)
       ctx.globalAlpha = on ? 1 : DIMMED * (1 - flatten)
       ctx.drawImage(tiles.get(side)!, 0, 0, TILE, TILE)
       if (on) {
         ctx.globalAlpha = 1 - flatten
         ctx.strokeStyle = accent
-        ctx.lineWidth = 1.5 / lerp(1, FLAT_SCALE, t)
+        ctx.lineWidth = 1.5 / lerp(1, flatScale, t)
         ctx.strokeRect(0, 0, TILE, TILE)
       }
     }
@@ -140,7 +134,7 @@ export function DigitStack({
     layers.forEach((_, i) => layers[layers.length - 1 - i] !== resolution && drawLayer(layers.length - 1 - i))
     drawLayer(layers.indexOf(resolution))
     ctx.globalAlpha = 1
-  }, [tiles, resolution, layers, dpr, flatten])
+  }, [tiles, resolution, layers, dpr, flatten, flatScale])
 
   // Pick the layer whose centre line is nearest the click: layers overlap, so this beats hit-testing diamonds.
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -153,22 +147,22 @@ export function DigitStack({
 
   return (
     <div className="digit-preview stacked">
-      <div className="digit-stack-wrap" style={{ width: WIDTH, height }}>
+      <div className="digit-stack-wrap" style={{ width, height }}>
         <canvas
           ref={ref}
           className="digit-stack"
-          width={WIDTH * dpr}
+          width={width * dpr}
           height={height * dpr}
-          style={{ width: WIDTH, height }}
+          style={{ width, height }}
           onClick={flatten ? undefined : handleClick}
           title="Click a layer to switch resolution"
         />
         <canvas
           ref={sweepRef}
           className="digit-stack sweep"
-          width={WIDTH * dpr}
+          width={width * dpr}
           height={height * dpr}
-          style={{ width: WIDTH, height }}
+          style={{ width, height }}
           aria-hidden
         />
         {/* Labels beside each layer's right vertex, with a button to open that layer on its own. */}

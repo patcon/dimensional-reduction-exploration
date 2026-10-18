@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react'
 import type { MnistData } from '../useMnistData'
 import { DIGIT_COLORS } from '../palette'
 import { useSweepFrames, type Sweep } from '../sweep'
+import { PREVIEW_SIZE } from './digitLayout'
 
-export const PREVIEW_SIZE = 112
 // Mid-grey so the lines show over both black background and white ink.
 const GRID_COLOR = 'rgba(128, 128, 128, 0.3)'
 const SWEEP_TAIL_MS = 30 // trail behind the head, in time (so it shrinks as the head slows)
@@ -17,6 +17,7 @@ export function DigitPreview({
   sweep,
   onUnpin,
   onClose,
+  footprint,
 }: {
   data: MnistData
   row: number | null
@@ -27,6 +28,8 @@ export function DigitPreview({
   onUnpin: () => void
   /** Shown as a × in the corner, e.g. to return to the stacked view. */
   onClose?: () => void
+  /** Reserve this much room for the digit (e.g. the stack's), laid out like the stack, so swapping views doesn't shift anything. */
+  footprint?: { width: number; height: number }
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const gridRef = useRef<HTMLCanvasElement>(null)
@@ -34,7 +37,9 @@ export function DigitPreview({
   const dpr = window.devicePixelRatio || 1
   // The preview stays the same size at every resolution; cells just get bigger.
   const nPixels = resolution * resolution
-  const cell = PREVIEW_SIZE / resolution
+  // Fill the reserved footprint's height (inside the 1px border), or the usual size on its own.
+  const size = footprint ? footprint.height - 2 : PREVIEW_SIZE
+  const cell = size / resolution
 
   // Walk a red pixel through the digit cell by cell: the same order its row is laid out in the matrix.
   useSweepFrames(sweep, SWEEP_TAIL_MS, nPixels, (frame) => {
@@ -42,7 +47,7 @@ export function DigitPreview({
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, PREVIEW_SIZE, PREVIEW_SIZE)
+    ctx.clearRect(0, 0, size, size)
     if (!frame || frame.row !== row) return
     ctx.fillStyle = getComputedStyle(canvas).color
     const head = Math.floor(frame.pixel)
@@ -73,40 +78,44 @@ export function DigitPreview({
   // Faint 1px lines between cells, snapped to device pixels so they stay crisp at fractional cell sizes.
   useEffect(() => {
     const ctx = gridRef.current!.getContext('2d')!
-    const size = PREVIEW_SIZE * dpr
+    const deviceSize = size * dpr
     const line = Math.max(1, Math.round(dpr))
-    ctx.clearRect(0, 0, size, size)
+    ctx.clearRect(0, 0, deviceSize, deviceSize)
     ctx.fillStyle = GRID_COLOR
     for (let i = 1; i < resolution; i++) {
       const at = Math.round(i * cell * dpr) - Math.floor(line / 2)
-      ctx.fillRect(at, 0, line, size)
-      ctx.fillRect(0, at, size, line)
+      ctx.fillRect(at, 0, line, deviceSize)
+      ctx.fillRect(0, at, deviceSize, line)
     }
-  }, [resolution, cell, dpr])
+  }, [resolution, cell, size, dpr])
 
   return (
-    <div className="digit-preview">
-      <div className="digit-canvas">
-        <canvas ref={ref} width={resolution} height={resolution} />
-        <canvas
-          ref={gridRef}
-          className="grid-overlay"
-          width={PREVIEW_SIZE * dpr}
-          height={PREVIEW_SIZE * dpr}
-          aria-hidden
-        />
-        <canvas
-          ref={overlayRef}
-          className="sweep-overlay"
-          width={PREVIEW_SIZE * dpr}
-          height={PREVIEW_SIZE * dpr}
-          aria-hidden
-        />
-        {onClose && (
-          <button className="icon-button preview-close" onClick={onClose} title="Back to the stack" aria-label="Back to the stack">
-            ×
-          </button>
-        )}
+    <div className={`digit-preview${footprint ? ' stacked' : ''}`}>
+      <div className="digit-footprint" style={footprint}>
+        <div className="digit-canvas" style={{ width: size + 2, height: size + 2 }}>
+          <canvas ref={ref} width={resolution} height={resolution} style={{ width: size, height: size }} />
+          <canvas
+            ref={gridRef}
+            className="grid-overlay"
+            width={size * dpr}
+            height={size * dpr}
+            style={{ width: size, height: size }}
+            aria-hidden
+          />
+          <canvas
+            ref={overlayRef}
+            className="sweep-overlay"
+            width={size * dpr}
+            height={size * dpr}
+            style={{ width: size, height: size }}
+            aria-hidden
+          />
+          {onClose && (
+            <button className="icon-button preview-close" onClick={onClose} title="Back to the stack" aria-label="Back to the stack">
+              ×
+            </button>
+          )}
+        </div>
       </div>
       <DigitDetails data={data} row={row} pinned={pinned} onUnpin={onUnpin} />
     </div>
@@ -136,25 +145,24 @@ export function DigitDetails({
       <dd>
         <span className="swatch" style={{ background: DIGIT_COLORS[label!] }} /> {label}
       </dd>
-      <dt>Cluster</dt>
+      <dt>Leiden</dt>
       <dd>
-        <span className="swatch" style={{ background: DIGIT_COLORS[cluster!.majorityLabel] }} /> #{cluster!.id}{' '}
-        <span className="muted">
-          (mostly {cluster!.majorityLabel}, {Math.round(cluster!.purity * 100)}% pure)
-        </span>
+        <span className="swatch" style={{ background: DIGIT_COLORS[cluster!.majorityLabel] }} /> #{cluster!.id}
       </dd>
       <dt>MNIST index</dt>
       <dd>{meta.rows.sourceIndex[row]}</dd>
-      <dt>{pinned ? 'Pinned' : ''}</dt>
-      <dd>
-        {pinned ? (
-          <button className="link" onClick={onUnpin}>
-            Unpin (Esc)
-          </button>
-        ) : (
-          <span className="muted">Click to pin</span>
+      {/* A × beside "Pinned" rather than an Unpin link, so it fits on one line beside the stack. */}
+      <dt>
+        {pinned && (
+          <>
+            Pinned{' '}
+            <button className="unpin" onClick={onUnpin} title="Unpin (Esc)" aria-label="Unpin (Esc)">
+              ×
+            </button>
+          </>
         )}
-      </dd>
+      </dt>
+      <dd>{!pinned && <span className="muted">Click to pin</span>}</dd>
     </dl>
   )
 }

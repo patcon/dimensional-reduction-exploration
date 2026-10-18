@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Meta } from '../types'
 import { loadEvolution } from '../useMnistData'
 
-const SIZE = 320
+const SIZE = 340 // the sidebar's full width (.sidebar in index.css)
 const PAD = 10
 const DRAG_SPEED = 0.01
 const MIN_ZOOM = 0.5
