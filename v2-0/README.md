@@ -47,22 +47,42 @@ pnpm dev
 Chrome, Edge or Firefox (not Safari). Press **Connect MIDI**, then **learn** beside a
 force (or speed) and move the control to bind it.
 
-- **Pitch bend** springs back to centre, so its force stops the moment you let go.
-- **A fader** (any CC) stays where it's left, so its force carries on.
+Each force reads its control one of two ways (the **0 at** menu beside it):
 
-Both read centre as 0. Each control drives one target; learning it for another moves it.
-Bindings and the chosen device are remembered, and MIDI reconnects on reload.
+- **Centre (±):** up attracts, down repels. **Pitch bend** springs back to centre, so its
+  force stops the moment you let go; **a fader** (any CC) stays where it's left, so its
+  force carries on.
+- **Bottom, + sign switch:** the control sets only the strength, from no force at the
+  bottom, and a second control (learn it as **sign**, e.g. a toggle button) flips the
+  force between attract (top half) and repel (bottom half). It starts on attract.
+
+Each control drives one target; learning it for another moves it. Bindings, zero points
+and the chosen device are remembered, and MIDI reconnects on reload.
 
 ### Don't have a MIDI device? Use your phone as one
 
-1. On an Android phone, open [MIDI Surf](https://midisurf.app) in Chrome: a MIDI
-   controller with faders that runs in the browser.
-2. Plug the phone into the computer by USB. On the phone, tap the USB notification (or
-   find USB under Settings → Connected devices) and choose **MIDI**; the computer then
+The MIDI panel has three ready-made [MIDI Surf](https://github.com/patcon/midi-surf)
+layouts, each with a QR code that opens it on the phone and a **Use this layout** button
+that binds everything here to match:
+
+| Layout | Controls | Bindings |
+|---|---|---|
+| PaCMAP 🎚️ | three faders parked half way, centre is 0 | CC 20–22, ch 1 |
+| PaCMAP 🎚️± | three faders from 0, a 🧲± toggle under each | faders CC 23–25, toggles CC 26–28, ch 1 |
+| PaCMAP 🎯 | three pitch-bend strips | pitch bend, ch 1–3 |
+
+1. Plug an Android phone into the computer by USB. On the phone, tap the USB notification
+   (or find USB under Settings → Connected devices) and choose **MIDI**; the computer then
    sees the phone as a USB MIDI device. Menu names vary by phone
    ([more on Android USB MIDI](https://midi.org/developing-midi-applications-on-android)).
-3. In MIDI Surf, send to the USB port (usually "Android USB Peripheral") and add faders.
-4. In the app, connect MIDI, press learn beside a force and move a fader.
+2. Scan a layout's QR code with the phone and accept MIDI Surf's offer to import the page
+   (or download its page file and use MIDI Surf's import), then press **Use this layout**.
+3. In MIDI Surf, send to the USB port (usually "Android USB Peripheral").
+4. Press **Connect MIDI** and move a control.
+
+The layouts are written by `web/scripts/midi-surf-pages.py` (`uv run scripts/midi-surf-pages.py`
+from `web/`) into `web/public/midi-surf/` and `web/src/midiSurfLinks.ts`; their CC numbers
+must match `web/src/midiSurf.ts`.
 
 **iPhone or iPad:** browsers on iOS don't support Web MIDI
 ([WebKit bug 107250](https://bugs.webkit.org/show_bug.cgi?id=107250)), so MIDI Surf

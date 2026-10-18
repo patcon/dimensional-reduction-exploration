@@ -125,6 +125,15 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .midi-phone ol { margin: 8px 0; padding-left: 20px; line-height: 1.5; max-width: 75ch; }
 .midi-phone p { margin: 0; line-height: 1.5; max-width: 75ch; }
 .midi-phone a { color: inherit; }
+.midi-forces { display: flex; flex-direction: column; gap: 6px; }
+.midi-force { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; }
+.surf-setups { display: flex; flex-wrap: wrap; gap: 12px; margin: 4px 0 12px; }
+.surf-setup { display: flex; gap: 10px; flex: 1 1 300px; max-width: 420px; margin: 0; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
+.surf-setup.active { border-color: var(--accent); }
+/* QR codes stay black on white in either theme, so phones can read them. */
+.surf-setup img { display: block; width: 120px; height: 120px; background: #fff; image-rendering: pixelated; border-radius: 4px; }
+.surf-setup figcaption { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; line-height: 1.4; }
+.surf-links { color: var(--muted); }
 
 @media (max-width: 720px) {
   .stage { flex-direction: column; }

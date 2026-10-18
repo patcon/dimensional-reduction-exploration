@@ -1,0 +1,80 @@
+{
+  "label": "PaCMAP 🎯",
+  "controller": {
+    "tag": "Row",
+    "args": [
+      [
+        {
+          "tag": "PitchBend",
+          "args": [
+            {
+              "status": null,
+              "label": "nbrs",
+              "labelSize": {
+                "tag": "Medium",
+                "args": []
+              },
+              "colour": {
+                "tag": "Blue",
+                "args": []
+              },
+              "channel": {
+                "tag": "Ch1",
+                "args": []
+              },
+              "bendValue": 8192
+            }
+          ]
+        },
+        {
+          "tag": "PitchBend",
+          "args": [
+            {
+              "status": null,
+              "label": "midnear",
+              "labelSize": {
+                "tag": "Medium",
+                "args": []
+              },
+              "colour": {
+                "tag": "Green",
+                "args": []
+              },
+              "channel": {
+                "tag": "Ch2",
+                "args": []
+              },
+              "bendValue": 8192
+            }
+          ]
+        },
+        {
+          "tag": "PitchBend",
+          "args": [
+            {
+              "status": null,
+              "label": "far",
+              "labelSize": {
+                "tag": "Medium",
+                "args": []
+              },
+              "colour": {
+                "tag": "Red",
+                "args": []
+              },
+              "channel": {
+                "tag": "Ch3",
+                "args": []
+              },
+              "bendValue": 8192
+            }
+          ]
+        }
+      ]
+    ]
+  },
+  "config": {
+    "gapSize": 2,
+    "debug": false
+  }
+}

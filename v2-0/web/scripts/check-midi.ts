@@ -18,6 +18,8 @@ expect(describeBinding(decode(bend(3, 0))!.binding) === 'pitch bend · ch 4', 'c
 expect(decode(cc(0, 7, 64))?.u === 0, 'CC centre (64) is 0')
 expect(decode(cc(0, 7, 127))?.u === 1, 'CC top (127) is +1')
 expect(decode(cc(0, 7, 0))?.u === -1, 'CC bottom (0) is -1')
+expect(decode(cc(0, 7, 0))?.travel === 0 && decode(cc(0, 7, 127))?.travel === 1, 'CC travel runs 0 to 1 from the bottom')
+expect(decode(bend(0, 0))?.travel === 0 && decode(bend(0, 16383))?.travel === 1, 'pitch bend travel runs 0 to 1 from the bottom')
 const m = decode(cc(2, 21, 100))!
 expect(m.binding.kind === 'cc' && m.binding.controller === 21 && m.binding.channel === 2, 'CC keeps its controller and channel')
 

@@ -1,5 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { decode, describeBinding, MIDI_TARGETS, NO_BINDINGS, sameBinding, type Bindings, type MidiTarget } from './midi'
+import {
+  CENTRE_ZEROS,
+  decode,
+  describeBinding,
+  MIDI_TARGETS,
+  NO_BINDINGS,
+  sameBinding,
+  SIGN_TARGETS,
+  type Bindings,
+  type MidiTarget,
+  type Zero,
+  type Zeros,
+} from './midi'
+import type { MidiSurfSetup } from './midiSurf'
+import { PAIR_TYPES, type PairType } from './types'
 
 /**
  * unsupported: no Web MIDI in this browser (e.g. Safari).
@@ -17,17 +31,18 @@ interface Saved {
   enabled: boolean
   deviceId: string
   bindings: Bindings
+  zeros: Zeros
 }
 
 // Browser storage can be missing or throw (private windows, blocked site data); MIDI works without it.
 function load(): Saved {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<Saved> | null
-    if (saved) return { enabled: !!saved.enabled, deviceId: saved.deviceId ?? ALL_DEVICES, bindings: { ...NO_BINDINGS, ...saved.bindings } }
+    if (saved) return { enabled: !!saved.enabled, deviceId: saved.deviceId ?? ALL_DEVICES, bindings: { ...NO_BINDINGS, ...saved.bindings }, zeros: { ...CENTRE_ZEROS, ...saved.zeros } }
   } catch {
     // Fall through to defaults.
   }
-  return { enabled: false, deviceId: ALL_DEVICES, bindings: NO_BINDINGS }
+  return { enabled: false, deviceId: ALL_DEVICES, bindings: NO_BINDINGS, zeros: CENTRE_ZEROS }
 }
 
 function save(saved: Saved) {
@@ -38,11 +53,16 @@ function save(saved: Saved) {
   }
 }
 
+const POSITIVE: Record<PairType, 1 | -1> = { nb: 1, mn: 1, fp: 1 }
+const NO_STRENGTH: Record<PairType, number> = { nb: 0, mn: 0, fp: 0 }
+
 /**
  * Web MIDI input: pick a device, MIDI-learn a control for each target, and hear about every
- * bound control as it moves, as u in [-1, 1] (see midi.ts). Bindings persist across reloads.
+ * bound control as it moves, as u in [-1, 1] (see midi.ts). A force whose control reads 0 at
+ * the bottom takes its sign from its sign switch, positive until the switch says otherwise.
+ * Bindings and zero points persist across reloads.
  */
-export function useMidi(onControl: (target: MidiTarget, u: number) => void) {
+export function useMidi(onControl: (target: PairType | 'speed', u: number) => void) {
   const [initial] = useState(load)
   const supported = 'requestMIDIAccess' in navigator
   // If MIDI was on last time, start out asking again (no prompt once permission has been granted).
@@ -51,6 +71,7 @@ export function useMidi(onControl: (target: MidiTarget, u: number) => void) {
   const [inputs, setInputs] = useState<{ id: string; name: string }[]>([])
   const [deviceId, setDeviceId] = useState(initial.deviceId)
   const [bindings, setBindings] = useState<Bindings>(initial.bindings)
+  const [zeros, setZeros] = useState<Zeros>(initial.zeros)
   const [learning, setLearning] = useState<MidiTarget | null>(null)
   /** The last control message heard, so you can see the device is talking. */
   const [last, setLast] = useState('')
@@ -59,10 +80,15 @@ export function useMidi(onControl: (target: MidiTarget, u: number) => void) {
   const onControlRef = useRef(onControl)
   const bindingsRef = useRef(bindings)
   const learningRef = useRef(learning)
+  const zerosRef = useRef(zeros)
+  // For bottom-zero forces: each one's sign, and the strength its control last sent.
+  const signs = useRef({ ...POSITIVE })
+  const strengths = useRef({ ...NO_STRENGTH })
   useEffect(() => {
     onControlRef.current = onControl
     bindingsRef.current = bindings
     learningRef.current = learning
+    zerosRef.current = zeros
   })
 
   const request = useCallback(() => {
@@ -85,8 +111,8 @@ export function useMidi(onControl: (target: MidiTarget, u: number) => void) {
   }, [supported, initial.enabled, request])
 
   useEffect(() => {
-    save({ enabled: status === 'on' || (status === 'requesting' && initial.enabled), deviceId, bindings })
-  }, [status, deviceId, bindings, initial.enabled])
+    save({ enabled: status === 'on' || (status === 'requesting' && initial.enabled), deviceId, bindings, zeros })
+  }, [status, deviceId, bindings, zeros, initial.enabled])
 
   useEffect(() => {
     if (!access) return
@@ -107,9 +133,24 @@ export function useMidi(onControl: (target: MidiTarget, u: number) => void) {
         setBindings(current)
         setLearning(null)
       }
+      const zeros = zerosRef.current
       for (const t of MIDI_TARGETS) {
         const b = current[t]
-        if (b && sameBinding(b, message.binding)) onControlRef.current(t, message.u)
+        if (!b || !sameBinding(b, message.binding)) continue
+        if (t === 'speed') onControlRef.current(t, message.u)
+        for (const type of PAIR_TYPES) {
+          if (t === type) {
+            if (zeros[type] === 'centre') onControlRef.current(type, message.u)
+            else {
+              strengths.current[type] = message.travel
+              onControlRef.current(type, signs.current[type] * message.travel)
+            }
+          } else if (t === SIGN_TARGETS[type]) {
+            // A switch sends its top or its bottom; anywhere in the top half is positive.
+            signs.current[type] = message.travel >= 0.5 ? 1 : -1
+            if (zeros[type] === 'bottom') onControlRef.current(type, signs.current[type] * strengths.current[type])
+          }
+        }
       }
     }
     const detach = () => {
@@ -132,5 +173,23 @@ export function useMidi(onControl: (target: MidiTarget, u: number) => void) {
 
   const unbind = useCallback((target: MidiTarget) => setBindings((b) => ({ ...b, [target]: null })), [])
 
-  return { status, enable, inputs, deviceId, setDeviceId, bindings, unbind, learning, setLearning, last }
+  const setZero = useCallback((type: PairType, zero: Zero) => {
+    setZeros((z) => ({ ...z, [type]: zero }))
+    signs.current[type] = 1
+    strengths.current[type] = 0
+  }, [])
+
+  /** Bind the forces and their signs as a MIDI Surf page sends them; speed keeps its control unless the page takes it. */
+  const applySetup = useCallback((setup: MidiSurfSetup) => {
+    setBindings((b) => {
+      const taken = Object.values(setup.bindings).some((s) => s && b.speed && sameBinding(s, b.speed))
+      return { ...b, ...setup.bindings, speed: taken ? null : b.speed }
+    })
+    setZeros(setup.zeros)
+    setLearning(null)
+    signs.current = { ...POSITIVE }
+    strengths.current = { ...NO_STRENGTH }
+  }, [])
+
+  return { status, enable, inputs, deviceId, setDeviceId, bindings, unbind, zeros, setZero, applySetup, learning, setLearning, last }
 }
