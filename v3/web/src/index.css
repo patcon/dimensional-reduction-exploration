@@ -119,6 +119,9 @@ button.link { font: inherit; font-size: 0.8rem; background: none; border: 0; col
 .checkbox input { margin: 0; accent-color: var(--fg); }
 .plot.rotatable:active, .plot.pannable:active { cursor: grabbing; }
 .projection .section-note { margin-top: 6px; }
+/* The hover trail sits over the plot, inside its 1px border. */
+.plot-wrap { position: relative; }
+.plot-trail { position: absolute; left: 1px; top: 1px; color: var(--accent); pointer-events: none; }
 .timeline { display: flex; align-items: flex-start; gap: 10px; margin: 8px 0 4px; font-size: 0.8rem; }
 .timeline-track { position: relative; flex: 1; }
 .timeline-track input { display: block; width: 100%; margin: 0; accent-color: var(--accent); }

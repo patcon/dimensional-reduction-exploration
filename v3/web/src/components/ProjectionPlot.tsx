@@ -65,6 +65,10 @@ const INITIAL_ROTATION: Rotation = { yaw: 0.5, pitch: 0.3 }
 const INITIAL_VIEW: View = { zoom: 1, panX: 0, panY: 0 }
 /** Point size multiplier: about sqrt(3k / 10k), so the 10k-sample cloud covers as much of the plot as 3k samples did. */
 const POINT_SIZE = 0.55
+/** How long a hovered sample's afterimage lingers, in time like the pixel sweep's tail, so faster hovering leaves a longer trail. */
+const TRAIL_MS = 400
+/** Longer jumps between hovered samples show only as afterimages, not a line across the plot. */
+const TRAIL_MAX_SEGMENT_PX = 60
 /** Auto-rotation speed in radians of yaw per second (a full turn in about half a minute). */
 const AUTO_ROTATE_SPEED = 0.2
 const ORIGIN: Vec3 = [0, 0, 0]
@@ -441,6 +445,62 @@ export function ProjectionPlot({
     frame = requestAnimationFrame(step)
     return () => cancelAnimationFrame(frame)
   }, [pinnedPoint])
+  // A fading trail through recently hovered samples, from any view, drawn on an overlay so the points needn't
+  // be redrawn as it fades. Rows are kept rather than positions, so it follows the cloud as it turns.
+  const trailRef = useRef<HTMLCanvasElement>(null)
+  const trail = useRef<{ row: number; t: number; own: boolean }[]>([])
+  const trailFrame = useRef(0)
+  const screenRef = useRef(screen)
+  const hoveredRef = useRef(hovered)
+  // Hovering the plot itself hops between neighbouring points, so those get afterimages but no line.
+  const ownHover = useRef<number | null>(null)
+  useEffect(() => {
+    screenRef.current = screen
+    hoveredRef.current = hovered
+  })
+  useEffect(() => {
+    if (hovered === null || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    trail.current.push({ row: hovered, t: performance.now(), own: ownHover.current === hovered })
+    if (trailFrame.current) return
+    const canvas = trailRef.current!
+    const ctx = canvas.getContext('2d')!
+    const step = (now: number) => {
+      const entries = (trail.current = trail.current.filter((e) => now - e.t < TRAIL_MS))
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.clearRect(0, 0, SIZE, SIZE)
+      ctx.strokeStyle = getComputedStyle(canvas).color
+      const screen = screenRef.current
+      entries.forEach((e, i) => {
+        const fade = 1 - (now - e.t) / TRAIL_MS
+        const { sx, sy } = screen[e.row]
+        const next = entries[i + 1]
+        // Each segment fades with its older end.
+        if (next && !next.own) {
+          const q = screen[next.row]
+          if (Math.hypot(q.sx - sx, q.sy - sy) <= TRAIL_MAX_SEGMENT_PX) {
+            ctx.globalAlpha = fade * 0.7
+            ctx.lineWidth = 0.25 + fade
+            ctx.beginPath()
+            ctx.moveTo(sx, sy)
+            ctx.lineTo(q.sx, q.sy)
+            ctx.stroke()
+          }
+        }
+        // The current hover already has its ring; earlier ones leave shrinking afterimages of it.
+        if (next || e.row !== hoveredRef.current) {
+          ctx.globalAlpha = fade * 0.6
+          ctx.lineWidth = 1
+          ctx.beginPath()
+          ctx.arc(sx, sy, 2 + 4 * fade, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+      })
+      trailFrame.current = entries.length ? requestAnimationFrame(step) : 0
+    }
+    trailFrame.current = requestAnimationFrame(step)
+  }, [hovered, dpr])
+  useEffect(() => () => cancelAnimationFrame(trailFrame.current), [])
+
   // A pinned point keeps its group's path highlighted; otherwise follow the hover.
   const focus = selected ?? hovered
   const focusPath = useMemo(
@@ -596,7 +656,8 @@ export function ProjectionPlot({
       return
     }
     const rect = e.currentTarget.getBoundingClientRect()
-    onHover(nearest(e.clientX - rect.left, e.clientY - rect.top))
+    ownHover.current = nearest(e.clientX - rect.left, e.clientY - rect.top)
+    onHover(ownHover.current)
   }
 
   const handleDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -685,21 +746,32 @@ export function ProjectionPlot({
           </label>
         </div>
       </div>
-      <canvas
-        ref={ref}
-        className={`plot ${is3d ? 'rotatable' : 'pannable'}`}
-        width={SIZE * dpr}
-        height={SIZE * dpr}
-        style={{ width: SIZE, height: SIZE }}
-        onMouseMove={handleMove}
-        onMouseDown={handleDown}
-        onMouseUp={handleUp}
-        onContextMenu={(e) => e.preventDefault()}
-        onMouseLeave={() => {
-          endDrag()
-          onHover(null)
-        }}
-      />
+      <div className="plot-wrap">
+        <canvas
+          ref={ref}
+          className={`plot ${is3d ? 'rotatable' : 'pannable'}`}
+          width={SIZE * dpr}
+          height={SIZE * dpr}
+          style={{ width: SIZE, height: SIZE }}
+          onMouseMove={handleMove}
+          onMouseDown={handleDown}
+          onMouseUp={handleUp}
+          onContextMenu={(e) => e.preventDefault()}
+          onMouseLeave={() => {
+            endDrag()
+            ownHover.current = null
+            onHover(null)
+          }}
+        />
+        <canvas
+          ref={trailRef}
+          className="plot-trail"
+          width={SIZE * dpr}
+          height={SIZE * dpr}
+          style={{ width: SIZE, height: SIZE }}
+          aria-hidden
+        />
+      </div>
       <div className="timeline">
         <div className="timeline-track">
           <input
