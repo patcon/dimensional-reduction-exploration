@@ -230,14 +230,19 @@ resets the optimiser's internal state.
 - A note is shown when Web MIDI is unavailable.
 
 **Acceptance criteria:**
-- [ ] A force can be bound to pitch bend; releasing it zeroes that force.
-- [ ] A force can be bound to a CC fader; the value holds after letting go.
-- [ ] Master speed (Task 5) can be bound to a fourth control.
-- [ ] The first non-zero MIDI value starts the loop; on-screen sliders mirror the MIDI-driven values.
+- [x] A force can be bound to pitch bend; releasing it zeroes that force.
+- [x] A force can be bound to a CC fader; the value holds after letting go.
+- [x] Master speed (Task 5) can be bound to a fourth control.
+- [x] The first non-zero MIDI value starts the loop; on-screen sliders mirror the MIDI-driven values.
 
 **Verification:**
-- [ ] Build and lint pass; a unit check decodes pitch-bend and CC bytes to `u`
-- [ ] Manual with midi-surf: bind all three, play a loop, and reload to confirm bindings persist
+- [x] Build and lint pass; `pnpm run check:midi` decodes pitch-bend and CC bytes to `u`
+- [x] Headless, with a fake MIDI device injected via `navigator.requestMIDIAccess`:
+  - learn, pitch bend (springs back to 0) and CC (holds);
+  - speed on a fader, and re-learning a control moves it between targets;
+  - MIDI takes over from autopilot;
+  - after a reload, it reconnects automatically and the bindings persist.
+- [ ] Manual (human) with midi-surf.
 
 **Dependencies:** Task 4 (Task 6 not required)
 **Files likely touched:** `src/midi.ts`, `src/components/MidiPanel.tsx`, `src/inputStore.ts`, `src/App.tsx`

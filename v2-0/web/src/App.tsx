@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ForceSliders } from './components/ForceSliders'
+import { MidiPanel } from './components/MidiPanel'
 import { OptimiserPanel } from './components/OptimiserPanel'
 import { Scatter } from './components/Scatter'
 import { ScheduleGraph } from './components/ScheduleGraph'
@@ -13,6 +14,7 @@ import { pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
 import { PAIR_TYPES, type PairType, type Weights } from './types'
 import { useData, type PacmapData } from './useData'
 import { useLoopClock } from './useLoopClock'
+import { useMidi } from './useMidi'
 
 /** How far a control must move before the kicking Adam forgets its state. */
 const KICK_THRESHOLD = 0.02
@@ -81,6 +83,17 @@ function Playground({ data }: { data: PacmapData }) {
     setAutopilot(false)
   }
 
+  // A bound force behaves like its slider (including taking over from autopilot); speed drives
+  // the current optimiser's speed on the speed slider's 0.1x-10x log scale.
+  const midi = useMidi((target, u) => {
+    if (target === 'speed')
+      setOptimiser((o) => ({ ...o, speed: { ...o.speed, [o.kind]: Number((10 ** u).toPrecision(2)) } }))
+    else {
+      takeOver()
+      store.set(target, u)
+    }
+  })
+
   return (
     <div className="playground">
       <Transport
@@ -119,6 +132,7 @@ function Playground({ data }: { data: PacmapData }) {
         trail={trail}
       />
       <OptimiserPanel settings={optimiser} onChange={setOptimiser} />
+      <MidiPanel midi={midi} />
       <ul className="legend">
         {DIGIT_COLORS.map((color, digit) => (
           <li key={digit}>

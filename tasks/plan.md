@@ -96,7 +96,7 @@ Detailed tasks with acceptance criteria are in `tasks/todo.md`.
 - [ ] The full loop can be played by mouse; the graph matches the controls
 
 ### Phase 3: MIDI and ship
-- [ ] Task 7: Web MIDI input (device picker, MIDI-learn, pitch bend and CC)
+- [x] Task 7: Web MIDI input (device picker, MIDI-learn, pitch bend and CC)
 - [ ] Task 8: Deploy (CI matrix, landing page card, READMEs)
 
 ### Checkpoint: Complete

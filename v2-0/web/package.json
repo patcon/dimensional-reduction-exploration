@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "check:engine": "node scripts/check-engine.ts",
     "check:scale": "node scripts/check-scale.ts",
+    "check:midi": "node scripts/check-midi.ts",
     "preview": "vite preview"
   },
   "dependencies": {

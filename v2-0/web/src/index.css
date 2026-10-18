@@ -100,6 +100,20 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .opt-value { font-variant-numeric: tabular-nums; min-width: 3.5em; }
 .opt-help { flex: 1; min-width: 240px; margin: 0; color: var(--muted); }
 
+.midi { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; }
+.midi > button { align-self: flex-start; }
+.midi-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.midi-last { font-variant-numeric: tabular-nums; }
+.midi-binding { display: inline-flex; align-items: center; gap: 6px; }
+.midi-target { font-weight: 600; }
+.midi-bound { color: var(--muted); min-width: 8.5em; font-variant-numeric: tabular-nums; }
+.midi button {
+  font: inherit; padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--fg); cursor: pointer;
+}
+.midi button:hover:not(:disabled) { border-color: var(--accent); }
+.midi button.on { background: var(--fg); color: var(--bg); }
+
 @media (max-width: 720px) {
   .stage { flex-direction: column; }
   .scatter { height: 60vh; }
