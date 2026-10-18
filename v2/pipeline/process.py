@@ -12,8 +12,8 @@ Outputs (written to ../web/public/data/), for each resolution r in RESOLUTIONS:
   matrix_original_r<r>.png
                        N x r*r grayscale, subsample in random order
   matrix_sorted_<group>_<within>_r<r>.png
-                       same rows, grouped by Leiden cluster or true label
-                       (group = leiden|label), ordered within each group
+                       same rows, grouped by Leiden cluster or true label, or all as
+                       one group (group = leiden|label|none), ordered within each group
                        randomly or by the group's own PC1 (within = random|pc1)
   meta.json            per-row cluster/label, projections (UMAP / PaCMAP / LocalMAP, 2D + 3D,
                        at every resolution), per-cluster summaries
@@ -207,8 +207,10 @@ def main() -> None:
     int_labels = labels[idx]
     pcs = adata.obsm["X_pca"]
 
-    # Groupings for the sorted matrix: Leiden clusters in dendrogram order, or digits 0-9.
+    # Groupings for the sorted matrix: everything as one group, Leiden clusters in
+    # dendrogram order, or digits 0-9.
     groupings = {
+        "none": [np.arange(args.n_samples)],
         "leiden": [np.flatnonzero(clusters == c) for c in cluster_order],
         "label": [np.flatnonzero(int_labels == d) for d in range(N_CLASSES)],
     }

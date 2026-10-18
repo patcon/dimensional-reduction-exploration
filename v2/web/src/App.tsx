@@ -12,11 +12,9 @@ import { pixelOrderFor, type PixelShuffle } from './pixelOrder'
 
 const MATRIX_HEIGHT = 720
 
-// 'none' keeps the random subsample order, i.e. the unsorted matrix.
-type GroupChoice = GroupKey | 'none'
-
-const GROUPS: Record<GroupChoice, { label: string; describe: string }> = {
-  none: { label: 'None', describe: 'Random subsample order' },
+// 'none' treats every row as one group, so none + random is the unsorted matrix.
+const GROUPS: Record<GroupKey, { label: string; describe: string }> = {
+  none: { label: 'None', describe: 'All rows as one group' },
   leiden: { label: 'Leiden', describe: 'Leiden clusters in dendrogram order' },
   label: { label: 'Labels', describe: 'Digits 0–9' },
 }
@@ -34,37 +32,30 @@ const WITHINS: Record<WithinKey, { label: string; describe: string }> = {
 }
 
 interface SortChoice {
-  group: GroupChoice
+  group: GroupKey
   within: WithinKey
 }
 
-// Without groups there's no per-group PC1, so 'none' is always in random (original) order.
-const effectiveWithin = ({ group, within }: SortChoice): WithinKey => (group === 'none' ? 'random' : within)
+function describeSort({ group, within }: SortChoice) {
+  if (group !== 'none') return `${GROUPS[group].describe}; ${WITHINS[within].describe}`
+  return within === 'random' ? 'Random subsample order' : 'All rows ordered along their shared first principal component'
+}
 
 function Segmented<K extends string>({
   options,
   value,
   onChange,
   ariaLabel,
-  disabled = [],
 }: {
   options: Record<K, { label: string }>
   value: K
   onChange: (key: K) => void
   ariaLabel: string
-  disabled?: K[]
 }) {
   return (
     <div className="segmented" role="tablist" aria-label={ariaLabel}>
       {(Object.keys(options) as K[]).map((key) => (
-        <button
-          key={key}
-          role="tab"
-          aria-selected={key === value}
-          className={key === value ? 'on' : ''}
-          disabled={disabled.includes(key)}
-          onClick={() => onChange(key)}
-        >
+        <button key={key} role="tab" aria-selected={key === value} className={key === value ? 'on' : ''} onClick={() => onChange(key)}>
           {options[key].label}
         </button>
       ))}
@@ -84,6 +75,7 @@ export default function App() {
     { group: 'label', within: 'pc1' },
   ])
   // Colours and sort paths follow the last-changed matrix that has groups, else the other one.
+  // (A single all-rows path would just tangle across the whole plot.)
   const [lastChanged, setLastChanged] = useState<0 | 1>(1)
   const updateSort = (side: 0 | 1, next: Partial<SortChoice>) => {
     setSorts((s) => {
@@ -94,12 +86,11 @@ export default function App() {
     setLastChanged(side)
   }
   const pathSort = [sorts[lastChanged], sorts[1 - lastChanged]].find((s) => s.group !== 'none')
-  const groupBy: GroupKey = pathSort?.group === 'leiden' ? 'leiden' : 'label'
-  const within = pathSort ? effectiveWithin(pathSort) : null
+  const groupBy = pathSort?.group === 'leiden' ? 'leiden' : 'label'
+  const within = pathSort?.within ?? null
   // Digit resolution (side length) shown everywhere; null until data arrives, then the largest.
   const [resolutionChoice, setResolution] = useState<number | null>(null)
   const [shuffle, setShuffle] = useState<PixelShuffle>({ rows: false, columns: false, all: false })
-  const identity = useMemo(() => (data ? data.meta.rows.label.map((_, i) => i) : []), [data])
 
   // Each row's colour under the active grouping: its Leiden cluster's majority digit, or its own label.
   const pointColors = useMemo(() => {
@@ -212,17 +203,12 @@ export default function App() {
           <div className="matrices">
             {([0, 1] as const).map((side) => {
               const sort = sorts[side]
-              const w = effectiveWithin(sort)
-              const sorting = sort.group === 'none' ? null : meta.sortings[sort.group][w]
+              const sorting = meta.sortings[sort.group][sort.within]
               return (
                 <MatrixPanel
                   key={side}
                   title="Sorting"
-                  subtitle={
-                    sorting
-                      ? `${GROUPS[sort.group].describe}; ${WITHINS[w].describe}`
-                      : `${GROUPS.none.describe}; ${resolution}×${resolution} = ${resolution * resolution} pixels per row`
-                  }
+                  subtitle={`${describeSort(sort)}; ${resolution}×${resolution} = ${resolution * resolution} pixels per row`}
                   controls={
                     <>
                       <Segmented
@@ -234,20 +220,19 @@ export default function App() {
                       <span className="muted">then</span>
                       <Segmented
                         options={WITHINS}
-                        value={w}
+                        value={sort.within}
                         onChange={(within) => updateSort(side, { within })}
                         ariaLabel="Order within groups by"
-                        disabled={sort.group === 'none' ? ['pc1'] : []}
                       />
                     </>
                   }
-                  imageUrl={sorting ? MATRIX_URLS.sorted(sort.group as GroupKey, w, resolution) : MATRIX_URLS.original(resolution)}
+                  imageUrl={MATRIX_URLS.sorted(sort.group, sort.within, resolution)}
                   meta={meta}
-                  order={sorting?.order ?? identity}
+                  order={sorting.order}
                   resolution={resolution}
                   pixelOrder={pixelOrder}
                   height={MATRIX_HEIGHT}
-                  boundaries={sorting?.boundaries}
+                  boundaries={sorting.boundaries}
                   hovered={hovered}
                   selected={selected}
                   sweep={sweep}

@@ -26,8 +26,8 @@ export interface Meta {
   evolution: Record<string, { iterations: number[] }>
 }
 
-/** How rows are grouped in the sorted matrix. */
-export type GroupKey = 'leiden' | 'label'
+/** How rows are grouped in the sorted matrix ('none' = all rows as one group). */
+export type GroupKey = 'none' | 'leiden' | 'label'
 /** How rows are ordered inside each group. */
 export type WithinKey = 'random' | 'pc1'
 
