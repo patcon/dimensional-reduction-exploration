@@ -74,6 +74,13 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .force-range input { width: 64px; font: inherit; }
 .scatter canvas { display: block; }
 
+.optimiser { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; }
+.opt-field { display: inline-flex; align-items: center; gap: 6px; }
+.opt-field > span:first-child { color: var(--muted); }
+.opt-field select { font: inherit; }
+.opt-value { font-variant-numeric: tabular-nums; min-width: 3.5em; }
+.opt-help { flex-basis: 100%; margin: 0; color: var(--muted); order: 1; }
+
 @media (max-width: 720px) {
   .stage { flex-direction: column; }
   .scatter { height: 60vh; }

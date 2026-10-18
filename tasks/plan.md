@@ -89,7 +89,7 @@ Detailed tasks with acceptance criteria are in `tasks/todo.md`.
 ### Phase 2: Playable without MIDI
 - [x] Task 3: Loop clock (slow rate, wrap and carry on, idle until a force acts)
 - [x] Task 4: Symlog force controls on screen (spring/latch), wired into the engine
-- [ ] Task 5: Switchable optimisers and a master speed control
+- [x] Task 5: Switchable optimisers and a master speed control
 - [ ] Task 6: Schedule graph with PaCMAP's curves, playhead and your settings
 
 ### Checkpoint: Playable

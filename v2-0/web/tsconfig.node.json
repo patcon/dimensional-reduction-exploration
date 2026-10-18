@@ -19,5 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "scripts", "src/engine.ts", "src/schedule.ts", "src/types.ts", "src/forceScale.ts"]
+  "include": ["vite.config.ts", "scripts", "src/engine.ts", "src/schedule.ts", "src/types.ts", "src/forceScale.ts", "src/optimisers.ts"]
 }

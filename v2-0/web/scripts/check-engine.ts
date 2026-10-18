@@ -12,6 +12,7 @@
 // PaCMAP by the same amount (~1e-2 by iteration 450), so it's not an engine bug.
 import { readFileSync } from 'node:fs'
 import { Engine } from '../src/engine.ts'
+import { Adam } from '../src/optimisers.ts'
 import { pacmapWeights } from '../src/schedule.ts'
 import type { Meta, Pairs } from '../src/types.ts'
 
@@ -40,7 +41,7 @@ const snapshot = (k: number) => reference.subarray(k * n * 2, (k + 1) * n * 2)
 let spread = 0
 for (const x of reference) spread = Math.max(spread, Math.abs(x))
 
-const engine = new Engine(pairs, new Float32Array(read('init.bin')), meta.adam)
+const engine = new Engine(pairs, new Float32Array(read('init.bin')), new Adam(n * 2, meta.adam))
 const targets = new Map(meta.reference.iterations.map((it, k) => [it, k]))
 
 const phase1 = meta.schedule.phases[0]

@@ -152,15 +152,27 @@ It can be bound to a fourth MIDI control in Task 7. Switching optimiser keeps th
 resets the optimiser's internal state.
 
 **Acceptance criteria:**
-- [ ] All four are selectable while running; PaCMAP Adam is the default, and the Task 2
+- [x] All four are selectable while running; PaCMAP Adam is the default, and the Task 2
   engine check still passes with it.
-- [ ] Momentum descent never produces a jump longer than the step cap, even with MN at 2000.
-- [ ] Master speed changes motion in every optimiser, including Adam.
+- [x] Momentum descent never produces a jump longer than the step cap, even with MN at 2000.
+  With every force at ±2000, the longest single-point step is exactly 1.0 (the cap).
+- [x] Master speed changes motion in every optimiser, including Adam (it scales each one's lr).
 
 **Verification:**
-- [ ] Build and lint pass; the engine check script passes
-- [ ] Manual: for each optimiser, run a burst of MN at +1000 then drop it to 0. Compare how
-  quickly the layout responds (Adam should lag; kick, short memory and momentum shouldn't).
+- [x] Build and lint pass; the engine check script passes
+- [x] Burst test in Node, from a converged layout: phase-3 forces with MN +1000 for 30 steps,
+  then MN 0. Mean movement over the 10 steps after the drop:
+
+  | Optimiser | Movement |
+  |---|---|
+  | Adam | 2.2 (lags) |
+  | Adam + kick | 3.9 |
+  | Adam, short memory | 3.6 |
+  | Momentum | 5.7 (part of it coasting) |
+
+- [ ] Manual (human): feel the difference while playing.
+- **Momentum defaults:** lr 1, coast 0.9, cap 1. Run on PaCMAP's schedule they score 0.917 on
+  2-D 10-NN label agreement vs PaCMAP's 0.925; lr 10 or more scrambles it (about 0.75).
 
 **Dependencies:** Task 4
 **Files likely touched:** `src/optimisers.ts`, `src/engine.ts`, `src/inputStore.ts`, `src/components/OptimiserPanel.tsx`, `src/App.tsx`

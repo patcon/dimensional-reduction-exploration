@@ -1,23 +1,39 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ForceSliders } from './components/ForceSliders'
+import { OptimiserPanel } from './components/OptimiserPanel'
 import { Scatter } from './components/Scatter'
 import { Transport } from './components/Transport'
 import { Engine } from './engine'
 import { DEFAULT_SCALE, toMultiplier, toU, type ForceScale } from './forceScale'
 import { InputStore, useControlValues, type ControlValues } from './inputStore'
+import { DEFAULT_OPTIMISER, OptimiserBank, type OptimiserSettings } from './optimisers'
 import { DIGIT_COLORS } from './palette'
 import { pacmapWeights, phaseOf, scheduleLength } from './schedule'
-import type { PairType, Weights } from './types'
+import { PAIR_TYPES, type PairType, type Weights } from './types'
 import { useData, type PacmapData } from './useData'
 import { useLoopClock } from './useLoopClock'
+
+/** How far a control must move before the kicking Adam forgets its state. */
+const KICK_THRESHOLD = 0.02
 
 const mapValues = <A, B>(r: Record<PairType, A>, f: (a: A) => B): Record<PairType, B> =>
   ({ nb: f(r.nb), mn: f(r.mn), fp: f(r.fp) })
 
 function Playground({ data }: { data: PacmapData }) {
   const { meta } = data
-  const engine = useMemo(() => new Engine(data.pairs, data.init, meta.adam), [data, meta.adam])
+  const optimisers = useMemo(() => new OptimiserBank(data.init.length, meta.adam), [data, meta.adam])
+  const engine = useMemo(
+    () => new Engine(data.pairs, data.init, optimisers.configure(DEFAULT_OPTIMISER)),
+    [data, optimisers],
+  )
   const length = scheduleLength(meta.schedule)
+
+  const [optimiser, setOptimiser] = useState<OptimiserSettings>(DEFAULT_OPTIMISER)
+  useEffect(() => {
+    engine.setSpeed(optimiser.speed)
+    const next = optimisers.configure(optimiser)
+    if (engine.optimiser !== next) engine.setOptimiser(next)
+  }, [optimiser, optimisers, engine])
 
   const store = useMemo(() => new InputStore(), [])
   const controls = useControlValues(store)
@@ -31,6 +47,18 @@ function Playground({ data }: { data: PacmapData }) {
     [autopilot, meta.schedule, store, scale],
   )
   const clock = useLoopClock(engine, length, getWeights)
+
+  // Tell the optimiser when a control has moved far enough (only the kicking Adam listens).
+  useEffect(() => {
+    let last = store.get()
+    return store.subscribe(() => {
+      const now = store.get()
+      if (PAIR_TYPES.some((type) => Math.abs(now[type] - last[type]) >= KICK_THRESHOLD)) {
+        last = now
+        engine.optimiser.onControlChange?.()
+      }
+    })
+  }, [store, engine])
 
   // Under autopilot the sliders follow PaCMAP's forces; grabbing one takes over from exactly there.
   const shown: ControlValues = autopilot
@@ -70,6 +98,7 @@ function Playground({ data }: { data: PacmapData }) {
           onChange={(type, u) => store.set(type, u)}
         />
       </div>
+      <OptimiserPanel settings={optimiser} onChange={setOptimiser} />
       <ul className="legend">
         {DIGIT_COLORS.map((color, digit) => (
           <li key={digit}>
