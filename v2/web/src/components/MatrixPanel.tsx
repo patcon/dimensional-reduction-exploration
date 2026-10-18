@@ -77,6 +77,16 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution
 
   const toY = (row: number) => (row / n) * height
 
+  // Shrink the image to the room there is, rather than ever scrolling sideways.
+  const imageRef = useRef<HTMLDivElement>(null)
+  const [room, setRoom] = useState(Infinity)
+  useEffect(() => {
+    const observer = new ResizeObserver(([entry]) => setRoom(Math.floor(entry.contentRect.width)))
+    observer.observe(imageRef.current!)
+    return () => observer.disconnect()
+  }, [])
+  const drawWidth = Math.min(width, room)
+
   // The sweep dot travels along the focused row's line, one matrix column per pixel.
   const dotRef = useRef<HTMLDivElement>(null)
   const tailRef = useRef<HTMLDivElement>(null)
@@ -90,7 +100,7 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution
       return
     }
     const y = toY(displayRowOf[frame.row])
-    const toX = (px: number) => (Math.min(Math.max(px, 0), nPixels) / nPixels) * width
+    const toX = (px: number) => (Math.min(Math.max(px, 0), nPixels) / nPixels) * drawWidth
     const head = toX(frame.pixel)
     const start = toX(frame.tailPixel)
     dot.style.opacity = frame.pixel <= nPixels ? '1' : '0'
@@ -208,15 +218,15 @@ export function MatrixPanel({ title, subtitle, imageUrl, meta, order, resolution
         >
           <Strip colors={clusterColors} height={height} title="Leiden cluster (coloured by majority digit)" />
           <Strip colors={labelColors} height={height} title="True digit label" />
-          <div className="matrix-image">
+          <div ref={imageRef} className="matrix-image" style={{ width }}>
             {/* Keep matrices shown at 1px per column or more crisp; let wide ones scale down smoothly.
                 Remount on resize so the browser doesn't upscale a copy it scaled down for the old width. */}
             <img
-              key={width}
+              key={drawWidth}
               src={imageSrc}
               alt={title}
-              className={nPixels <= width ? 'blocky' : ''}
-              style={{ width, height }}
+              className={nPixels <= drawWidth ? 'blocky' : ''}
+              style={{ width: drawWidth, height }}
               draggable={false}
             />
             <div ref={tailRef} className="sweep-tail" />
