@@ -628,10 +628,20 @@ export function ProjectionPlot({
             </button>
           ))}
         </div>
-        <label className="checkbox" title={`Connect points within each group in the sorted matrix's order (${pathsLabel})`}>
-          <input type="checkbox" checked={showPaths} onChange={(e) => setShowPaths(e.target.checked)} />
-          Sort paths
-        </label>
+        <div className="projection-actions">
+          <button
+            className="button"
+            onClick={regenerate}
+            disabled={busy}
+            title="Wind back to the optimiser's starting layout and replay how it reached this one"
+          >
+            ↻ Regenerate
+          </button>
+          <label className="checkbox" title={`Connect points within each group in the sorted matrix's order (${pathsLabel})`}>
+            <input type="checkbox" checked={showPaths} onChange={(e) => setShowPaths(e.target.checked)} />
+            Sort paths
+          </label>
+        </div>
       </div>
       <canvas
         ref={ref}
@@ -705,14 +715,6 @@ export function ProjectionPlot({
           'UMAP has no phases: one objective throughout, with a step size that shrinks linearly to zero.'
         )}
       </p>
-      <button
-        className="button"
-        onClick={regenerate}
-        disabled={busy}
-        title="Wind back to the optimiser's starting layout and replay how it reached this one"
-      >
-        ↻ Regenerate projection
-      </button>
       <p className="section-note">
         {showPaths && <>Paths follow {pathsLabel}. </>}
         Scroll to zoom; {is3d ? `drag to ${pinnedPoint ? 'orbit the pinned sample' : 'rotate'}, shift-drag to pan.` : 'drag to pan.'}{' '}
