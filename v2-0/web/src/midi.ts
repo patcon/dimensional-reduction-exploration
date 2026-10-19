@@ -19,6 +19,9 @@ export type Zero = 'centre' | 'bottom'
 
 export type Zeros = Record<PairType, Zero>
 
+/** PaCMAP's own signs: neighbours and mid-near pairs attract, far pairs repel. */
+export const PACMAP_SIGNS: Record<PairType, 1 | -1> = { nb: 1, mn: 1, fp: -1 }
+
 export const CENTRE_ZEROS: Zeros = { nb: 'centre', mn: 'centre', fp: 'centre' }
 
 /**

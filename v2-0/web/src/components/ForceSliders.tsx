@@ -3,7 +3,7 @@ import { formatMultiplier, toMultiplier, toU, type ForceScale } from '../forceSc
 import { FORCE_COLORS, FORCE_LABELS } from '../palette'
 import { PAIR_TYPES, type PairType } from '../types'
 import type { ControlValues } from '../inputStore'
-import { faderPercent, type Zero } from '../midi'
+import { faderPercent, PACMAP_SIGNS, type Zero } from '../midi'
 
 /** The multipliers PaCMAP's schedule uses for each force, marked on its slider as targets. */
 const PACMAP_MARKS: Record<PairType, number[]> = { nb: [1, 2, 3], mn: [3, 1000], fp: [-1] }
@@ -69,8 +69,8 @@ function ForceSlider({ type, u, scale, spring, onSpring, split, onSplit, faderZe
     observer.observe(track)
     return () => observer.disconnect()
   }, [])
-  // Not split, the sign is kept even at no force (as -0), or as last chosen here.
-  const [chosenSign, setChosenSign] = useState<1 | -1>(1)
+  // Not split, the sign is kept even at no force (as -0), or as last chosen here, starting as PaCMAP's.
+  const [chosenSign, setChosenSign] = useState<1 | -1>(PACMAP_SIGNS[type])
   const sign = u > 0 ? 1 : u < 0 || Object.is(u, -0) ? -1 : chosenSign
   const color = FORCE_COLORS[type]
   const m = toMultiplier(u, scale)

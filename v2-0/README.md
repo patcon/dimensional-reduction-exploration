@@ -57,7 +57,7 @@ Each force reads its control one of two ways (the **0 at** menu beside it):
   force carries on.
 - **Bottom, + sign switch:** the control sets only the strength, from no force at the
   bottom, and a second control (learn it as **sign**, e.g. a toggle button) flips the
-  force between attract (top half) and repel (bottom half). It starts on attract.
+  force between attract (top half) and repel (bottom half). It starts as PaCMAP does: far pairs repel, the others attract.
 
 Each control drives one target; learning it for another moves it. Bindings, zero points
 and the chosen device are remembered, and MIDI reconnects on reload.

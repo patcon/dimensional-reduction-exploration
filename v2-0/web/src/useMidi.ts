@@ -11,6 +11,7 @@ import {
   type MidiTarget,
   type Zero,
   type Zeros,
+  PACMAP_SIGNS,
 } from './midi'
 import type { MidiSurfSetup } from './midiSurf'
 import { PAIR_TYPES, type PairType } from './types'
@@ -53,13 +54,12 @@ function save(saved: Saved) {
   }
 }
 
-const POSITIVE: Record<PairType, 1 | -1> = { nb: 1, mn: 1, fp: 1 }
 const NO_STRENGTH: Record<PairType, number> = { nb: 0, mn: 0, fp: 0 }
 
 /**
  * Web MIDI input: pick a device, MIDI-learn a control for each target, and hear about every
  * bound control as it moves, as u in [-1, 1] (see midi.ts). A force whose control reads 0 at
- * the bottom takes its sign from its sign switch, positive until the switch says otherwise.
+ * the bottom takes its sign from its sign switch, starting as PaCMAP's (far pairs repel).
  * Bindings and zero points persist across reloads.
  */
 export function useMidi(onControl: (target: PairType | 'speed', u: number) => void) {
@@ -82,7 +82,7 @@ export function useMidi(onControl: (target: PairType | 'speed', u: number) => vo
   const learningRef = useRef(learning)
   const zerosRef = useRef(zeros)
   // For bottom-zero forces: each one's sign, and the strength its control last sent.
-  const signs = useRef({ ...POSITIVE })
+  const signs = useRef({ ...PACMAP_SIGNS })
   const strengths = useRef({ ...NO_STRENGTH })
   useEffect(() => {
     onControlRef.current = onControl
@@ -175,7 +175,7 @@ export function useMidi(onControl: (target: PairType | 'speed', u: number) => vo
 
   const setZero = useCallback((type: PairType, zero: Zero) => {
     setZeros((z) => ({ ...z, [type]: zero }))
-    signs.current[type] = 1
+    signs.current[type] = PACMAP_SIGNS[type]
     strengths.current[type] = 0
   }, [])
 
@@ -187,7 +187,7 @@ export function useMidi(onControl: (target: PairType | 'speed', u: number) => vo
     })
     setZeros(setup.zeros)
     setLearning(null)
-    signs.current = { ...POSITIVE }
+    signs.current = { ...PACMAP_SIGNS }
     strengths.current = { ...NO_STRENGTH }
   }, [])
 

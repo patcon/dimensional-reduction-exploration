@@ -174,7 +174,7 @@ export function MidiPanel({ midi }: { midi: Midi }) {
         ))}
         <BindingControl midi={midi} target="speed" />
       </div>
-      <p className="opt-help">With 0 at the centre, up attracts and down repels: pitch bend springs back to 0 when you let go (the force stops); a fader stays put. With 0 at the bottom, the control sets only the strength and its sign switch (a toggle button) flips between attract and repel, starting on attract.</p>
+      <p className="opt-help">With 0 at the centre, up attracts and down repels: pitch bend springs back to 0 when you let go (the force stops); a fader stays put. With 0 at the bottom, the control sets only the strength and its sign switch (a toggle button) flips between attract and repel, starting as PaCMAP does (far pairs repel).</p>
       <MidiSurfSetups midi={midi} />
     </section>
   )
