@@ -29,10 +29,26 @@ interface Props {
   loadError?: string
 }
 
-/** Sample size, play/pause, reset, speed, autopilot, smoothing and 2D/3D, with where the loop is up to. */
+/** 2D/3D, sample size, play/pause, reset, speed, autopilot and smoothing, with where the loop is up to. */
 export function Transport(p: Props) {
   return (
     <div className="toolbar">
+      <div className="segmented" role="group" aria-label="Dimensions" title="Switching starts over from the initial layout">
+        {([2, 3] as const).map((dim) => (
+          <button key={dim} type="button" className={p.dim === dim ? 'on' : ''} onClick={() => p.dim !== dim && p.onDim(dim)}>
+            {dim}D
+          </button>
+        ))}
+      </div>
+      <label className="spin" title="Spin the 3D layout (drag it to turn it yourself, double-click to reset the view)">
+        <input
+          type="checkbox"
+          checked={p.autoRotate}
+          disabled={p.dim !== 3}
+          onChange={(e) => p.onAutoRotate(e.target.checked)}
+        />{' '}
+        auto-rotate
+      </label>
       <div className="segmented" role="group" aria-label="Digits" title="How many MNIST digits (switching starts over)">
         {SAMPLE_SIZES.map((size) => (
           <button key={size} type="button" className={p.size === size ? 'on' : ''} onClick={() => p.onSize(size)}>
@@ -67,22 +83,6 @@ export function Transport(p: Props) {
       </label>
       <label className="smooth" title="Glide between steps (drawn at 30 fps, one step behind)">
         <input type="checkbox" checked={p.interpolate} onChange={(e) => p.onInterpolate(e.target.checked)} /> smooth
-      </label>
-      <div className="segmented" role="group" aria-label="Dimensions" title="Switching starts over from the initial layout">
-        {([2, 3] as const).map((dim) => (
-          <button key={dim} type="button" className={p.dim === dim ? 'on' : ''} onClick={() => p.dim !== dim && p.onDim(dim)}>
-            {dim}D
-          </button>
-        ))}
-      </div>
-      <label className="spin" title="Spin the 3D layout (drag it to turn it yourself, double-click to reset the view)">
-        <input
-          type="checkbox"
-          checked={p.autoRotate}
-          disabled={p.dim !== 3}
-          onChange={(e) => p.onAutoRotate(e.target.checked)}
-        />{' '}
-        auto-rotate
       </label>
       <span className="readout">
         {p.loadError ? (

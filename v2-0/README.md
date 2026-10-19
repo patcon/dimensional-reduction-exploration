@@ -31,7 +31,7 @@ pnpm dev
   flips attract/repel. Both follow your MIDI setup when it changes (pitch bend ticks
   spring; a control with 0 at the bottom unticks split). Arrow keys nudge a focused slider (shift for
   bigger steps), 0 zeroes it, double-click zeroes it too.
-- **Digits.** 10k, 20k or all 65k (the switch at the left of the toolbar), each its own
+- **Digits.** 10k, 20k or all 65k (the switch after 2D/3D in the toolbar), each its own
   random sample with its own pairs. Switching starts over once the new digits have
   loaded; forces, optimiser and MIDI carry across. 65k steps about 4x slower than 20k.
 - **Starting.** It opens in 3D on autopilot, paused: press **Play** to watch PaCMAP's own
