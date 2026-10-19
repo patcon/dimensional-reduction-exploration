@@ -169,7 +169,8 @@ function ForceSlider({ type, u, scale, spring, onSpring, split, onSplit, faderZe
             </svg>
             {marks.map((mark, i) => (
               <div key={mark.w} className="force-mark" style={{ top: labelYs[i] }}>
-                <span className="force-mark-weight">{weightLabel(mark.w)}</span>
+                {/* Not split, the track is the strength alone, so its marks take the current sign. */}
+                <span className="force-mark-weight">{weightLabel(split ? mark.w : sign * Math.abs(mark.w))}</span>
                 {faderZero && <span className="force-percent">{percentLabel(mark.u, faderZero)}</span>}
               </div>
             ))}
