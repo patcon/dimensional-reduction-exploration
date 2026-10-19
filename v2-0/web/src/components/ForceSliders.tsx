@@ -201,6 +201,9 @@ function ForceSlider({ type, u, scale, onScale, spring, onSpring, split, onSplit
         <label title="Up attracts, down repels. Untick to make the slider the strength alone, with a sign button.">
           <input type="checkbox" checked={split} onChange={(e) => onSplit(e.target.checked)} /> split
         </label>
+        <label title="Logarithmic from min to max, so one slider reaches both 1 and 1000. Untick for even steps of force.">
+          <input type="checkbox" checked={scale.log} onChange={(e) => onScale({ ...scale, log: e.target.checked })} /> logarithmic
+        </label>
       </div>
       <div className="force-range" title="The weakest and strongest force this slider reaches (either sign)">
         <label>

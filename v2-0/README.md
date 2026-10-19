@@ -24,7 +24,8 @@ pnpm dev
 - **Forces.** One bipolar slider each for neighbours, mid-near and far pairs: up
   attracts, down repels, the grey band at centre is no force. The scale is logarithmic,
   from ±0.1 to ±2000 (each slider's range adjustable beneath it), so one slider reaches both
-  PaCMAP's 1–3 and its 1000; PaCMAP's values are marked on each track. Tick **spring** to
+  PaCMAP's 1–3 and its 1000; untick **logarithmic** for even steps of force instead (best
+  with a smaller max). PaCMAP's values are marked on each track. Tick **spring** to
   make a slider return to 0 when let go. Untick **split** to draw a slider like a fader
   that starts at the bottom: the track sets the strength alone and a button beside it
   flips attract/repel. Both follow your MIDI setup when it changes (pitch bend ticks
