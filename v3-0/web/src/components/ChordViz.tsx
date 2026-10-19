@@ -1,0 +1,506 @@
+import { useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import type { RGB } from '../palette'
+import type { Playhead } from '../playhead'
+import { valenceAt, type Traces } from '../signal'
+import { MAX_CHORDS, type GeoMode, type ViewMode, type VizStyle } from '../vizSettings'
+
+// Ported from the reaction canvas's valence cross-section (plugins/valenceCrossSection in
+// patcon/polislike-partykit-reaction-canvas, itself from valence-onboarding-v3.html): each
+// participant is a chord, rooted at the centre and displaced by its valence, laid out in one
+// of several geometries and seen in three views. Here the valence comes from a precomputed
+// trace rather than a live cursor, so trails are drawn from the trace itself, which also lets
+// them follow a scrub backwards. Added: group colouring and chord order.
+
+// ── Layout, in the original's 480×480 authoring space ──
+const CENTER = 240
+const R = 180
+const R_MID = 90
+/** Samples along each trail, oldest to newest. */
+const TRACE_LEN = 160
+const TRACE_SEGS = TRACE_LEN - 1
+/** How far back (into the screen) a whole trail reaches. */
+const TRACE_DEPTH = 900
+const TRACE_Z_STEP = TRACE_DEPTH / TRACE_SEGS
+const FILL_VERTS_PER_SEG = 6
+// A fill segment's two triangles, as offsets into the trail history (5 values per sample: cursor
+// x, y, root x, y, valence): root then cursor at the earlier sample, roots fading to the background.
+const FILL_CORNERS = [2, 0, 7, 0, 5, 7]
+const FILL_LATER = [false, false, true, false, true, true]
+const FILL_IS_ROOT = [true, false, true, false, false, true]
+const DOT_SIZE = 6
+/** Chord width in pixels, as the prototype's "radial width" default. */
+const CHORD_WIDTH = 2
+const TRANS_SPEED = 0.04
+/** How fast chords glide to a new slot, per frame. */
+const REORDER_EASE = 0.08
+const BG: RGB = [15, 15, 14]
+
+const COLORS = { pos: [80, 255, 140] as RGB, neg: [255, 80, 60] as RGB, neutral: BG }
+
+function ease(t: number) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t }
+function clamp01(t: number) { return Math.min(1, Math.max(0, t)) }
+
+function valenceRGB(v: number, out: number[], at: number) {
+  const t = Math.pow(Math.abs(v), 0.55)
+  const src = v >= 0 ? COLORS.pos : COLORS.neg
+  for (let c = 0; c < 3; c++) out[at + c] = (BG[c] + (src[c] - BG[c]) * t) / 255
+}
+
+// Chord root and tip in canvas space for the four chord geometries (ported as is), blended in morph phases.
+interface Morph { p1: number; p2: number; pp1: number; pp2: number; lp1: number; lp2: number }
+
+function getPhases(mt: number, toRadial: boolean) {
+  if (toRadial) return { p1: ease(clamp01(mt * 2)), p2: ease(clamp01((mt - 0.5) * 2)) }
+  const rev = 1 - mt
+  return { p2: 1 - ease(clamp01(rev * 2)), p1: 1 - ease(clamp01((rev - 0.5) * 2)) }
+}
+
+/** out = [rootX, rootY, tipX, tipY] */
+function chordPoints(i: number, n: number, v: number, m: Morph, out: Float64Array) {
+  const tilt = (Math.PI / n) * 0.5, absV = Math.abs(v)
+  const dAx = (i / n) * Math.PI + tilt
+  const dTA = v >= 0 ? dAx + Math.PI : dAx
+  const dTX = CENTER + Math.cos(dTA) * R * absV, dTY = CENTER + Math.sin(dTA) * R * absV
+  const rSA = (i / n) * 2 * Math.PI + tilt - Math.PI / 2
+  let sd = rSA - dAx
+  while (sd > Math.PI) sd -= 2 * Math.PI
+  while (sd < -Math.PI) sd += 2 * Math.PI
+  const sa = dAx + sd * m.p2, sc = Math.cos(sa), ss = Math.sin(sa)
+  const rRX = CENTER + sc * R_MID, rRY = CENTER + ss * R_MID, rTR = R_MID * (1 - v)
+  let rootX = CENTER + (rRX - CENTER) * m.p1, rootY = CENTER + (rRY - CENTER) * m.p1
+  let tipX = dTX + (CENTER + sc * rTR - dTX) * m.p1, tipY = dTY + (CENTER + ss * rTR - dTY) * m.p1
+  if (m.pp1 > 0 || m.pp2 > 0) {
+    const pX = n > 1 ? CENTER + (i - (n - 1) / 2) / (n - 1) * 2 * R : CENTER
+    rootX += (pX - rootX) * m.pp1; rootY += (CENTER - rootY) * m.pp1
+    tipX += (pX - tipX) * m.pp2; tipY += (CENTER - R * v - tipY) * m.pp2
+  }
+  if (m.lp1 > 0 || m.lp2 > 0) {
+    rootX += (CENTER - rootX) * m.lp1; rootY += (CENTER - rootY) * m.lp1
+    tipX += (CENTER - tipX) * m.lp2; tipY += (CENTER - R * v - tipY) * m.lp2
+  }
+  out[0] = rootX; out[1] = rootY; out[2] = tipX; out[3] = tipY
+}
+
+function makeLine(points: [number, number][], z: number, color: number, closed: boolean) {
+  const arr = new Float32Array(points.length * 3)
+  points.forEach(([x, y], i) => arr.set([x, y, z], i * 3))
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(arr, 3))
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0 })
+  return closed ? new THREE.LineLoop(geo, mat) : new THREE.Line(geo, mat)
+}
+
+function makeRingLine(radius: number, z: number, color: number) {
+  return makeLine(
+    Array.from({ length: 128 }, (_, i) => [Math.cos((i / 128) * Math.PI * 2) * radius, Math.sin((i / 128) * Math.PI * 2) * radius]),
+    z, color, true,
+  )
+}
+
+/** A round sprite for points (PointsMaterial draws squares otherwise); `ring` draws just its outline. */
+function dotTexture(ring: boolean) {
+  const size = 64
+  const c = document.createElement('canvas')
+  c.width = c.height = size
+  const ctx = c.getContext('2d')!
+  ctx.beginPath()
+  ctx.arc(size / 2, size / 2, size / 2 - (ring ? 5 : 1), 0, Math.PI * 2)
+  if (ring) {
+    ctx.lineWidth = 6
+    ctx.strokeStyle = '#fff'
+    ctx.stroke()
+  } else {
+    ctx.fillStyle = '#fff'
+    ctx.fill()
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+export interface ChordVizProps {
+  traces: Traces
+  /** Changes when a new set of digits takes part, so their chords grow in afresh. */
+  pickKey: unknown
+  playhead: Playhead
+  /** slotOf[participant] = its chord's position in the geometry. */
+  slotOf: Int32Array
+  groupOf: Int32Array
+  colors: RGB[]
+  focus: number | null
+  view: ViewMode
+  geometry: GeoMode
+  style: VizStyle
+  /** How far back trails reach, in seconds of playback. */
+  trailSeconds: number
+}
+
+export function ChordViz(props: ChordVizProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const live = useRef(props)
+  useEffect(() => {
+    live.current = props
+  })
+  const [isOrbiting, setIsOrbiting] = useState(false)
+
+  useEffect(() => {
+    const canvas = canvasRef.current!, wrap = wrapRef.current!
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setClearColor(0x0f0f0e, 1)
+    // The prototype ran on three r128, before colour management: colours went to the screen as
+    // given. Newer three treats them as linear and encodes them to sRGB, which pales every dark
+    // tone (the reaction canvas's React port inherits that). Pass them through as r128 did.
+    THREE.ColorManagement.enabled = false
+    renderer.outputColorSpace = THREE.LinearSRGBColorSpace
+    const scene = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(53.13, 1, 0.1, 10000)
+
+    // ── Scene objects ──
+    const outerRing = makeRingLine(R, 0, 0x383835)
+    const midRing = makeRingLine(R_MID, 0, 0x2a2a28)
+    const ghostRings = [-120, -240, -360].map((z) => makeRingLine(R, z, 0x1e1e1c))
+    const zAxis = makeLine([[0, 0], [0, 0]], 0, 0x404040, false)
+    zAxis.geometry.attributes.position.setZ(1, -420)
+    const guides = [outerRing, midRing, ...ghostRings, zAxis]
+    guides.forEach((g) => scene.add(g))
+    const ringDotsArr = new Float32Array(48 * 3)
+    for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2; ringDotsArr[i * 3] = Math.cos(a) * R; ringDotsArr[i * 3 + 1] = Math.sin(a) * R }
+    const ringDotsGeo = new THREE.BufferGeometry()
+    ringDotsGeo.setAttribute('position', new THREE.BufferAttribute(ringDotsArr, 3))
+    const ringDotsMat = new THREE.PointsMaterial({ color: 0x3a3935, size: 3, sizeAttenuation: true, transparent: true })
+    scene.add(new THREE.Points(ringDotsGeo, ringDotsMat))
+
+    const buffer = (verts: number) => {
+      const geo = new THREE.BufferGeometry()
+      const pos = new THREE.BufferAttribute(new Float32Array(verts * 3), 3)
+      const col = new THREE.BufferAttribute(new Float32Array(verts * 3), 3)
+      pos.setUsage(THREE.DynamicDrawUsage)
+      col.setUsage(THREE.DynamicDrawUsage)
+      geo.setAttribute('position', pos)
+      geo.setAttribute('color', col)
+      return { geo, pos: pos.array as Float32Array, col: col.array as Float32Array }
+    }
+    // Chords are drawn wide, as in the prototype (WebGL lines are always 1px, so these are quads).
+    const chord = { pos: new Float32Array(MAX_CHORDS * 6), col: new Float32Array(MAX_CHORDS * 6) }
+    const chordGeo = new LineSegmentsGeometry()
+    const chordMat = new LineMaterial({ vertexColors: true, transparent: true, depthWrite: false, linewidth: CHORD_WIDTH })
+    const chordLines = new LineSegments2(chordGeo, chordMat)
+    chordLines.renderOrder = 7
+    chordLines.frustumCulled = false
+    scene.add(chordLines)
+
+    const dotTex = dotTexture(false)
+    const dot = buffer(MAX_CHORDS)
+    const dotMat = new THREE.PointsMaterial({ vertexColors: true, size: DOT_SIZE, sizeAttenuation: true, transparent: true, depthWrite: false, map: dotTex, alphaTest: 0.05 })
+    const dotPoints = new THREE.Points(dot.geo, dotMat)
+    dotPoints.renderOrder = 10
+    dotPoints.frustumCulled = false
+    scene.add(dotPoints)
+
+    // The followed digit: a ring around its cursor.
+    const ringTex = dotTexture(true)
+    const focusGeo = new THREE.BufferGeometry()
+    focusGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3))
+    const focusMat = new THREE.PointsMaterial({ color: 0xffffff, size: DOT_SIZE * 2.6, sizeAttenuation: true, transparent: true, depthTest: false, map: ringTex })
+    const focusPoint = new THREE.Points(focusGeo, focusMat)
+    focusPoint.renderOrder = 11
+    focusPoint.frustumCulled = false
+    scene.add(focusPoint)
+
+    const trace = buffer(MAX_CHORDS * TRACE_SEGS * 2)
+    const traceMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false })
+    const traceLines = new THREE.LineSegments(trace.geo, traceMat)
+    traceLines.renderOrder = 5
+    traceLines.frustumCulled = false
+    scene.add(traceLines)
+
+    const fill = buffer(MAX_CHORDS * TRACE_SEGS * FILL_VERTS_PER_SEG)
+    const fillMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide })
+    const fillMesh = new THREE.Mesh(fill.geo, fillMat)
+    fillMesh.renderOrder = 4
+    fillMesh.frustumCulled = false
+    scene.add(fillMesh)
+
+    // ── Camera ──
+    let camRadius = 480, camTheta = 0, camPhi = 0, camTargetZ = 0
+    const CAM_2D = { radius: 480, theta: 0, phi: 0 }
+    // Side on, far enough back to see a whole trail, looking at its middle; from the left, so time
+    // runs left to right with now at the right edge, like a strip chart.
+    const CAM_2D_TS = { radius: 820, theta: -Math.PI / 2, phi: 0, targetZ: -TRACE_DEPTH / 2 }
+    const CAM_3D = { radius: 560, theta: Math.PI / 5, phi: Math.PI / 9 }
+    let transT = 0, transTts = 0
+    let orbitDTheta = 0, orbitDPhi = 0, orbitDRadius = 0
+    // Opens on whatever view is chosen, without animating there from 2d.
+    if (live.current.view === '3d') transT = 1
+    if (live.current.view === '2d-ts') transTts = 1
+
+    function applyCam() {
+      const theta = camTheta + orbitDTheta
+      const phi = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camPhi + orbitDPhi))
+      const effR = camRadius + orbitDRadius
+      camera.position.set(effR * Math.sin(theta) * Math.cos(phi), effR * Math.sin(phi), camTargetZ + effR * Math.cos(theta) * Math.cos(phi))
+      camera.lookAt(0, 0, camTargetZ)
+      camera.up.set(0, 1, 0)
+    }
+
+    // ── Per-participant animation: chords grow in, and glide to new slots ──
+    let n = 0
+    let shownSlot = new Float32Array(0)
+    let arrival = new Float32Array(0)
+    let lastPick: unknown = undefined
+    const geoTarget: Record<GeoMode, number> = { radial: 1, diametric: 0, linear: -1, parallel: -2 }
+    let morphT = geoTarget[live.current.geometry]
+
+    const morph: Morph = { p1: 0, p2: 0, pp1: 0, pp2: 0, lp1: 0, lp2: 0 }
+    // Root and tip of one chord at valence v: [rootX, rootY, tipX, tipY].
+    const pts = new Float64Array(4)
+
+    const rgb = [0, 0, 0]
+    // An element's colour at valence v, by valence or by group, into rgb (0–1).
+    function colour(by: 'valence' | 'group', v: number, group: RGB) {
+      if (by === 'valence') valenceRGB(v, rgb, 0)
+      else for (let c = 0; c < 3; c++) rgb[c] = group[c] / 255
+    }
+    const bg = BG.map((c) => c / 255)
+    const hist = new Float64Array(TRACE_LEN * 5)
+
+    let animFrameId = 0
+    function animate() {
+      animFrameId = requestAnimationFrame(animate)
+      const { traces, pickKey, playhead, slotOf, groupOf, colors, focus, view, geometry, style, trailSeconds } = live.current
+
+      // A new set of digits: chords start over from nothing; otherwise each keeps its place and glides.
+      if (pickKey !== lastPick || traces.n !== n) {
+        lastPick = pickKey
+        n = Math.min(traces.n, MAX_CHORDS)
+        shownSlot = Float32Array.from(slotOf.subarray(0, n))
+        arrival = new Float32Array(n)
+      }
+
+      // ── Camera between views ──
+      transT = clamp01(transT + ((view === '3d' ? 1 : 0) - transT) * TRANS_SPEED * 3)
+      if (view !== '3d') {
+        orbitDRadius += (0 - orbitDRadius) * TRANS_SPEED * 3
+        orbitDTheta += (0 - orbitDTheta) * TRANS_SPEED * 3
+        orbitDPhi += (0 - orbitDPhi) * TRANS_SPEED * 3
+      }
+      transTts = clamp01(transTts + ((view === '2d-ts' ? 1 : 0) - transTts) * TRANS_SPEED * 3)
+      const et3 = ease(transT)
+      camRadius = CAM_2D.radius + (CAM_3D.radius - CAM_2D.radius) * et3
+      camTheta = CAM_2D.theta + (CAM_3D.theta - CAM_2D.theta) * et3
+      camPhi = CAM_2D.phi + (CAM_3D.phi - CAM_2D.phi) * et3
+      if (transTts > 0) {
+        const et = ease(transTts)
+        camRadius += (CAM_2D_TS.radius - camRadius) * et
+        camTheta += (CAM_2D_TS.theta - camTheta) * et
+        camPhi += (CAM_2D_TS.phi - camPhi) * et
+      }
+      camTargetZ = CAM_2D_TS.targetZ * ease(transTts)
+      applyCam()
+
+      // ── Geometry: the chord geometries morph into one another ──
+      morphT = Math.max(-2, Math.min(1, morphT + (geoTarget[geometry] - morphT) * 0.05))
+      if (morphT >= 0) {
+        Object.assign(morph, getPhases(morphT, geometry === 'radial'), { pp1: 0, pp2: 0, lp1: 0, lp2: 0 })
+      } else if (morphT >= -1) {
+        const le = ease(-morphT)
+        Object.assign(morph, { p1: 0, p2: 0, pp1: 0, pp2: 0, lp1: le, lp2: le })
+      } else {
+        const le = ease(2 + morphT)
+        Object.assign(morph, { p1: 0, p2: 0, pp1: 1, pp2: 1, lp1: le, lp2: le })
+      }
+      const depthA = ease(transT), depthTs = ease(transTts)
+      outerRing.material.opacity = 0.8
+      midRing.material.opacity = morph.p1 * 0.35
+      zAxis.material.opacity = Math.max(depthA, depthTs) * 0.45
+      ghostRings.forEach((r, i) => { r.material.opacity = depthA * (0.12 - i * 0.03); r.visible = depthA > 0.02 })
+      // ── Chords, cursors and trails ──
+      const moment = playhead.moment
+      const showTrace = view === '2d-ts' || view === '3d'
+      // Trail samples are spread over the last `trailSeconds` of playback, in moments.
+      const step = (trailSeconds * playhead.speed) / TRACE_SEGS
+      const by = style.colorBy
+      let focusShown = false
+      for (let i = 0; i < n; i++) {
+        shownSlot[i] += (slotOf[i] - shownSlot[i]) * REORDER_EASE
+        arrival[i] = Math.min(1, arrival[i] + 1 / 30)
+        const scale = arrival[i] * arrival[i]
+        const group = colors[groupOf[i]] ?? BG
+        const v = valenceAt(traces, i, moment) * scale
+        chordPoints(shownSlot[i], Math.max(n, 1), v, morph, pts)
+        const [rx, ry, dx, dy] = [pts[0] - CENTER, CENTER - pts[1], pts[2] - CENTER, CENTER - pts[3]]
+        chord.pos.set([rx, ry, 0, dx, dy, 0], i * 6)
+        colour(by.chord, v, group)
+        chord.col.set([bg[0], bg[1], bg[2], rgb[0], rgb[1], rgb[2]], i * 6)
+        dot.pos.set([dx, dy, 0], i * 3)
+        colour(by.cursor, v, group)
+        dot.col.set(rgb, i * 3)
+        if (i === focus) {
+          focusGeo.attributes.position.setXYZ(0, dx, dy, 1)
+          focusGeo.attributes.position.needsUpdate = true
+          focusShown = true
+        }
+
+        if (!showTrace) continue
+        // The trail: this chord's recent trace, oldest first, receding into the screen and fading out.
+        const hlen = step > 0 ? Math.min(TRACE_LEN, Math.floor(moment / step) + 1) : 1
+        for (let k = 0; k < hlen; k++) {
+          const hv = valenceAt(traces, i, moment - (hlen - 1 - k) * step) * scale
+          chordPoints(shownSlot[i], Math.max(n, 1), hv, morph, pts)
+          hist[k * 5] = pts[2] - CENTER; hist[k * 5 + 1] = CENTER - pts[3]
+          hist[k * 5 + 2] = pts[0] - CENTER; hist[k * 5 + 3] = CENTER - pts[1]; hist[k * 5 + 4] = hv
+        }
+        for (let j = 0; j < TRACE_SEGS; j++) {
+          const base = (i * TRACE_SEGS + j) * 6
+          const fbase = (i * TRACE_SEGS + j) * FILL_VERTS_PER_SEG * 3
+          if (j + 1 >= hlen) {
+            trace.pos.fill(0, base, base + 6)
+            fill.pos.fill(0, fbase, fbase + FILL_VERTS_PER_SEG * 3)
+            continue
+          }
+          const a = j * 5, b = (j + 1) * 5
+          const zA = -(hlen - 1 - j) * TRACE_Z_STEP, zB = -(hlen - 2 - j) * TRACE_Z_STEP
+          // Fades by age over the whole trail, so it thins into the background rather than ending abruptly.
+          const fadeA = (1 - (hlen - 1 - j) / TRACE_SEGS) ** 2, fadeB = (1 - (hlen - 2 - j) / TRACE_SEGS) ** 2
+          // Thousands of segments a frame, so written in place rather than through arrays.
+          const tp = trace.pos, tc = trace.col
+          tp[base] = hist[a]; tp[base + 1] = hist[a + 1]; tp[base + 2] = zA
+          tp[base + 3] = hist[b]; tp[base + 4] = hist[b + 1]; tp[base + 5] = zB
+          colour(by.trace, hist[a + 4], group)
+          for (let c = 0; c < 3; c++) {
+            tc[base + c] = bg[c] + (rgb[c] - bg[c]) * fadeA
+            tc[base + 3 + c] = bg[c] + (rgb[c] - bg[c]) * fadeB
+          }
+          // The fill: a ribbon between the chord's root and its cursor, over time (two triangles).
+          const fp = fill.pos, fc = fill.col
+          for (let q = 0; q < 6; q++) {
+            const h = a + FILL_CORNERS[q]
+            fp[fbase + q * 3] = hist[h]; fp[fbase + q * 3 + 1] = hist[h + 1]; fp[fbase + q * 3 + 2] = FILL_LATER[q] ? zB : zA
+          }
+          colour(by.fill, hist[a + 4], group)
+          for (let q = 0; q < 6; q++) {
+            const fade = FILL_LATER[q] ? fadeB : fadeA
+            for (let c = 0; c < 3; c++) fc[fbase + q * 3 + c] = FILL_IS_ROOT[q] ? bg[c] : bg[c] + (rgb[c] - bg[c]) * fade
+          }
+        }
+      }
+      chordGeo.setPositions(chord.pos.subarray(0, Math.max(n, 1) * 6))
+      chordGeo.setColors(chord.col.subarray(0, Math.max(n, 1) * 6))
+      dot.geo.setDrawRange(0, n)
+      trace.geo.setDrawRange(0, n * TRACE_SEGS * 2)
+      fill.geo.setDrawRange(0, n * TRACE_SEGS * FILL_VERTS_PER_SEG)
+      for (const b of [dot, trace, fill]) {
+        b.geo.attributes.position.needsUpdate = true
+        b.geo.attributes.color.needsUpdate = true
+      }
+      focusPoint.visible = focusShown
+      traceLines.visible = showTrace
+      fillMesh.visible = showTrace
+      chordMat.opacity = style.opacity.chord
+      dotMat.opacity = style.opacity.cursor
+      traceMat.opacity = style.opacity.trace
+      fillMat.opacity = style.opacity.fill
+
+      renderer.render(scene, camera)
+    }
+    animFrameId = requestAnimationFrame(animate)
+
+    // ── Orbit (3d only): drag to turn, wheel or pinch to zoom ──
+    let dragging = false, dragLast = { x: 0, y: 0 }, dtBase = 0, dpBase = 0
+    const canOrbit = () => live.current.view === '3d' && transT > 0.7
+    function onMouseDown(e: MouseEvent) {
+      if (!canOrbit()) return
+      dragging = true; dragLast = { x: e.clientX, y: e.clientY }
+      dtBase = orbitDTheta; dpBase = orbitDPhi
+      setIsOrbiting(true)
+      e.preventDefault()
+    }
+    function onMouseMove(e: MouseEvent) {
+      if (!dragging) return
+      orbitDTheta = dtBase - (e.clientX - dragLast.x) * 0.009
+      orbitDPhi = dpBase + (e.clientY - dragLast.y) * 0.009
+    }
+    function onMouseUp() { dragging = false; setIsOrbiting(false) }
+    function onWheel(e: WheelEvent) {
+      if (live.current.view !== '3d') return
+      orbitDRadius = Math.max(250 - camRadius, Math.min(1400 - camRadius, orbitDRadius + e.deltaY * 0.6))
+      e.preventDefault()
+    }
+    let lastTouchDist = 0, touchBase = { dt: 0, dp: 0 }, touchStart = { x: 0, y: 0 }
+    function onTouchStart(e: TouchEvent) {
+      if (!canOrbit()) return
+      if (e.touches.length === 1) {
+        dragging = true
+        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        touchBase = { dt: orbitDTheta, dp: orbitDPhi }
+      } else if (e.touches.length === 2) {
+        dragging = false
+        lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
+      }
+      e.preventDefault()
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (!canOrbit()) return
+      if (e.touches.length === 1 && dragging) {
+        orbitDTheta = touchBase.dt - (e.touches[0].clientX - touchStart.x) * 0.009
+        orbitDPhi = touchBase.dp + (e.touches[0].clientY - touchStart.y) * 0.009
+      } else if (e.touches.length === 2) {
+        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
+        const eff = Math.max(250, Math.min(1400, (camRadius + orbitDRadius) * (lastTouchDist / d)))
+        orbitDRadius = eff - camRadius
+        lastTouchDist = d
+      }
+      e.preventDefault()
+    }
+    function onTouchEnd() { dragging = false }
+    canvas.addEventListener('mousedown', onMouseDown)
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false })
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false })
+    canvas.addEventListener('touchend', onTouchEnd)
+
+    // Fit the square authoring space to the panel, whichever side is shorter.
+    const resize = new ResizeObserver(() => {
+      const w = wrap.clientWidth, h = wrap.clientHeight
+      renderer.setSize(w, h, false)
+      chordMat.resolution.set(w, h)
+      camera.aspect = w / h
+      // Keep the whole circle in view on narrow panels too.
+      camera.fov = w >= h ? 53.13 : (2 * Math.atan(Math.tan((53.13 * Math.PI) / 360) * (h / w)) * 180) / Math.PI
+      camera.updateProjectionMatrix()
+    })
+    resize.observe(wrap)
+
+    return () => {
+      cancelAnimationFrame(animFrameId)
+      resize.disconnect()
+      canvas.removeEventListener('mousedown', onMouseDown)
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+      canvas.removeEventListener('wheel', onWheel)
+      canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.removeEventListener('touchmove', onTouchMove)
+      canvas.removeEventListener('touchend', onTouchEnd)
+      renderer.dispose()
+      for (const g of [chordGeo, dot.geo, trace.geo, fill.geo, focusGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
+      for (const m of [chordMat, dotMat, traceMat, fillMat, focusMat, ringDotsMat, ...guides.map((l) => l.material)]) m.dispose()
+      dotTex.dispose()
+      ringTex.dispose()
+    }
+  }, [])
+
+  return (
+    <div ref={wrapRef} className="viz-canvas" style={{ cursor: isOrbiting ? 'grabbing' : props.view === '3d' ? 'grab' : 'default' }}>
+      <canvas ref={canvasRef} />
+    </div>
+  )
+}

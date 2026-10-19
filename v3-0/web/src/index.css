@@ -1,0 +1,132 @@
+:root {
+  --bg: #fafaf9;
+  --fg: #1c1917;
+  --muted: #78716c;
+  --border: #e7e5e4;
+  --panel: #ffffff;
+  --accent: #e11d48;
+  /* The play button, to draw the eye before anything has run. */
+  --go: #15803d;
+  --go-hover: #166534;
+  --on-go: #ffffff;
+  /* Valence, as in the reaction canvas's visualiser. */
+  --agree: #22c55e;
+  --disagree: #ef4444;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0a09;
+    --fg: #f5f5f4;
+    --muted: #a8a29e;
+    --border: #292524;
+    --panel: #1c1917;
+    --accent: #fb7185;
+    --go: #22c55e;
+    --go-hover: #4ade80;
+    --on-go: #052e16;
+    --agree: #50ff8c;
+    --disagree: #ff503c;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+main { padding: 24px 16px; max-width: 1280px; margin: 0 auto; }
+.status { padding: 48px; color: var(--muted); }
+h1 { margin: 0 0 8px; font-size: 1.6rem; }
+h2 { margin: 16px 0 6px; font-size: 0.85rem; }
+.muted { color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; }
+.page-header p { margin: 0 0 12px; color: var(--muted); max-width: 80ch; line-height: 1.5; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: baseline; }
+
+/* ── Controls ── */
+.controls { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.85rem; }
+.control-label { font-weight: 600; min-width: 4.5em; }
+.toolbar .control-label + .segmented, .toolbar .control-label + button { margin-left: 0; }
+.toolbar * + .control-label { margin-left: 12px; min-width: 0; }
+button {
+  font: inherit; padding: 4px 12px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--fg); cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button.start { background: var(--go); border-color: var(--go); color: var(--on-go); }
+button.start:hover { background: var(--go-hover); border-color: var(--go-hover); }
+.play-labels { display: inline-grid; justify-items: center; }
+.play-labels > span { grid-area: 1 / 1; }
+.play-labels > .hidden { visibility: hidden; }
+
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.segmented button { border: 0; border-radius: 0; }
+.segmented button + button { border-left: 1px solid var(--border); }
+.segmented button.on { background: var(--fg); color: var(--bg); }
+.segmented.digits button { padding: 4px 9px; font-variant-numeric: tabular-nums; box-shadow: inset 0 -3px 0 var(--digit); }
+.segmented.digits button:not(.on) { color: var(--muted); box-shadow: none; }
+.slider, .check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.slider input { width: 110px; }
+
+/* ── Stage: the visualiser, with the followed digit and groups beside it ── */
+.stage { display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap; }
+.viz {
+  position: relative; flex: 1 1 520px; min-width: 0; height: min(72vh, 760px); min-height: 380px;
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #0f0f0e;
+}
+.viz-canvas { position: absolute; inset: 0; touch-action: none; }
+.viz-canvas canvas { display: block; width: 100%; height: 100%; }
+.viz-controls { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none; }
+.viz-controls .segmented { pointer-events: auto; border-color: rgba(200, 198, 190, 0.18); }
+/* The visualiser stays dark in either theme: its neutral colour is its background. */
+.viz-controls button {
+  font-family: 'DM Mono', ui-monospace, 'Courier New', monospace; font-size: 11px; letter-spacing: 0.06em;
+  padding: 4px 10px; background: rgba(15, 15, 14, 0.75); color: rgba(200, 198, 190, 0.75); border-color: rgba(200, 198, 190, 0.18);
+}
+.viz-controls .segmented button.on { background: rgba(200, 198, 190, 0.16); color: #e8e6de; }
+.viz-hint { position: absolute; bottom: 8px; right: 10px; font-family: 'DM Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: rgba(200, 198, 190, 0.45); pointer-events: none; }
+
+.sidebar { flex: 0 1 300px; min-width: 260px; font-size: 0.85rem; }
+.sidebar h2:first-of-type { margin-top: 12px; }
+.digit-preview { display: flex; gap: 12px; align-items: flex-start; min-height: 128px; color: var(--accent); }
+.digit-preview canvas { width: 126px; height: 126px; image-rendering: pixelated; border: 1px solid var(--border); background: #000; flex-shrink: 0; }
+.digit-info { display: flex; flex-direction: column; gap: 6px; color: var(--fg); flex: 1; }
+.valence-meter { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; color: var(--muted); }
+.valence-track {
+  position: relative; flex: 1; height: 10px; border-radius: 5px;
+  background: linear-gradient(to right, var(--disagree), var(--border) 50%, var(--agree));
+}
+.valence-zero { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted); }
+.valence-mark { position: absolute; top: -3px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--fg); }
+
+.group-legend { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; max-height: 220px; overflow-y: auto; }
+.group-legend li { display: grid; grid-template-columns: 12px 2.5em 2.5em 1fr; align-items: center; gap: 6px; }
+.group-name { font-weight: 600; }
+.group-mean { position: relative; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.group-mean-zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--muted); }
+.group-mean-bar { position: absolute; top: 0; bottom: 0; }
+
+.style-grid { display: grid; grid-template-columns: auto repeat(4, 1fr); gap: 3px; align-items: center; }
+.style-grid button { padding: 2px 4px; font-size: 0.75rem; }
+.style-grid button.on { background: var(--fg); color: var(--bg); }
+.style-grid input { width: 100%; min-width: 0; }
+.style-head { font-size: 0.75rem; color: var(--muted); text-align: center; }
+
+/* ── Transport and matrix ── */
+.matrix-section { margin-top: 20px; }
+.matrix-section p { margin: 0 0 8px; font-size: 0.85rem; }
+.transport { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.readout { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.8rem; }
+.scrubber { width: calc(100% - 12px); margin: 0 0 0 12px; accent-color: var(--accent); }
+.matrix { display: flex; gap: 4px; align-items: flex-start; }
+.matrix-strip { display: block; image-rendering: pixelated; flex-shrink: 0; }
+.matrix-image { position: relative; cursor: pointer; background: #000; color: var(--accent); }
+.matrix-image canvas { position: absolute; left: 0; top: 0; display: block; image-rendering: pixelated; }
+
+@media (max-width: 560px) {
+  .viz-controls button { padding: 4px 6px; font-size: 10px; letter-spacing: 0.02em; }
+  .viz { height: 70vh; min-height: 320px; }
+}
