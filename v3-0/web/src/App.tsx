@@ -33,21 +33,21 @@ function Explorer({ data }: { data: PoolData }) {
   const labels = meta.rows.label
 
   // Who takes part.
-  const [digits, setDigits] = useState<Set<number>>(() => new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
+  const [digits, setDigits] = useState<Set<number>>(() => new Set([0, 1, 6, 9]))
   const [count, setCount] = useState(100)
   const [seed, setSeed] = useState(0)
   // How they're grouped and laid out.
-  const [groupBy, setGroupBy] = useState<GroupBy>('leiden')
+  const [groupBy, setGroupBy] = useState<GroupBy>('digit')
   const [resolution, setResolution] = useState(1)
   const [neighbours, setNeighbours] = useState(15)
   const [order, setOrder] = useState<ChordOrder>('grouped')
   // How each digit is read out as valence.
-  const [signal, setSignal] = useState<SignalSettings>({ reading: 'rows', skipBlank: true, smoothing: 'blur', smoothingPixels: 1.5, mapping: 'ink' })
+  const [signal, setSignal] = useState<SignalSettings>({ reading: 'hilbert', skipBlank: false, smoothing: 'blur', smoothingPixels: 1.5, mapping: 'ink' })
   // How it's drawn.
   const [view, setView] = useState<ViewMode>('3d')
   const [geometry, setGeometry] = useState<GeoMode>('diametric')
   const [style, setStyle] = useState<VizStyle>({ ...DEFAULT_STYLE, colorBy: { ...DEFAULT_STYLE.colorBy, chord: 'group' } })
-  const [trailSeconds, setTrailSeconds] = useState(30)
+  const [trailSeconds, setTrailSeconds] = useState(10)
   const [focus, setFocus] = useState<number | null>(0)
   const [hover, setHover] = useState<number | null>(null)
   const playhead = usePlayhead()

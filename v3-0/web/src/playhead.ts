@@ -10,7 +10,7 @@ export class Playhead {
   length = 1
   playing = false
   /** Pixels per second. */
-  speed = 1
+  speed = 14
   loop = true
   private frameListeners = new Set<() => void>()
   private stateListeners = new Set<() => void>()
