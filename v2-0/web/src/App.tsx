@@ -20,8 +20,8 @@ import { useMidi } from './useMidi'
 /** How far a control must move before the kicking Adam forgets its state. */
 const KICK_THRESHOLD = 0.02
 
-const mapValues = <A, B>(r: Record<PairType, A>, f: (a: A) => B): Record<PairType, B> =>
-  ({ nb: f(r.nb), mn: f(r.mn), fp: f(r.fp) })
+const mapValues = <A, B>(r: Record<PairType, A>, f: (a: A, type: PairType) => B): Record<PairType, B> =>
+  ({ nb: f(r.nb, 'nb'), mn: f(r.mn, 'mn'), fp: f(r.fp, 'fp') })
 
 function Playground({ data }: { data: PacmapData }) {
   const { meta } = data
@@ -43,6 +43,7 @@ function Playground({ data }: { data: PacmapData }) {
   const controls = useControlValues(store)
   const [scale, setScale] = useState<ForceScale>(DEFAULT_SCALE)
   const [spring, setSpring] = useState<Record<PairType, boolean>>({ nb: false, mn: false, fp: false })
+  const [split, setSplit] = useState<Record<PairType, boolean>>({ nb: true, mn: true, fp: true })
   const [autopilot, setAutopilot] = useState(false)
 
   const getWeights = useCallback(
@@ -94,6 +95,20 @@ function Playground({ data }: { data: PacmapData }) {
       store.set(target, u)
     }
   })
+  // Each slider follows how its MIDI control behaves whenever that changes (a layout applied, a
+  // control learnt, its 0 point moved): pitch bend springs back, and a control with 0 at the
+  // bottom draws its slider unsplit. In between, spring and split are yours to change.
+  const modes = mapValues(midi.zeros, (zero, type) => `${midi.bindings[type]?.kind ?? 'none'}:${zero}`)
+  const [seenModes, setSeenModes] = useState<Record<PairType, string> | null>(null)
+  const changed = PAIR_TYPES.filter((type) => seenModes?.[type] !== modes[type])
+  if (changed.length) {
+    setSeenModes(modes)
+    const pick = <T,>(prev: Record<PairType, T>, f: (type: PairType) => T) =>
+      mapValues(prev, (v, type) => (changed.includes(type) ? f(type) : v))
+    setSpring((prev) => pick(prev, (type) => midi.bindings[type]?.kind === 'pitchbend'))
+    setSplit((prev) => pick(prev, (type) => midi.zeros[type] === 'centre'))
+  }
+
   // Forces played from a fader (a CC) show where that fader sits, as MIDI Surf shows it.
   const faderZero = Object.fromEntries(
     PAIR_TYPES.map((type) => [type, midi.bindings[type]?.kind === 'cc' ? midi.zeros[type] : null]),
@@ -133,6 +148,8 @@ function Playground({ data }: { data: PacmapData }) {
           onScale={setScale}
           spring={spring}
           onSpring={(type, s) => setSpring((prev) => ({ ...prev, [type]: s }))}
+          split={split}
+          onSplit={(type, s) => setSplit((prev) => ({ ...prev, [type]: s }))}
           faderZero={faderZero}
           onGrab={takeOver}
           onChange={(type, u) => store.set(type, u)}

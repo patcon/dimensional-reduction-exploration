@@ -25,7 +25,10 @@ pnpm dev
   attracts, down repels, the grey band at centre is no force. The scale is logarithmic,
   from ±0.1 to ±2000 (range adjustable under the sliders), so one slider reaches both
   PaCMAP's 1–3 and its 1000; PaCMAP's values are marked on each track. Tick **spring** to
-  make a slider return to 0 when let go. Arrow keys nudge a focused slider (shift for
+  make a slider return to 0 when let go. Untick **split** to draw a slider like a fader
+  that starts at the bottom: the track sets the strength alone and a button beside it
+  flips attract/repel. Both follow your MIDI setup when it changes (pitch bend ticks
+  spring; a control with 0 at the bottom unticks split). Arrow keys nudge a focused slider (shift for
   bigger steps), 0 zeroes it, double-click zeroes it too.
 - **Loop.** Nothing runs until a force is non-zero. Then a playhead steps through
   PaCMAP's 450-iteration schedule at the chosen rate (1–60 it/s; about 30 is the most this

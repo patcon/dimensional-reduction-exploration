@@ -16,7 +16,8 @@ export class InputStore {
 
   set(type: PairType, u: number) {
     const clamped = Math.max(-1, Math.min(1, u))
-    if (this.values[type] === clamped) return
+    // Object.is, so a sign switch flipped at no force (0 to -0) still comes through.
+    if (Object.is(this.values[type], clamped)) return
     this.values = { ...this.values, [type]: clamped }
     this.listeners.forEach((l) => l())
   }

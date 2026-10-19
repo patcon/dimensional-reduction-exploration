@@ -14,8 +14,13 @@ const weightLabel = (w: number) => (w === 0 ? '0' : `${w > 0 ? '+' : '−'}${Mat
 /** A fader position as MIDI Surf shows it. */
 const percentLabel = (u: number, zero: Zero) => `${Math.round(faderPercent(u, zero))}%`
 
-/** u in [-1, 1] as a CSS top offset: +1 at the top, 0 in the middle. */
-const topOf = (u: number) => `${((1 - u) / 2) * 100}%`
+/**
+ * Where u in [-1, 1] sits on a track, as a fraction from the top. Split: +1 at the top, 0 in
+ * the middle, -1 at the bottom. Not split: the strength alone, 0 at the bottom.
+ */
+const posOf = (u: number, split: boolean) => (split ? (1 - u) / 2 : 1 - Math.min(1, Math.abs(u)))
+const pct = (f: number) => `${f * 100}%`
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x))
 
 /** Mark labels' line height, the least they're kept apart (px), and the leader's run. */
 const LABEL_GAP = 13
@@ -39,6 +44,9 @@ interface SliderProps {
   scale: ForceScale
   spring: boolean
   onSpring: (spring: boolean) => void
+  /** Up attracts and down repels (split), or the track is the strength alone with a sign button. */
+  split: boolean
+  onSplit: (split: boolean) => void
   /** Set when this force is played from a fader: label positions as that fader's percentage. */
   faderZero: Zero | null
   /** Called as a drag or key press starts, before the first onChange. */
@@ -47,11 +55,12 @@ interface SliderProps {
 }
 
 /**
- * One bipolar vertical slider: up attracts, down repels, the centre band is no force.
+ * One vertical slider. Split: up attracts, down repels, the centre band is no force. Not split:
+ * like a fader that starts at the bottom, it sets the strength, and a button sets the sign.
  * Spring sliders return to 0 when let go, like a pitch-bend wheel; latch sliders stay put,
  * like a fader. Keys always latch: arrows nudge (shift for bigger steps), 0 zeroes.
  */
-function ForceSlider({ type, u, scale, spring, onSpring, faderZero, onGrab, onChange }: SliderProps) {
+function ForceSlider({ type, u, scale, spring, onSpring, split, onSplit, faderZero, onGrab, onChange }: SliderProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [height, setHeight] = useState(0)
   useEffect(() => {
@@ -60,20 +69,31 @@ function ForceSlider({ type, u, scale, spring, onSpring, faderZero, onGrab, onCh
     observer.observe(track)
     return () => observer.disconnect()
   }, [])
+  // Not split, the sign is kept even at no force (as -0), or as last chosen here.
+  const [chosenSign, setChosenSign] = useState<1 | -1>(1)
+  const sign = u > 0 ? 1 : u < 0 || Object.is(u, -0) ? -1 : chosenSign
   const color = FORCE_COLORS[type]
   const m = toMultiplier(u, scale)
+  /** A position along the track (0 at the bottom, 1 at the top) as u. */
+  const fromTravel = (t: number) => (split ? clamp01(t) * 2 - 1 : sign * clamp01(t))
+  const travel = split ? (u + 1) / 2 : Math.abs(u)
+  const flipSign = () => {
+    onGrab()
+    setChosenSign(sign > 0 ? -1 : 1)
+    onChange(-u || (sign > 0 ? -0 : 0))
+  }
 
   // On a fader, each mark also gives where to put the fader, as MIDI Surf shows it; no force is
   // marked too, as it's not at the centre of a bottom-zero fader.
   const marks = (faderZero ? [0, ...PACMAP_MARKS[type]] : PACMAP_MARKS[type])
     .map((w) => ({ w, u: toU(w, scale) }))
-    .sort((a, b) => b.u - a.u)
-    .map((mark) => ({ ...mark, y: ((1 - mark.u) / 2) * height }))
+    .map((mark) => ({ ...mark, y: posOf(mark.u, split) * height }))
+    .sort((a, b) => a.y - b.y)
   const labelYs = spread(marks.map((mark) => mark.y), height)
 
   const uAt = (e: PointerEvent) => {
     const r = trackRef.current!.getBoundingClientRect()
-    return 1 - (2 * (e.clientY - r.top)) / r.height
+    return fromTravel(1 - (e.clientY - r.top) / r.height)
   }
   const onPointerDown = (e: PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -84,18 +104,21 @@ function ForceSlider({ type, u, scale, spring, onSpring, faderZero, onGrab, onCh
     if (e.currentTarget.hasPointerCapture(e.pointerId)) onChange(uAt(e))
   }
   const onPointerUp = () => {
-    if (spring) onChange(0)
+    if (spring) onChange(split || sign > 0 ? 0 : -0)
   }
   const onKeyDown = (e: KeyboardEvent) => {
-    const step = e.shiftKey ? 0.1 : 0.01
+    // In travel along the track, which is half as far per unit of u when split.
+    const step = (e.shiftKey ? 0.1 : 0.01) / (split ? 2 : 1)
+    const page = 0.1 / (split ? 2 : 1)
+    const zero = split ? 0.5 : 0
     const next: Record<string, number> = {
-      ArrowUp: u + step, ArrowRight: u + step, ArrowDown: u - step, ArrowLeft: u - step,
-      PageUp: u + 0.1, PageDown: u - 0.1, Home: 1, End: -1, '0': 0, Delete: 0, Backspace: 0,
+      ArrowUp: travel + step, ArrowRight: travel + step, ArrowDown: travel - step, ArrowLeft: travel - step,
+      PageUp: travel + page, PageDown: travel - page, Home: 1, End: 0, '0': zero, Delete: zero, Backspace: zero,
     }
     if (!(e.key in next)) return
     e.preventDefault()
     onGrab()
-    onChange(next[e.key])
+    onChange(fromTravel(next[e.key]))
   }
 
   return (
@@ -125,10 +148,17 @@ function ForceSlider({ type, u, scale, spring, onSpring, faderZero, onGrab, onCh
         onKeyDown={onKeyDown}
         onDoubleClick={() => onChange(0)}
       >
-        <div className="force-deadzone" style={{ top: topOf(scale.deadzone), bottom: topOf(scale.deadzone) }} />
+        <div
+          className="force-deadzone"
+          style={split ? { top: pct(posOf(scale.deadzone, true)), bottom: pct(posOf(scale.deadzone, true)) } : { top: pct(posOf(scale.deadzone, false)), bottom: 0 }}
+        />
         <div
           className="force-fill"
-          style={{ background: color, top: topOf(Math.max(u, 0)), bottom: topOf(-Math.min(u, 0)) }}
+          style={
+            split
+              ? { background: color, top: pct(posOf(Math.max(u, 0), true)), bottom: pct(posOf(-Math.min(u, 0), true)) }
+              : { background: color, top: pct(posOf(u, false)), bottom: 0 }
+          }
         />
         {height > 0 && (
           <div className={faderZero ? 'force-marks with-percent' : 'force-marks'} aria-hidden="true">
@@ -145,11 +175,25 @@ function ForceSlider({ type, u, scale, spring, onSpring, faderZero, onGrab, onCh
             ))}
           </div>
         )}
-        <div className="force-thumb" style={{ top: topOf(u), borderColor: color }} />
+        <div className="force-thumb" style={{ top: pct(posOf(u, split)), borderColor: color }} />
       </div>
-      <label className="force-spring">
-        <input type="checkbox" checked={spring} onChange={(e) => onSpring(e.target.checked)} /> spring
-      </label>
+      <button
+        type="button"
+        className={`force-sign${split ? ' hidden' : ''}`}
+        onClick={flipSign}
+        disabled={split}
+        aria-label={`${FORCE_LABELS[type]} sign: ${sign > 0 ? 'attract' : 'repel'}`}
+      >
+        {sign > 0 ? '+ attract' : '− repel'}
+      </button>
+      <div className="force-options">
+        <label>
+          <input type="checkbox" checked={spring} onChange={(e) => onSpring(e.target.checked)} /> spring
+        </label>
+        <label title="Up attracts, down repels. Untick to make the slider the strength alone, with a sign button.">
+          <input type="checkbox" checked={split} onChange={(e) => onSplit(e.target.checked)} /> split
+        </label>
+      </div>
     </div>
   )
 }
@@ -160,13 +204,15 @@ interface Props {
   onScale: (scale: ForceScale) => void
   spring: Record<PairType, boolean>
   onSpring: (type: PairType, spring: boolean) => void
+  split: Record<PairType, boolean>
+  onSplit: (type: PairType, split: boolean) => void
   faderZero: Record<PairType, Zero | null>
   onGrab: () => void
   onChange: (type: PairType, u: number) => void
 }
 
 /** The three forces side by side, with the scale's range below. */
-export function ForceSliders({ values, scale, onScale, spring, onSpring, faderZero, onGrab, onChange }: Props) {
+export function ForceSliders({ values, scale, onScale, spring, onSpring, split, onSplit, faderZero, onGrab, onChange }: Props) {
   const setRange = (key: 'min' | 'max', value: number) => {
     if (!(value > 0)) return
     const next = { ...scale, [key]: value }
@@ -187,6 +233,8 @@ export function ForceSliders({ values, scale, onScale, spring, onSpring, faderZe
             scale={scale}
             spring={spring[type]}
             onSpring={(s) => onSpring(type, s)}
+            split={split[type]}
+            onSplit={(s) => onSplit(type, s)}
             faderZero={faderZero[type]}
             onGrab={onGrab}
             onChange={(u) => onChange(type, u)}
