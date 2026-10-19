@@ -1,5 +1,6 @@
 import type { Dim } from '../types'
 import type { ClockStatus } from '../useLoopClock'
+import { SAMPLE_SIZES, type SampleSize } from '../useData'
 
 interface Props {
   status: ClockStatus
@@ -21,12 +22,24 @@ interface Props {
   onDim: (dim: Dim) => void
   autoRotate: boolean
   onAutoRotate: (on: boolean) => void
+  /** How many digits; switching starts over on the new ones once they've loaded. */
+  size: SampleSize
+  onSize: (size: SampleSize) => void
+  loading: boolean
+  loadError?: string
 }
 
-/** Play/pause, reset, speed, autopilot, smoothing and 2D/3D, with where the loop is up to. */
+/** Sample size, play/pause, reset, speed, autopilot, smoothing and 2D/3D, with where the loop is up to. */
 export function Transport(p: Props) {
   return (
     <div className="toolbar">
+      <div className="segmented" role="group" aria-label="Digits" title="How many MNIST digits (switching starts over)">
+        {SAMPLE_SIZES.map((size) => (
+          <button key={size} type="button" className={p.size === size ? 'on' : ''} onClick={() => p.onSize(size)}>
+            {size}
+          </button>
+        ))}
+      </div>
       <div className="segmented" role="group" aria-label="Forces from">
         <button type="button" className={p.autopilot ? '' : 'on'} onClick={() => p.onAutopilot(false)}>
           Manual
@@ -72,7 +85,11 @@ export function Transport(p: Props) {
         auto-rotate
       </label>
       <span className="readout">
-        {p.status === 'idle' ? (
+        {p.loadError ? (
+          <strong>{p.loadError}</strong>
+        ) : p.loading ? (
+          <strong>Loading {p.size} digits…</strong>
+        ) : p.status === 'idle' ? (
           <strong>Move a control to start</strong>
         ) : (
           <>

@@ -1,6 +1,6 @@
 # v2.0 — Playable PaCMAP
 
-PaCMAP's optimisation, running live in the browser on 20,000 MNIST digits, with its
+PaCMAP's optimisation, running live in the browser on 10k, 20k or all 65k MNIST digits, with its
 forces in your hands. PaCMAP samples three sets of pairs once (neighbours, mid-near
 pairs and far pairs) and then pulls and pushes on them with weights that follow a fixed
 450-iteration schedule. Here the pairs are fixed and the weights are yours: play each
@@ -10,7 +10,7 @@ graph of PaCMAP's own schedule, in 2D or 3D.
 ```sh
 # 1. Process data (downloads MNIST sprite on first run; writes v2-0/web/public/data/)
 cd ../pipeline
-uv run v2-0.py               # defaults: -n 20000 --seed 0
+uv run v2-0.py               # defaults: -n 10000 20000 65000 --seed 0 (a few minutes)
 uv run v2-0.py --check       # replays the exports against PaCMAP's own run
 
 # 2. View
@@ -30,9 +30,12 @@ pnpm dev
   flips attract/repel. Both follow your MIDI setup when it changes (pitch bend ticks
   spring; a control with 0 at the bottom unticks split). Arrow keys nudge a focused slider (shift for
   bigger steps), 0 zeroes it, double-click zeroes it too.
+- **Digits.** 10k, 20k or all 65k (the switch at the left of the toolbar), each its own
+  random sample with its own pairs. Switching starts over once the new digits have
+  loaded; forces, optimiser and MIDI carry across. 65k steps about 4x slower than 20k.
 - **Loop.** Nothing runs until a force is non-zero. Then a playhead steps through
-  PaCMAP's 450-iteration schedule at the chosen rate (1–60 it/s; about 30 is the most this
-  machine manages) and wraps, with the layout carrying on. **smooth** glides between
+  PaCMAP's 450-iteration schedule at the chosen rate (1–60 it/s; at 20k about 30 is the
+  most this machine manages, at 65k about 13) and wraps, with the layout carrying on. **smooth** glides between
   steps at 30 fps. Reset returns to the initial layout (staying paused if paused).
 - **2D / 3D.** The same pairs laid out in two or three dimensions; switching starts over
   from that dimension's initial layout (PaCMAP's first two or three principal components).
@@ -105,18 +108,20 @@ or connect over Wi-Fi with a
 
 ## How it works
 
-- `pipeline/v2-0.py` runs PaCMAP in 2D and in 3D (`save_pairs=True`) and exports their
-  shared pairs (`pairs_{nb,mn,fp}.bin`, uint32 i/j), each run's initial layout
+- `pipeline/v2-0.py`, for each sample size, runs PaCMAP in 2D and in 3D
+  (`save_pairs=True`) and exports to `web/public/data/<size>/` (e.g. `20k/`) their shared
+  pairs (`pairs_{nb,mn,fp}.bin`, uint32 i/j), each run's initial layout
   (`init_{2,3}d.bin`) and the schedule and Adam constants (`meta.json`). Each run's
-  layout every 10 iterations goes to `pipeline/data/v2-0/reference_{2,3}d.bin`, kept out
-  of the site, as a reference for the checks. The pairs
-  are sampled from the PCA'd data alone, so both runs draw the same ones.
+  layout every 10 iterations goes to `pipeline/data/v2-0/<size>/reference_{2,3}d.bin`,
+  kept out of the site, as a reference for the checks. The pairs are sampled from the
+  PCA'd data alone, so both runs draw the same ones.
 - `src/engine.ts` steps PaCMAP's gradient on those pairs with live signed weights. All
   three pair types share the kernel `2A / (A + dd)²` (A = 10, 10000 and 1), with the sign
-  moved into the multiplier, so PaCMAP itself is (+w_nb, +w_mn, −w_fp). About 12–15 ms
-  per iteration at 20k points in 2D (about 20 ms in 3D), on the main thread.
+  moved into the multiplier, so PaCMAP itself is (+w_nb, +w_mn, −w_fp). On the main
+  thread, an iteration takes about 7, 16 and 64 ms at 10k, 20k and 65k points in 2D, and
+  about a sixth longer in 3D.
 - `pnpm run check:engine` checks the engine against PaCMAP's reference run (p99 error
   3e-6 of the layout through phase 1; `ITERS=450` checks the rest at a looser bar, as
   phase 2's rearrangement amplifies float rounding into a slightly rotated copy; `DIM=3`
-  checks the 3D run).
+  checks the 3D run, `SIZE=10k` or `SIZE=65k` another sample size).
   `check:scale` and `check:midi` cover the control scale and MIDI decoding.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ForceSliders } from './components/ForceSliders'
 import { MidiPanel } from './components/MidiPanel'
 import { OptimiserPanel } from './components/OptimiserPanel'
@@ -12,7 +12,7 @@ import { DEFAULT_OPTIMISER, OptimiserBank, type OptimiserSettings } from './opti
 import { DIGIT_COLORS } from './palette'
 import { pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
 import { PAIR_TYPES, type Dim, type PairType, type Weights } from './types'
-import { useData, type PacmapData } from './useData'
+import { useData, type PacmapData, type SampleSize } from './useData'
 import { useLoopClock } from './useLoopClock'
 import type { Zero } from './midi'
 import { useMidi } from './useMidi'
@@ -23,7 +23,17 @@ const KICK_THRESHOLD = 0.02
 const mapValues = <A, B>(r: Record<PairType, A>, f: (a: A, type: PairType) => B): Record<PairType, B> =>
   ({ nb: f(r.nb, 'nb'), mn: f(r.mn, 'mn'), fp: f(r.fp, 'fp') })
 
-function Playground({ data }: { data: PacmapData }) {
+interface PlaygroundProps {
+  data: PacmapData
+  size: SampleSize
+  /** Switching size swaps `data` once it has loaded, starting over on the new digits. */
+  onSize: (size: SampleSize) => void
+  /** Whether `size` is still loading (`data` is the previous size's until it arrives). */
+  loading: boolean
+  loadError?: string
+}
+
+function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps) {
   const { meta } = data
   const [dim, setDim] = useState<Dim>(2)
   const [autoRotate, setAutoRotate] = useState(true)
@@ -62,6 +72,16 @@ function Playground({ data }: { data: PacmapData }) {
     trail.clear()
     clock.reset()
   }
+  // A new engine (another dimension or sample size) starts from its own initial layout, so the
+  // loop starts over too: in an effect, once the old engine's clock has stopped stepping.
+  const lastEngine = useRef(engine)
+  const resetClock = clock.reset
+  useEffect(() => {
+    if (engine === lastEngine.current) return
+    lastEngine.current = engine
+    trail.clear()
+    resetClock()
+  }, [engine, trail, resetClock])
 
   // Tell the optimiser when a control has moved far enough (only the kicking Adam listens).
   useEffect(() => {
@@ -134,11 +154,11 @@ function Playground({ data }: { data: PacmapData }) {
         interpolate={clock.interpolate}
         onInterpolate={clock.setInterpolate}
         dim={dim}
-        onDim={(d) => {
-          // The new dimension's engine starts from its own initial layout; the loop starts over too.
-          reset()
-          setDim(d)
-        }}
+        onDim={setDim}
+        size={size}
+        onSize={onSize}
+        loading={loading}
+        loadError={loadError}
         autoRotate={autoRotate}
         onAutoRotate={setAutoRotate}
       />
@@ -179,7 +199,8 @@ function Playground({ data }: { data: PacmapData }) {
 }
 
 export default function App() {
-  const { data, error } = useData()
+  const [size, setSize] = useState<SampleSize>('20k')
+  const { data, error, loading } = useData(size)
 
   return (
     <main>
@@ -191,7 +212,11 @@ export default function App() {
           over PaCMAP's 450-iteration schedule; autopilot plays PaCMAP's own forces along it.
         </p>
       </header>
-      {error ? <p className="status">{error}</p> : data ? <Playground data={data} /> : <p className="status">Loading…</p>}
+      {data ? (
+        <Playground data={data} size={size} onSize={setSize} loading={loading} loadError={error} />
+      ) : (
+        <p className="status">{error ?? 'Loading…'}</p>
+      )}
     </main>
   )
 }

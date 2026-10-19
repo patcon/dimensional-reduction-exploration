@@ -13,6 +13,8 @@ export type ClockStatus = 'idle' | 'running' | 'paused' | 'ended'
 
 /** Never step more than this per frame, so a backgrounded tab doesn't come back to a burst. */
 const MAX_STEPS_PER_FRAME = 4
+/** Stop stepping for this frame once it has taken this long, so big datasets don't stall drawing. */
+const STEP_BUDGET_MS = 25
 
 /** How often the layout is redrawn, whatever the step rate. */
 const DRAW_FPS = 30
@@ -101,6 +103,8 @@ export function useLoopClock(
           onStepRef.current?.(playheadRef.current, w)
           playheadRef.current = (playheadRef.current + 1) % length
           stepped = true
+          // Out of time: drop what's owed beyond the step in progress, so the rate slows instead of lagging.
+          if (performance.now() - now > STEP_BUDGET_MS) owedRef.current = Math.min(owedRef.current, 0.999)
           if (playheadRef.current === 0 && !loopRef.current) {
             // Stop at the end, showing iteration `length`, with the final layout drawn.
             playheadRef.current = length

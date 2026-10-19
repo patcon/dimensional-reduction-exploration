@@ -8,23 +8,24 @@ during optimisation. So the pairs and the initial layout are everything the
 browser needs to replay (or freely remix) the optimisation. The full PaCMAP run
 is kept as a reference to check the browser's engine against.
 
-It runs twice, in 2D and in 3D. The pairs are sampled from the PCA'd data alone, so
+It does this for each sample size (-n; by default 10k, 20k and all 65k digits), each
+drawn independently, and for each, runs twice, in 2D and in 3D. The pairs are sampled from the PCA'd data alone, so
 both runs share them (asserted); only the initial layout (the first 2 or 3 principal
 components) and the reference run differ.
 
-Outputs (written to ../v2-0/web/public/data/):
+Outputs per sample size (written to ../v2-0/web/public/data/<size>/, e.g. 20k/):
   pairs_nb.bin   uint32, N*n_neighbors x 2 (i, j): neighbour pairs
   pairs_mn.bin   uint32, N*n_MN x 2: mid-near pairs
   pairs_fp.bin   uint32, N*n_FP x 2: far pairs
   init_{2,3}d.bin       float32, N x d: the layout before the first iteration
-
-and, kept out of the site (only the checks use it), to data/v2-0/:
-  reference_{2,3}d.bin  float32, snapshots x N x d: PaCMAP's layout every SNAPSHOT_EVERY iterations
   meta.json      labels, pair counts, snapshot iterations, the weight schedule and Adam params
+
+and, kept out of the site (only the checks use it), to data/v2-0/<size>/:
+  reference_{2,3}d.bin  float32, snapshots x N x d: PaCMAP's layout every SNAPSHOT_EVERY iterations
 
 --check replays the optimisation from the exported files, with PaCMAP's own kernels
 (must match the reference exactly) and with an independent numpy version (must
-match closely), to prove the exports are complete. --dims picks which runs it checks.
+match closely), to prove the exports are complete. -n and --dims pick which runs it checks.
 """
 
 import argparse
@@ -60,6 +61,7 @@ EPS = 1e-7
 SNAPSHOT_EVERY = 10
 SNAPSHOTS = list(range(0, N_ITERS + 1, SNAPSHOT_EVERY))
 DIMS = (2, 3)
+SAMPLE_SIZES = (10000, 20000, N_TOTAL)
 
 HERE = Path(__file__).parent
 RAW_DIR = HERE / "data" / "raw"
@@ -104,15 +106,26 @@ def schedule(itr: int) -> tuple[float, float, float]:
     return 1.0, 0.0, 1.0
 
 
+def size_name(n: int) -> str:
+    """A sample size's directory name, as the browser asks for it: 20000 -> 20k."""
+    return f"{n // 1000}k" if n % 1000 == 0 else str(n)
+
+
 def run(args: argparse.Namespace) -> None:
     sprite, labels = load_mnist()
+    for n in args.n_samples:
+        run_size(args, sprite, labels, n)
 
+
+def run_size(args: argparse.Namespace, sprite: np.ndarray, labels: np.ndarray, n: int) -> None:
     rng = np.random.default_rng(args.seed)
-    idx = rng.choice(N_TOTAL, size=args.n_samples, replace=False)
+    idx = rng.choice(N_TOTAL, size=n, replace=False)
     X = sprite[idx].astype(np.float32) / 255.0
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir = OUT_DIR / size_name(n)
+    reference_dir = REFERENCE_DIR / size_name(n)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    reference_dir.mkdir(parents=True, exist_ok=True)
     pairs = None
     for dim in DIMS:
         reducer = pacmap.PaCMAP(
@@ -126,35 +139,35 @@ def run(args: argparse.Namespace) -> None:
         )
         reducer.fit(X, save_pairs=True)
         snapshots = np.asarray(reducer.intermediate_states, dtype=np.float32)
-        assert snapshots.shape == (len(SNAPSHOTS), args.n_samples, dim), snapshots.shape
+        assert snapshots.shape == (len(SNAPSHOTS), n, dim), snapshots.shape
 
         run_pairs = {"nb": reducer.pair_neighbors, "mn": reducer.pair_MN, "fp": reducer.pair_FP}
         if pairs is None:
             pairs = run_pairs
         else:
             assert all(np.array_equal(pairs[name], run_pairs[name]) for name in pairs), f"{dim}D sampled other pairs"
-        snapshots[0].tofile(OUT_DIR / f"init_{dim}d.bin")
-        snapshots.tofile(REFERENCE_DIR / f"reference_{dim}d.bin")
+        snapshots[0].tofile(out_dir / f"init_{dim}d.bin")
+        snapshots.tofile(reference_dir / f"reference_{dim}d.bin")
 
     for name, p in pairs.items():
-        p.astype(np.uint32).tofile(OUT_DIR / f"pairs_{name}.bin")
+        p.astype(np.uint32).tofile(out_dir / f"pairs_{name}.bin")
 
     meta = {
-        "nSamples": args.n_samples,
+        "nSamples": n,
         "seed": args.seed,
         "labels": labels[idx].tolist(),
         "sourceIndex": idx.tolist(),
-        "pairs": {name: {"count": len(p), "perPoint": len(p) // args.n_samples} for name, p in pairs.items()},
+        "pairs": {name: {"count": len(p), "perPoint": len(p) // n} for name, p in pairs.items()},
         "dims": list(DIMS),
         "reference": {"iterations": SNAPSHOTS},
         "schedule": {"phases": list(PHASES), "wMnInit": W_MN_INIT},
         "adam": {"lr": LR, "beta1": BETA1, "beta2": BETA2, "eps": EPS},
     }
-    (OUT_DIR / "meta.json").write_text(json.dumps(meta))
+    (out_dir / "meta.json").write_text(json.dumps(meta))
 
     counts = ", ".join(f"{name} {len(p)}" for name, p in pairs.items())
-    print(f"{args.n_samples} samples -> pairs: {counts} -> {OUT_DIR}")
-    print(f"{len(SNAPSHOTS)} reference snapshots each in {' and '.join(f'{d}D' for d in DIMS)} -> {REFERENCE_DIR}")
+    print(f"{n} samples -> pairs: {counts} -> {out_dir}")
+    print(f"{len(SNAPSHOTS)} reference snapshots each in {' and '.join(f'{d}D' for d in DIMS)} -> {reference_dir}")
 
 
 def pacmap_grad(Y: np.ndarray, pairs: dict[str, np.ndarray], w: tuple[float, float, float]) -> np.ndarray:
@@ -176,12 +189,12 @@ def pacmap_grad(Y: np.ndarray, pairs: dict[str, np.ndarray], w: tuple[float, flo
 
 def check(args: argparse.Namespace) -> None:
     """Check each of --dims' runs (see check_dim), and exit non-zero if any fails."""
-    ok = [check_dim(args, dim) for dim in args.dims]
+    ok = [check_dim(args, n, dim) for n in args.n_samples for dim in args.dims]
     raise SystemExit(0 if all(ok) else 1)
 
 
-def check_dim(args: argparse.Namespace, dim: int) -> bool:
-    """Replay the dim-D optimisation from the exported files two ways and compare against its reference.
+def check_dim(args: argparse.Namespace, n: int, dim: int) -> bool:
+    """Replay the n-sample, dim-D optimisation from the exported files two ways and compare against its reference.
 
     1. With PaCMAP's own numba kernels: must match exactly, proving the exports are complete.
     2. With the independent numpy pacmap_grad above, as the browser engine will be. Float
@@ -192,15 +205,16 @@ def check_dim(args: argparse.Namespace, dim: int) -> bool:
     from pacmap.pacmap import pacmap_grad as numba_grad
     from pacmap.pacmap import update_embedding_adam
 
-    meta = json.loads((OUT_DIR / "meta.json").read_text())
-    n = meta["nSamples"]
+    out_dir = OUT_DIR / size_name(n)
+    meta = json.loads((out_dir / "meta.json").read_text())
     pairs = {
-        name: np.fromfile(OUT_DIR / f"pairs_{name}.bin", dtype=np.uint32).reshape(-1, 2).astype(np.int32)
+        name: np.fromfile(out_dir / f"pairs_{name}.bin", dtype=np.uint32).reshape(-1, 2).astype(np.int32)
         for name in ("nb", "mn", "fp")
     }
-    init = np.fromfile(OUT_DIR / f"init_{dim}d.bin", dtype=np.float32).reshape(n, dim)
+    init = np.fromfile(out_dir / f"init_{dim}d.bin", dtype=np.float32).reshape(n, dim)
     iterations = meta["reference"]["iterations"]
-    reference = np.fromfile(REFERENCE_DIR / f"reference_{dim}d.bin", dtype=np.float32).reshape(len(iterations), n, dim)
+    reference_path = REFERENCE_DIR / size_name(n) / f"reference_{dim}d.bin"
+    reference = np.fromfile(reference_path, dtype=np.float32).reshape(len(iterations), n, dim)
     targets = {it: k for k, it in enumerate(iterations) if 0 < it <= args.check_iters}
 
     def replay(step) -> list[np.ndarray]:
@@ -228,7 +242,7 @@ def check_dim(args: argparse.Namespace, dim: int) -> bool:
         Y -= np.float32(lr_t) * m / (np.sqrt(v) + np.float32(EPS))
 
     exact = max(e.max() for e in replay(numba_step))
-    print(f"{dim}D exports, replayed with PaCMAP's kernels: max error {exact:.2e}")
+    print(f"{size_name(n)} {dim}D exports, replayed with PaCMAP's kernels: max error {exact:.2e}")
 
     spread = np.abs(reference).max()
     worst = 0.0
@@ -239,7 +253,7 @@ def check_dim(args: argparse.Namespace, dim: int) -> bool:
 
     ok = exact == 0.0 and worst < args.tolerance
     print(
-        f"{dim}D {'OK' if ok else 'MISMATCH'}: exact replay {'matches' if exact == 0.0 else 'differs'}; "
+        f"{size_name(n)} {dim}D {'OK' if ok else 'MISMATCH'}: exact replay {'matches' if exact == 0.0 else 'differs'}; "
         f"numpy p{args.percentile:g} error {worst:.2e} of layout spread {spread:.2f} (tolerance {args.tolerance:g})"
     )
     return ok
@@ -247,7 +261,7 @@ def check_dim(args: argparse.Namespace, dim: int) -> bool:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("-n", "--n-samples", type=int, default=20000)
+    parser.add_argument("-n", "--n-samples", type=int, nargs="+", default=list(SAMPLE_SIZES), help="sample sizes")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--check", action="store_true", help="verify the exported files instead of generating them")
     parser.add_argument("--check-iters", type=int, default=100)

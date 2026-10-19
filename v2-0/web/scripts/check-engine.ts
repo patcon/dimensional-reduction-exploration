@@ -1,6 +1,7 @@
 // Step the browser engine from init_<DIM>d.bin under PaCMAP's schedule and compare against
 // reference_<DIM>d.bin, PaCMAP's own run (both written by pipeline/v2-0.py; the reference
-// goes to pipeline/data/v2-0/, kept out of the site). DIM=3 checks 3D.
+// goes to pipeline/data/v2-0/, kept out of the site). DIM=3 checks 3D; SIZE=10k or 65k
+// checks another sample size.
 //
 // Judged like `v2-0.py --check`: on a high percentile of per-point error, not the max.
 // Float summation order differs from numba's, and Adam's m/sqrt(v) amplifies that for
@@ -19,13 +20,14 @@ import type { Dim, Meta, Pairs } from '../src/types.ts'
 
 const ITERS = Number(process.env.ITERS ?? 100) // ITERS=450 checks the whole schedule (slower)
 const DIM = Number(process.env.DIM ?? 2) as Dim
+const SIZE = process.env.SIZE ?? '20k'
 const PERCENTILE = 99
 // As a fraction of the layout spread: strict through phase 1, loose after (see above).
 const TOLERANCE = 1e-4
 const TOLERANCE_AFTER_PHASE_1 = 1e-2
 
-const dir = new URL('../public/data/', import.meta.url)
-const referenceDir = new URL('../../../pipeline/data/v2-0/', import.meta.url)
+const dir = new URL(`../public/data/${SIZE}/`, import.meta.url)
+const referenceDir = new URL(`../../../pipeline/data/v2-0/${SIZE}/`, import.meta.url)
 const read = (name: string, from = dir) => {
   const b = readFileSync(new URL(name, from))
   return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)
