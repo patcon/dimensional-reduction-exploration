@@ -39,8 +39,10 @@ export function useLoopClock(
   loop: boolean,
   /** Called after each step with the playhead it was taken at and the forces it used. */
   onStep?: (playhead: number, weights: Weights) => void,
+  /** Start paused, waiting for resume(), rather than idle, waiting for a force. */
+  startPaused = false,
 ) {
-  const [status, setStatus] = useState<ClockStatus>('idle')
+  const [status, setStatus] = useState<ClockStatus>(startPaused ? 'paused' : 'idle')
   const [rate, setRate] = useState(10)
   const [playhead, setPlayhead] = useState(0)
   const [interpolate, setInterpolate] = useState(true)

@@ -35,7 +35,7 @@ interface PlaygroundProps {
 
 function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps) {
   const { meta } = data
-  const [dim, setDim] = useState<Dim>(2)
+  const [dim, setDim] = useState<Dim>(3)
   const [autoRotate, setAutoRotate] = useState(true)
   const optimisers = useMemo(() => new OptimiserBank(data.init[dim].length, meta.adam, dim), [data, meta.adam, dim])
   const engine = useMemo(
@@ -56,7 +56,8 @@ function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps)
   const [scale, setScale] = useState<ForceScale>(DEFAULT_SCALE)
   const [spring, setSpring] = useState<Record<PairType, boolean>>({ nb: false, mn: false, fp: false })
   const [split, setSplit] = useState<Record<PairType, boolean>>({ nb: true, mn: true, fp: true })
-  const [autopilot, setAutopilot] = useState(false)
+  // Opens on autopilot, paused at the start: press Play to watch PaCMAP's own run.
+  const [autopilot, setAutopilot] = useState(true)
 
   const getWeights = useCallback(
     (playhead: number): Weights =>
@@ -67,7 +68,7 @@ function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps)
   const trail = useMemo(() => new Trail(length), [length])
   const onStep = useCallback((playhead: number, w: Weights) => trail.record(playhead, w), [trail])
   // Autopilot plays PaCMAP's schedule once and stops; manual play loops.
-  const clock = useLoopClock(engine, length, getWeights, !autopilot, onStep)
+  const clock = useLoopClock(engine, length, getWeights, !autopilot, onStep, true)
   const reset = () => {
     trail.clear()
     clock.reset()

@@ -33,7 +33,9 @@ pnpm dev
 - **Digits.** 10k, 20k or all 65k (the switch at the left of the toolbar), each its own
   random sample with its own pairs. Switching starts over once the new digits have
   loaded; forces, optimiser and MIDI carry across. 65k steps about 4x slower than 20k.
-- **Loop.** Nothing runs until a force is non-zero. Then a playhead steps through
+- **Starting.** It opens in 3D on autopilot, paused: press **Play** to watch PaCMAP's own
+  run, or set the forces yourself first (grabbing a slider switches to Manual) and then Play.
+- **Loop.** In Manual, nothing runs until a force is non-zero. Then a playhead steps through
   PaCMAP's 450-iteration schedule at the chosen rate (1–60 it/s; at 20k about 30 is the
   most this machine manages, at 65k about 13) and wraps, with the layout carrying on. **smooth** glides between
   steps at 30 fps. Reset returns to the initial layout (staying paused if paused).
