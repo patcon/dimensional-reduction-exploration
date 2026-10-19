@@ -41,7 +41,9 @@ function spread(ys: number[], height: number) {
 interface SliderProps {
   type: PairType
   u: number
+  /** This force's own range. */
   scale: ForceScale
+  onScale: (scale: ForceScale) => void
   spring: boolean
   onSpring: (spring: boolean) => void
   /** Up attracts and down repels (split), or the track is the strength alone with a sign button. */
@@ -60,7 +62,7 @@ interface SliderProps {
  * Spring sliders return to 0 when let go, like a pitch-bend wheel; latch sliders stay put,
  * like a fader. Keys always latch: arrows nudge (shift for bigger steps), 0 zeroes.
  */
-function ForceSlider({ type, u, scale, spring, onSpring, split, onSplit, faderZero, onGrab, onChange }: SliderProps) {
+function ForceSlider({ type, u, scale, onScale, spring, onSpring, split, onSplit, faderZero, onGrab, onChange }: SliderProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [height, setHeight] = useState(0)
   useEffect(() => {
@@ -77,6 +79,11 @@ function ForceSlider({ type, u, scale, spring, onSpring, split, onSplit, faderZe
   /** A position along the track (0 at the bottom, 1 at the top) as u. */
   const fromTravel = (t: number) => (split ? clamp01(t) * 2 - 1 : sign * clamp01(t))
   const travel = split ? (u + 1) / 2 : Math.abs(u)
+  const setRange = (key: 'min' | 'max', value: number) => {
+    if (!(value > 0)) return
+    const next = { ...scale, [key]: value }
+    if (next.min < next.max) onScale(next)
+  }
   const flipSign = () => {
     onGrab()
     setChosenSign(sign > 0 ? -1 : 1)
@@ -195,14 +202,22 @@ function ForceSlider({ type, u, scale, spring, onSpring, split, onSplit, faderZe
           <input type="checkbox" checked={split} onChange={(e) => onSplit(e.target.checked)} /> split
         </label>
       </div>
+      <div className="force-range" title="The weakest and strongest force this slider reaches (either sign)">
+        <label>
+          min <input type="number" step="any" defaultValue={scale.min} onChange={(e) => setRange('min', Number(e.target.value))} />
+        </label>
+        <label>
+          max <input type="number" step="any" defaultValue={scale.max} onChange={(e) => setRange('max', Number(e.target.value))} />
+        </label>
+      </div>
     </div>
   )
 }
 
 interface Props {
   values: ControlValues
-  scale: ForceScale
-  onScale: (scale: ForceScale) => void
+  scale: Record<PairType, ForceScale>
+  onScale: (type: PairType, scale: ForceScale) => void
   spring: Record<PairType, boolean>
   onSpring: (type: PairType, spring: boolean) => void
   split: Record<PairType, boolean>
@@ -212,13 +227,8 @@ interface Props {
   onChange: (type: PairType, u: number) => void
 }
 
-/** The three forces side by side, with the scale's range below. */
+/** The three forces side by side, each with its own range below it. */
 export function ForceSliders({ values, scale, onScale, spring, onSpring, split, onSplit, faderZero, onGrab, onChange }: Props) {
-  const setRange = (key: 'min' | 'max', value: number) => {
-    if (!(value > 0)) return
-    const next = { ...scale, [key]: value }
-    if (next.min < next.max) onScale(next)
-  }
   return (
     <section className="forces" aria-label="Forces">
       <div className="force-ends">
@@ -231,7 +241,8 @@ export function ForceSliders({ values, scale, onScale, spring, onSpring, split, 
             key={type}
             type={type}
             u={values[type]}
-            scale={scale}
+            scale={scale[type]}
+            onScale={(s) => onScale(type, s)}
             spring={spring[type]}
             onSpring={(s) => onSpring(type, s)}
             split={split[type]}
@@ -241,14 +252,6 @@ export function ForceSliders({ values, scale, onScale, spring, onSpring, split, 
             onChange={(u) => onChange(type, u)}
           />
         ))}
-      </div>
-      <div className="force-range">
-        <label>
-          min <input type="number" step="any" defaultValue={scale.min} onChange={(e) => setRange('min', Number(e.target.value))} />
-        </label>
-        <label>
-          max <input type="number" step="any" defaultValue={scale.max} onChange={(e) => setRange('max', Number(e.target.value))} />
-        </label>
       </div>
     </section>
   )

@@ -6,7 +6,7 @@ import { Scatter } from './components/Scatter'
 import { ScheduleGraph } from './components/ScheduleGraph'
 import { Transport } from './components/Transport'
 import { Engine } from './engine'
-import { DEFAULT_SCALE, toMultiplier, toU, type ForceScale } from './forceScale'
+import { DEFAULT_SCALE, spanning, toMultiplier, toU, type ForceScale } from './forceScale'
 import { InputStore, useControlValues, type ControlValues } from './inputStore'
 import { DEFAULT_OPTIMISER, OptimiserBank, type OptimiserSettings } from './optimisers'
 import { DIGIT_COLORS } from './palette'
@@ -53,7 +53,8 @@ function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps)
 
   const store = useMemo(() => new InputStore(), [])
   const controls = useControlValues(store)
-  const [scale, setScale] = useState<ForceScale>(DEFAULT_SCALE)
+  // Each force's slider has its own range.
+  const [scale, setScale] = useState<Record<PairType, ForceScale>>({ nb: DEFAULT_SCALE, mn: DEFAULT_SCALE, fp: DEFAULT_SCALE })
   const [spring, setSpring] = useState<Record<PairType, boolean>>({ nb: false, mn: false, fp: false })
   const [split, setSplit] = useState<Record<PairType, boolean>>({ nb: true, mn: true, fp: true })
   // Opens on autopilot, paused at the start: press Play to watch PaCMAP's own run.
@@ -61,7 +62,7 @@ function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps)
 
   const getWeights = useCallback(
     (playhead: number): Weights =>
-      autopilot ? pacmapWeights(playhead, meta.schedule) : mapValues(store.get(), (u) => toMultiplier(u, scale)),
+      autopilot ? pacmapWeights(playhead, meta.schedule) : mapValues(store.get(), (u, type) => toMultiplier(u, scale[type])),
     [autopilot, meta.schedule, store, scale],
   )
   // What's been played this loop, for the schedule graph; cleared as the loop wraps.
@@ -98,7 +99,7 @@ function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps)
 
   // Under autopilot the sliders follow PaCMAP's forces; grabbing one takes over from exactly there.
   const shown: ControlValues = autopilot
-    ? mapValues(pacmapWeights(clock.playhead, meta.schedule), (w) => toU(w, scale))
+    ? mapValues(pacmapWeights(clock.playhead, meta.schedule), (w, type) => toU(w, scale[type]))
     : controls
   const liveWeights = getWeights(clock.playhead)
   // Leaving autopilot, by grabbing a slider or pressing Manual, keeps its forces where they are.
@@ -176,7 +177,7 @@ function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps)
         <ForceSliders
           values={shown}
           scale={scale}
-          onScale={setScale}
+          onScale={(type, s) => setScale((prev) => ({ ...prev, [type]: s }))}
           spring={spring}
           onSpring={(type, s) => setSpring((prev) => ({ ...prev, [type]: s }))}
           split={split}
@@ -188,7 +189,7 @@ function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps)
       </div>
       <ScheduleGraph
         schedule={meta.schedule}
-        scale={scale}
+        scale={spanning(PAIR_TYPES.map((type) => scale[type]))}
         playhead={clock.playhead}
         current={liveWeights}
         trail={trail}

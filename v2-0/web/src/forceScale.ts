@@ -1,5 +1,5 @@
 /**
- * The bipolar log scale every control and the schedule graph share: a control value
+ * The bipolar log scale each force's control is read on: a control value
  * u in [-1, 1] maps to a signed force multiplier, logarithmic in magnitude so one
  * fader reaches both PaCMAP's 1-3 and its 1000, with a deadzone around 0 so the
  * centre of a fader is easy to find.
@@ -14,6 +14,15 @@ export interface ForceScale {
 }
 
 export const DEFAULT_SCALE: ForceScale = { min: 0.1, max: 2000, deadzone: 0.04 }
+
+/** The narrowest scale covering all of these, to graph forces read on different scales together. */
+export function spanning(scales: ForceScale[]): ForceScale {
+  return {
+    min: Math.min(...scales.map((s) => s.min)),
+    max: Math.max(...scales.map((s) => s.max)),
+    deadzone: scales[0].deadzone,
+  }
+}
 
 export function toMultiplier(u: number, s: ForceScale) {
   const a = Math.min(1, Math.abs(u))

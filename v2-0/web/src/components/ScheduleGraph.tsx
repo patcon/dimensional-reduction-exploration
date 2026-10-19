@@ -6,6 +6,7 @@ import { PAIR_TYPES, type PairType, type Schedule, type Weights } from '../types
 
 interface Props {
   schedule: Schedule
+  /** One scale for all three forces: the sliders' ranges together. */
   scale: ForceScale
   playhead: number
   /** The forces live right now, drawn as dots at the playhead. */
@@ -35,7 +36,7 @@ function linePath(xs: number[], ys: number[]) {
 }
 
 /**
- * PaCMAP's force schedule over one loop, on the same signed log scale as the sliders
+ * PaCMAP's force schedule over one loop, on a signed log scale spanning the sliders' ranges
  * (attraction above the middle, repulsion below), with what you've played this loop over it.
  */
 export function ScheduleGraph({ schedule, scale, playhead, current, trail }: Props) {
