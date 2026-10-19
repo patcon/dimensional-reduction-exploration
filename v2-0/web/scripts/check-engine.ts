@@ -1,5 +1,6 @@
 // Step the browser engine from init_<DIM>d.bin under PaCMAP's schedule and compare against
-// reference_<DIM>d.bin, PaCMAP's own run (both written by pipeline/v2-0.py). DIM=3 checks 3D.
+// reference_<DIM>d.bin, PaCMAP's own run (both written by pipeline/v2-0.py; the reference
+// goes to pipeline/data/v2-0/, kept out of the site). DIM=3 checks 3D.
 //
 // Judged like `v2-0.py --check`: on a high percentile of per-point error, not the max.
 // Float summation order differs from numba's, and Adam's m/sqrt(v) amplifies that for
@@ -24,8 +25,9 @@ const TOLERANCE = 1e-4
 const TOLERANCE_AFTER_PHASE_1 = 1e-2
 
 const dir = new URL('../public/data/', import.meta.url)
-const read = (name: string) => {
-  const b = readFileSync(new URL(name, dir))
+const referenceDir = new URL('../../../pipeline/data/v2-0/', import.meta.url)
+const read = (name: string, from = dir) => {
+  const b = readFileSync(new URL(name, from))
   return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)
 }
 
@@ -36,7 +38,7 @@ const pairs: Pairs = {
   mn: new Uint32Array(read('pairs_mn.bin')),
   fp: new Uint32Array(read('pairs_fp.bin')),
 }
-const reference = new Float32Array(read(`reference_${DIM}d.bin`))
+const reference = new Float32Array(read(`reference_${DIM}d.bin`, referenceDir))
 const snapshot = (k: number) => reference.subarray(k * n * DIM, (k + 1) * n * DIM)
 
 let spread = 0

@@ -103,8 +103,9 @@ or connect over Wi-Fi with a
 
 - `pipeline/v2-0.py` runs PaCMAP in 2D and in 3D (`save_pairs=True`) and exports their
   shared pairs (`pairs_{nb,mn,fp}.bin`, uint32 i/j), each run's initial layout
-  (`init_{2,3}d.bin`), its layout every 10 iterations as a reference
-  (`reference_{2,3}d.bin`) and the schedule and Adam constants (`meta.json`). The pairs
+  (`init_{2,3}d.bin`) and the schedule and Adam constants (`meta.json`). Each run's
+  layout every 10 iterations goes to `pipeline/data/v2-0/reference_{2,3}d.bin`, kept out
+  of the site, as a reference for the checks. The pairs
   are sampled from the PCA'd data alone, so both runs draw the same ones.
 - `src/engine.ts` steps PaCMAP's gradient on those pairs with live signed weights. All
   three pair types share the kernel `2A / (A + dd)²` (A = 10, 10000 and 1), with the sign

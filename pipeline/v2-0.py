@@ -17,11 +17,13 @@ Outputs (written to ../v2-0/web/public/data/):
   pairs_mn.bin   uint32, N*n_MN x 2: mid-near pairs
   pairs_fp.bin   uint32, N*n_FP x 2: far pairs
   init_{2,3}d.bin       float32, N x d: the layout before the first iteration
+
+and, kept out of the site (only the checks use it), to data/v2-0/:
   reference_{2,3}d.bin  float32, snapshots x N x d: PaCMAP's layout every SNAPSHOT_EVERY iterations
   meta.json      labels, pair counts, snapshot iterations, the weight schedule and Adam params
 
 --check replays the optimisation from the exported files, with PaCMAP's own kernels
-(must match reference.bin exactly) and with an independent numpy version (must
+(must match the reference exactly) and with an independent numpy version (must
 match closely), to prove the exports are complete. --dims picks which runs it checks.
 """
 
@@ -62,6 +64,7 @@ DIMS = (2, 3)
 HERE = Path(__file__).parent
 RAW_DIR = HERE / "data" / "raw"
 OUT_DIR = HERE.parent / "v2-0" / "web" / "public" / "data"
+REFERENCE_DIR = HERE / "data" / "v2-0"
 
 
 def fetch(url: str, dest: Path) -> Path:
@@ -109,6 +112,7 @@ def run(args: argparse.Namespace) -> None:
     X = sprite[idx].astype(np.float32) / 255.0
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
     pairs = None
     for dim in DIMS:
         reducer = pacmap.PaCMAP(
@@ -130,7 +134,7 @@ def run(args: argparse.Namespace) -> None:
         else:
             assert all(np.array_equal(pairs[name], run_pairs[name]) for name in pairs), f"{dim}D sampled other pairs"
         snapshots[0].tofile(OUT_DIR / f"init_{dim}d.bin")
-        snapshots.tofile(OUT_DIR / f"reference_{dim}d.bin")
+        snapshots.tofile(REFERENCE_DIR / f"reference_{dim}d.bin")
 
     for name, p in pairs.items():
         p.astype(np.uint32).tofile(OUT_DIR / f"pairs_{name}.bin")
@@ -149,7 +153,8 @@ def run(args: argparse.Namespace) -> None:
     (OUT_DIR / "meta.json").write_text(json.dumps(meta))
 
     counts = ", ".join(f"{name} {len(p)}" for name, p in pairs.items())
-    print(f"{args.n_samples} samples -> pairs: {counts}; {len(SNAPSHOTS)} reference snapshots each in {' and '.join(f'{d}D' for d in DIMS)} -> {OUT_DIR}")
+    print(f"{args.n_samples} samples -> pairs: {counts} -> {OUT_DIR}")
+    print(f"{len(SNAPSHOTS)} reference snapshots each in {' and '.join(f'{d}D' for d in DIMS)} -> {REFERENCE_DIR}")
 
 
 def pacmap_grad(Y: np.ndarray, pairs: dict[str, np.ndarray], w: tuple[float, float, float]) -> np.ndarray:
@@ -195,7 +200,7 @@ def check_dim(args: argparse.Namespace, dim: int) -> bool:
     }
     init = np.fromfile(OUT_DIR / f"init_{dim}d.bin", dtype=np.float32).reshape(n, dim)
     iterations = meta["reference"]["iterations"]
-    reference = np.fromfile(OUT_DIR / f"reference_{dim}d.bin", dtype=np.float32).reshape(len(iterations), n, dim)
+    reference = np.fromfile(REFERENCE_DIR / f"reference_{dim}d.bin", dtype=np.float32).reshape(len(iterations), n, dim)
     targets = {it: k for k, it in enumerate(iterations) if 0 < it <= args.check_iters}
 
     def replay(step) -> list[np.ndarray]:
