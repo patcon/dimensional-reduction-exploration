@@ -63,26 +63,34 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 /* Bipolar vertical force sliders: up attracts, down repels, the centre band is no force. */
 .forces { display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; }
 .force-ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.7rem; }
-.force-sliders { display: flex; gap: 4px; flex: 1; }
-.force { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 84px; }
+.force-sliders { display: flex; gap: 12px; flex: 1; }
+.force { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .force-label { font-weight: 600; }
-.force-value { font-variant-numeric: tabular-nums; min-height: 1.2em; white-space: nowrap; }
+.force-value { display: flex; flex-direction: column; align-items: center; font-variant-numeric: tabular-nums; min-height: 1.2em; white-space: nowrap; }
+.force-value .force-percent { font-size: 0.7rem; }
 .force-percent { color: var(--muted); }
-/* On a fader, marks carry a percentage too ("+1 63%"), so give them room. */
-.force.on-fader { width: 120px; }
-.force.on-fader .force-track { margin-right: 68px; }
-.force-mark span { white-space: nowrap; }
-.force-mark .force-percent { opacity: 0.75; }
 .force-track {
-  position: relative; flex: 1; min-height: 240px; width: 28px; margin-right: 32px;
+  position: relative; flex: 1; min-height: 240px; width: 28px; margin-right: var(--marks-width);
   border: 1px solid var(--border); border-radius: 6px; background: var(--panel);
   cursor: ns-resize; touch-action: none; user-select: none;
 }
 .force-track:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .force-deadzone { position: absolute; left: 0; right: 0; background: var(--border); }
 .force-fill { position: absolute; left: 3px; right: 3px; opacity: 0.35; border-radius: 3px; }
-.force-mark { position: absolute; left: 100%; width: 6px; border-top: 1px solid var(--muted); }
-.force-mark span { position: absolute; left: 8px; top: -0.65em; font-size: 0.65rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* PaCMAP's values beside the track, each tied to its tick by a short leader when nudged apart.
+   On a fader the marks carry where to put it too: weight, then percentage, in columns. */
+.force { --marks-width: 46px; }
+.force.on-fader { --marks-width: 76px; }
+.force-marks {
+  position: absolute; top: 0; bottom: 0; left: 100%; width: var(--marks-width);
+  pointer-events: none; font-size: 0.65rem; line-height: 1; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.force-marks svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.force-marks path { fill: none; stroke: var(--muted); stroke-width: 1; }
+.force-mark { position: absolute; left: 12px; display: grid; grid-template-columns: 5ch; transform: translateY(-50%); white-space: nowrap; }
+.force-marks.with-percent .force-mark { grid-template-columns: 5ch 4ch; column-gap: 0.6ch; }
+.force-mark-weight { text-align: right; }
+.force-mark .force-percent { text-align: right; opacity: 0.8; }
 .force-thumb { position: absolute; left: -4px; right: -4px; height: 0; border-top: 3px solid; transform: translateY(-1.5px); }
 .force-spring { display: flex; align-items: center; gap: 4px; color: var(--muted); }
 .force-range { display: flex; gap: 8px; color: var(--muted); }

@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { formatMultiplier, toMultiplier, toU, type ForceScale } from '../forceScale'
 import { FORCE_COLORS, FORCE_LABELS } from '../palette'
 import { PAIR_TYPES, type PairType } from '../types'
@@ -16,6 +16,22 @@ const percentLabel = (u: number, zero: Zero) => `${Math.round(faderPercent(u, ze
 
 /** u in [-1, 1] as a CSS top offset: +1 at the top, 0 in the middle. */
 const topOf = (u: number) => `${((1 - u) / 2) * 100}%`
+
+/** Mark labels' line height, the least they're kept apart (px), and the leader's run. */
+const LABEL_GAP = 13
+const LEADER = 10
+
+/**
+ * Where to put each mark's label on a track this tall: at its mark, unless that's too close to
+ * the one above, then pushed down (and back up if that runs off the end). ys are top to bottom.
+ */
+function spread(ys: number[], height: number) {
+  const out = [...ys]
+  for (let i = 1; i < out.length; i++) out[i] = Math.max(out[i], out[i - 1] + LABEL_GAP)
+  out[out.length - 1] = Math.min(out[out.length - 1], height - LABEL_GAP / 2)
+  for (let i = out.length - 2; i >= 0; i--) out[i] = Math.min(out[i], out[i + 1] - LABEL_GAP)
+  return out
+}
 
 interface SliderProps {
   type: PairType
@@ -37,8 +53,23 @@ interface SliderProps {
  */
 function ForceSlider({ type, u, scale, spring, onSpring, faderZero, onGrab, onChange }: SliderProps) {
   const trackRef = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState(0)
+  useEffect(() => {
+    const track = trackRef.current!
+    const observer = new ResizeObserver(() => setHeight(track.clientHeight))
+    observer.observe(track)
+    return () => observer.disconnect()
+  }, [])
   const color = FORCE_COLORS[type]
   const m = toMultiplier(u, scale)
+
+  // On a fader, each mark also gives where to put the fader, as MIDI Surf shows it; no force is
+  // marked too, as it's not at the centre of a bottom-zero fader.
+  const marks = (faderZero ? [0, ...PACMAP_MARKS[type]] : PACMAP_MARKS[type])
+    .map((w) => ({ w, u: toU(w, scale) }))
+    .sort((a, b) => b.u - a.u)
+    .map((mark) => ({ ...mark, y: ((1 - mark.u) / 2) * height }))
+  const labelYs = spread(marks.map((mark) => mark.y), height)
 
   const uAt = (e: PointerEvent) => {
     const r = trackRef.current!.getBoundingClientRect()
@@ -74,7 +105,7 @@ function ForceSlider({ type, u, scale, spring, onSpring, faderZero, onGrab, onCh
       </div>
       <div className="force-value">
         {formatMultiplier(m)}
-        {faderZero && <span className="force-percent"> · {percentLabel(u, faderZero)}</span>}
+        {faderZero && <span className="force-percent">fader {percentLabel(u, faderZero)}</span>}
       </div>
       <div
         ref={trackRef}
@@ -99,16 +130,21 @@ function ForceSlider({ type, u, scale, spring, onSpring, faderZero, onGrab, onCh
           className="force-fill"
           style={{ background: color, top: topOf(Math.max(u, 0)), bottom: topOf(-Math.min(u, 0)) }}
         />
-        {/* On a fader, each mark also gives where to put the fader, as MIDI Surf shows it; no force
-            is marked too, as it's not at the centre of a bottom-zero fader. */}
-        {(faderZero ? [0, ...PACMAP_MARKS[type]] : PACMAP_MARKS[type]).map((w) => (
-          <div key={w} className="force-mark" style={{ top: topOf(toU(w, scale)) }}>
-            <span>
-              {weightLabel(w)}
-              {faderZero && <span className="force-percent"> {percentLabel(toU(w, scale), faderZero)}</span>}
-            </span>
+        {height > 0 && (
+          <div className={faderZero ? 'force-marks with-percent' : 'force-marks'} aria-hidden="true">
+            <svg width={LEADER} height={height}>
+              {marks.map((mark, i) => (
+                <path key={mark.w} d={`M0 ${mark.y + 0.5}H3L${LEADER - 3} ${labelYs[i] + 0.5}H${LEADER}`} />
+              ))}
+            </svg>
+            {marks.map((mark, i) => (
+              <div key={mark.w} className="force-mark" style={{ top: labelYs[i] }}>
+                <span className="force-mark-weight">{weightLabel(mark.w)}</span>
+                {faderZero && <span className="force-percent">{percentLabel(mark.u, faderZero)}</span>}
+              </div>
+            ))}
           </div>
-        ))}
+        )}
         <div className="force-thumb" style={{ top: topOf(u), borderColor: color }} />
       </div>
       <label className="force-spring">
