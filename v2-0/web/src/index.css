@@ -5,6 +5,10 @@
   --border: #e7e5e4;
   --panel: #ffffff;
   --accent: #e11d48;
+  /* The start button, to draw the eye before anything has run. */
+  --go: #15803d;
+  --go-hover: #166534;
+  --on-go: #ffffff;
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
   color: var(--fg);
   background: var(--bg);
@@ -19,6 +23,9 @@
     --border: #292524;
     --panel: #1c1917;
     --accent: #fb7185;
+    --go: #22c55e;
+    --go-hover: #4ade80;
+    --on-go: #052e16;
   }
 }
 
@@ -39,6 +46,10 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 }
 .toolbar button:hover:not(:disabled) { border-color: var(--accent); }
 .toolbar button:disabled { opacity: 0.4; cursor: not-allowed; }
+.toolbar button.start { background: var(--go); border-color: var(--go); color: var(--on-go); font-weight: 600; }
+.toolbar button.start:hover { background: var(--go-hover); border-color: var(--go-hover); }
+/* Ends a line of the toolbar; the negative margin cancels the extra row gap an empty line adds. */
+.toolbar-break { flex-basis: 100%; height: 0; margin-bottom: -8px; }
 /* Always its own line under the controls, so a long status never pushes them around. */
 .readout { flex-basis: 100%; order: 1; color: var(--muted); font-variant-numeric: tabular-nums; }
 

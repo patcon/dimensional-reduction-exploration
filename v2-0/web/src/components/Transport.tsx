@@ -56,6 +56,8 @@ export function Transport(p: Props) {
           </button>
         ))}
       </div>
+      {/* The loop's own controls on a line of their own. */}
+      <div className="toolbar-break" />
       <div className="segmented" role="group" aria-label="Forces from">
         <button type="button" className={p.autopilot ? '' : 'on'} onClick={() => p.onAutopilot(false)}>
           Manual
@@ -66,8 +68,13 @@ export function Transport(p: Props) {
       </div>
       {p.status === 'paused' || p.status === 'ended' ? (
         // Resuming a finished autopilot run would only replay it; that's what Reset is for.
-        <button type="button" onClick={p.onResume} disabled={p.status === 'ended' && p.autopilot}>
-          {p.steps === 0 ? 'Play' : 'Resume'}
+        <button
+          type="button"
+          className={p.steps === 0 ? 'start' : ''}
+          onClick={p.onResume}
+          disabled={p.status === 'ended' && p.autopilot}
+        >
+          {p.steps === 0 ? 'Start simulation' : 'Resume'}
         </button>
       ) : (
         <button type="button" onClick={p.onPause} disabled={p.status === 'idle'}>
@@ -92,7 +99,7 @@ export function Transport(p: Props) {
         ) : p.status === 'idle' ? (
           <strong>Move a control to start</strong>
         ) : p.status === 'paused' && p.steps === 0 ? (
-          <strong>Press Play to start</strong>
+          <strong>Press Start simulation to begin</strong>
         ) : (
           <>
             iteration {p.playhead} / {p.length} · phase {p.phase} · {p.steps} steps total
