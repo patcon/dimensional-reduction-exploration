@@ -3,9 +3,16 @@ import { formatMultiplier, toMultiplier, toU, type ForceScale } from '../forceSc
 import { FORCE_COLORS, FORCE_LABELS } from '../palette'
 import { PAIR_TYPES, type PairType } from '../types'
 import type { ControlValues } from '../inputStore'
+import { faderPercent, type Zero } from '../midi'
 
 /** The multipliers PaCMAP's schedule uses for each force, marked on its slider as targets. */
 const PACMAP_MARKS: Record<PairType, number[]> = { nb: [1, 2, 3], mn: [3, 1000], fp: [-1] }
+
+/** A mark's weight, which is always a whole number: +1, +1000, −1. */
+const weightLabel = (w: number) => (w === 0 ? '0' : `${w > 0 ? '+' : '−'}${Math.abs(w)}`)
+
+/** A fader position as MIDI Surf shows it. */
+const percentLabel = (u: number, zero: Zero) => `${Math.round(faderPercent(u, zero))}%`
 
 /** u in [-1, 1] as a CSS top offset: +1 at the top, 0 in the middle. */
 const topOf = (u: number) => `${((1 - u) / 2) * 100}%`
@@ -16,6 +23,8 @@ interface SliderProps {
   scale: ForceScale
   spring: boolean
   onSpring: (spring: boolean) => void
+  /** Set when this force is played from a fader: label positions as that fader's percentage. */
+  faderZero: Zero | null
   /** Called as a drag or key press starts, before the first onChange. */
   onGrab: () => void
   onChange: (u: number) => void
@@ -26,7 +35,7 @@ interface SliderProps {
  * Spring sliders return to 0 when let go, like a pitch-bend wheel; latch sliders stay put,
  * like a fader. Keys always latch: arrows nudge (shift for bigger steps), 0 zeroes.
  */
-function ForceSlider({ type, u, scale, spring, onSpring, onGrab, onChange }: SliderProps) {
+function ForceSlider({ type, u, scale, spring, onSpring, faderZero, onGrab, onChange }: SliderProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const color = FORCE_COLORS[type]
   const m = toMultiplier(u, scale)
@@ -59,11 +68,14 @@ function ForceSlider({ type, u, scale, spring, onSpring, onGrab, onChange }: Sli
   }
 
   return (
-    <div className="force">
+    <div className={faderZero ? 'force on-fader' : 'force'}>
       <div className="force-label" style={{ color }}>
         {FORCE_LABELS[type]}
       </div>
-      <div className="force-value">{formatMultiplier(m)}</div>
+      <div className="force-value">
+        {formatMultiplier(m)}
+        {faderZero && <span className="force-percent"> · {percentLabel(u, faderZero)}</span>}
+      </div>
       <div
         ref={trackRef}
         className="force-track"
@@ -87,9 +99,14 @@ function ForceSlider({ type, u, scale, spring, onSpring, onGrab, onChange }: Sli
           className="force-fill"
           style={{ background: color, top: topOf(Math.max(u, 0)), bottom: topOf(-Math.min(u, 0)) }}
         />
-        {PACMAP_MARKS[type].map((w) => (
+        {/* On a fader, each mark also gives where to put the fader, as MIDI Surf shows it; no force
+            is marked too, as it's not at the centre of a bottom-zero fader. */}
+        {(faderZero ? [0, ...PACMAP_MARKS[type]] : PACMAP_MARKS[type]).map((w) => (
           <div key={w} className="force-mark" style={{ top: topOf(toU(w, scale)) }}>
-            <span>{formatMultiplier(w)}</span>
+            <span>
+              {weightLabel(w)}
+              {faderZero && <span className="force-percent"> {percentLabel(toU(w, scale), faderZero)}</span>}
+            </span>
           </div>
         ))}
         <div className="force-thumb" style={{ top: topOf(u), borderColor: color }} />
@@ -107,12 +124,13 @@ interface Props {
   onScale: (scale: ForceScale) => void
   spring: Record<PairType, boolean>
   onSpring: (type: PairType, spring: boolean) => void
+  faderZero: Record<PairType, Zero | null>
   onGrab: () => void
   onChange: (type: PairType, u: number) => void
 }
 
 /** The three forces side by side, with the scale's range below. */
-export function ForceSliders({ values, scale, onScale, spring, onSpring, onGrab, onChange }: Props) {
+export function ForceSliders({ values, scale, onScale, spring, onSpring, faderZero, onGrab, onChange }: Props) {
   const setRange = (key: 'min' | 'max', value: number) => {
     if (!(value > 0)) return
     const next = { ...scale, [key]: value }
@@ -133,6 +151,7 @@ export function ForceSliders({ values, scale, onScale, spring, onSpring, onGrab,
             scale={scale}
             spring={spring[type]}
             onSpring={(s) => onSpring(type, s)}
+            faderZero={faderZero[type]}
             onGrab={onGrab}
             onChange={(u) => onChange(type, u)}
           />

@@ -14,6 +14,7 @@ import { pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
 import { PAIR_TYPES, type PairType, type Weights } from './types'
 import { useData, type PacmapData } from './useData'
 import { useLoopClock } from './useLoopClock'
+import type { Zero } from './midi'
 import { useMidi } from './useMidi'
 
 /** How far a control must move before the kicking Adam forgets its state. */
@@ -93,6 +94,10 @@ function Playground({ data }: { data: PacmapData }) {
       store.set(target, u)
     }
   })
+  // Forces played from a fader (a CC) show where that fader sits, as MIDI Surf shows it.
+  const faderZero = Object.fromEntries(
+    PAIR_TYPES.map((type) => [type, midi.bindings[type]?.kind === 'cc' ? midi.zeros[type] : null]),
+  ) as Record<PairType, Zero | null>
 
   return (
     <div className="playground">
@@ -128,6 +133,7 @@ function Playground({ data }: { data: PacmapData }) {
           onScale={setScale}
           spring={spring}
           onSpring={(type, s) => setSpring((prev) => ({ ...prev, [type]: s }))}
+          faderZero={faderZero}
           onGrab={takeOver}
           onChange={(type, u) => store.set(type, u)}
         />

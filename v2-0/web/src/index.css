@@ -66,7 +66,13 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .force-sliders { display: flex; gap: 4px; flex: 1; }
 .force { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 84px; }
 .force-label { font-weight: 600; }
-.force-value { font-variant-numeric: tabular-nums; min-height: 1.2em; }
+.force-value { font-variant-numeric: tabular-nums; min-height: 1.2em; white-space: nowrap; }
+.force-percent { color: var(--muted); }
+/* On a fader, marks carry a percentage too ("+1 63%"), so give them room. */
+.force.on-fader { width: 120px; }
+.force.on-fader .force-track { margin-right: 68px; }
+.force-mark span { white-space: nowrap; }
+.force-mark .force-percent { opacity: 0.75; }
 .force-track {
   position: relative; flex: 1; min-height: 240px; width: 28px; margin-right: 32px;
   border: 1px solid var(--border); border-radius: 6px; background: var(--panel);

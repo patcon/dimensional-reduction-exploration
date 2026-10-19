@@ -70,3 +70,14 @@ export function describeBinding(b: Binding | null) {
   if (!b) return '—'
   return b.kind === 'pitchbend' ? `pitch bend · ch ${b.channel + 1}` : `CC ${b.controller} · ch ${b.channel + 1}`
 }
+
+/**
+ * Where a fader sits, as a percentage of its travel, for a force at control value u: what
+ * MIDI Surf shows on its faders. centre: the CC value decode() reads back as u (0 is about
+ * 50%). bottom: the strength alone (0 is 0%); the sign switch sets attract or repel.
+ */
+export function faderPercent(u: number, zero: Zero) {
+  if (zero === 'bottom') return Math.min(1, Math.abs(u)) * 100
+  const v = u >= 0 ? 64 + Math.min(1, u) * 63 : 64 + Math.max(-1, u) * 64
+  return (v / 127) * 100
+}

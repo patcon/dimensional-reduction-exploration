@@ -1,5 +1,5 @@
 // MIDI messages decode to the right control and position.
-import { decode, describeBinding, sameBinding } from '../src/midi.ts'
+import { decode, describeBinding, faderPercent, sameBinding } from '../src/midi.ts'
 
 let failures = 0
 const expect = (ok: boolean, what: string) => {
@@ -30,5 +30,12 @@ expect(sameBinding(decode(cc(0, 7, 1))!.binding, decode(cc(0, 7, 90))!.binding),
 expect(!sameBinding(decode(cc(0, 7, 1))!.binding, decode(cc(0, 8, 1))!.binding), 'different CC numbers differ')
 expect(!sameBinding(decode(bend(0, 1))!.binding, decode(bend(1, 1))!.binding), 'pitch bend on different channels differs')
 expect(!sameBinding(decode(bend(0, 1))!.binding, decode(cc(0, 0, 1))!.binding), 'pitch bend and CC differ')
+
+const pct = (u: number, zero: 'centre' | 'bottom') => Math.round(faderPercent(u, zero))
+expect(pct(0, 'centre') === 50 && pct(1, 'centre') === 100 && pct(-1, 'centre') === 0, 'centre faders: 0 is 50%, ends are 0% and 100%')
+expect(pct(0, 'bottom') === 0 && pct(1, 'bottom') === 100 && pct(-1, 'bottom') === 100, 'bottom faders: 0 is 0%, either sign at full strength is 100%')
+// A centre fader at a force's percentage sends a CC that decodes back to (nearly) that force.
+const back = (u: number) => decode([0xb0, 20, Math.round((faderPercent(u, 'centre') / 100) * 127)])!.u
+expect([0.263, 0.5, -0.263, -0.9].every((u) => Math.abs(back(u) - u) <= 1 / 63), 'a centre fader set to the shown percentage reads back as that force')
 
 process.exit(failures ? 1 : 0)
