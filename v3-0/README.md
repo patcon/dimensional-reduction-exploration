@@ -47,5 +47,7 @@ pnpm run check:leiden        # the browser's kNN graph and Leiden against scanpy
   `pnpm run check:leiden` finds the same edges as scanpy (weights within 4e-6), and modularity
   within 0.005 of igraph's or better, averaged over 5 seeds.
 - `src/signal.ts` turns each digit into a trace. `src/components/ChordViz.tsx` is the
-  cross-section, ported with three.js; its geometries and morphs are unchanged. Trails are
+  cross-section's three.js code, adapted to read traces; its geometries and morphs are unchanged.
+  It renders as the original prototype did on three r128 (no colour management, 2px chords),
+  rather than the paler output newer three gives by default. Trails are
   drawn from the trace rather than from past frames, so they follow scrubbing.

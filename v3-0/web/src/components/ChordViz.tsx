@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
 import type { RGB } from '../palette'
 import type { Playhead } from '../playhead'
 import { valenceAt, type Traces } from '../signal'
@@ -28,7 +31,9 @@ const FILL_VERTS_PER_SEG = 6
 const FILL_CORNERS = [2, 0, 7, 0, 5, 7]
 const FILL_LATER = [false, false, true, false, true, true]
 const FILL_IS_ROOT = [true, false, true, false, false, true]
-const DOT_SIZE = 10
+const DOT_SIZE = 6
+/** Chord width in pixels, as the prototype's "radial width" default. */
+const CHORD_WIDTH = 2
 const TRANS_SPEED = 0.04
 /** How fast chords glide to a new slot, per frame. */
 const REORDER_EASE = 0.08
@@ -149,6 +154,11 @@ export function ChordViz(props: ChordVizProps) {
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setClearColor(0x0f0f0e, 1)
+    // The prototype ran on three r128, before colour management: colours went to the screen as
+    // given. Newer three treats them as linear and encodes them to sRGB, which pales every dark
+    // tone (the reaction canvas's React port inherits that). Pass them through as r128 did.
+    THREE.ColorManagement.enabled = false
+    renderer.outputColorSpace = THREE.LinearSRGBColorSpace
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(53.13, 1, 0.1, 10000)
 
@@ -177,9 +187,11 @@ export function ChordViz(props: ChordVizProps) {
       geo.setAttribute('color', col)
       return { geo, pos: pos.array as Float32Array, col: col.array as Float32Array }
     }
-    const chord = buffer(MAX_CHORDS * 2)
-    const chordMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false })
-    const chordLines = new THREE.LineSegments(chord.geo, chordMat)
+    // Chords are drawn wide, as in the prototype (WebGL lines are always 1px, so these are quads).
+    const chord = { pos: new Float32Array(MAX_CHORDS * 6), col: new Float32Array(MAX_CHORDS * 6) }
+    const chordGeo = new LineSegmentsGeometry()
+    const chordMat = new LineMaterial({ vertexColors: true, transparent: true, depthWrite: false, linewidth: CHORD_WIDTH })
+    const chordLines = new LineSegments2(chordGeo, chordMat)
     chordLines.renderOrder = 7
     chordLines.frustumCulled = false
     scene.add(chordLines)
@@ -379,11 +391,12 @@ export function ChordViz(props: ChordVizProps) {
           }
         }
       }
-      chord.geo.setDrawRange(0, n * 2)
+      chordGeo.setPositions(chord.pos.subarray(0, Math.max(n, 1) * 6))
+      chordGeo.setColors(chord.col.subarray(0, Math.max(n, 1) * 6))
       dot.geo.setDrawRange(0, n)
       trace.geo.setDrawRange(0, n * TRACE_SEGS * 2)
       fill.geo.setDrawRange(0, n * TRACE_SEGS * FILL_VERTS_PER_SEG)
-      for (const b of [chord, dot, trace, fill]) {
+      for (const b of [dot, trace, fill]) {
         b.geo.attributes.position.needsUpdate = true
         b.geo.attributes.color.needsUpdate = true
       }
@@ -459,6 +472,7 @@ export function ChordViz(props: ChordVizProps) {
     const resize = new ResizeObserver(() => {
       const w = wrap.clientWidth, h = wrap.clientHeight
       renderer.setSize(w, h, false)
+      chordMat.resolution.set(w, h)
       camera.aspect = w / h
       // Keep the whole circle in view on narrow panels too.
       camera.fov = w >= h ? 53.13 : (2 * Math.atan(Math.tan((53.13 * Math.PI) / 360) * (h / w)) * 180) / Math.PI
@@ -477,7 +491,7 @@ export function ChordViz(props: ChordVizProps) {
       canvas.removeEventListener('touchmove', onTouchMove)
       canvas.removeEventListener('touchend', onTouchEnd)
       renderer.dispose()
-      for (const g of [chord.geo, dot.geo, trace.geo, fill.geo, focusGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
+      for (const g of [chordGeo, dot.geo, trace.geo, fill.geo, focusGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
       for (const m of [chordMat, dotMat, traceMat, fillMat, focusMat, ringDotsMat, ...guides.map((l) => l.material)]) m.dispose()
       dotTex.dispose()
       ringTex.dispose()
