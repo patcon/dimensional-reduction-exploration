@@ -36,8 +36,12 @@ pnpm dev
   steps at 30 fps. Reset returns to the initial layout (staying paused if paused).
 - **2D / 3D.** The same pairs laid out in two or three dimensions; switching starts over
   from that dimension's initial layout (PaCMAP's first two or three principal components).
-  In 3D, drag the plot to turn it (double-click to reset the view), or tick
-  **auto-rotate** to spin it. Nearer points are drawn over farther ones, which fade.
+  In 3D, drag the plot to turn it, or tick **auto-rotate** to spin it. Nearer points are
+  drawn over farther ones, which fade.
+- **Pan and zoom.** The wheel, a trackpad pinch or a two-finger pinch zooms about the
+  cursor; dragging pans (in 3D, shift- or right-drag, or two fingers). Both hold as the
+  layout grows, since they sit on top of the auto-fit. Double-click or **Reset view** to
+  go back.
 - **Autopilot** plays PaCMAP's own schedule once and stops. Grabbing a slider, pressing
   Manual or moving a MIDI control takes over from autopilot's current forces.
 - **Schedule graph.** PaCMAP's three weights over one loop (dashed; far pairs below zero,

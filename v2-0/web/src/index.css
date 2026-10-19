@@ -100,9 +100,14 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .force-range { display: flex; gap: 8px; color: var(--muted); }
 .force-range input { width: 64px; font: inherit; }
 .scatter canvas { display: block; }
-/* 3D: drag to turn the layout. */
-.scatter.turnable canvas { cursor: grab; touch-action: none; }
-.scatter.turnable canvas:active { cursor: grabbing; }
+/* Drag to pan (in 3D, to turn); the wheel and pinches zoom, so the page mustn't take them. */
+.scatter canvas { cursor: grab; touch-action: none; }
+.scatter canvas:active { cursor: grabbing; }
+.scatter-reset {
+  position: absolute; right: 8px; bottom: 8px; font: inherit; font-size: 0.75rem; padding: 3px 10px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer;
+}
+.scatter-reset:hover { border-color: var(--accent); }
 
 .schedule { margin-top: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px 8px; overflow: hidden; }
 .schedule svg { display: block; font-size: 10px; }

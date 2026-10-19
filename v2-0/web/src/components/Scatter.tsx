@@ -33,7 +33,21 @@ const DEPTH_BUCKETS = 512
 const SPIN = 0.25
 /** 3D: radians turned per CSS pixel dragged. */
 const DRAG_TURN = 0.008
-const INITIAL_VIEW = { yaw: 0.6, pitch: 0.3 }
+/** How far zoom can go, as a multiple of the fitted size. */
+const ZOOM_RANGE = [0.5, 500]
+/** Zoom per pixel of wheel scroll. */
+const WHEEL_ZOOM = 0.002
+
+interface View {
+  /** 3D: yaw about the vertical axis, then pitch towards the viewer. */
+  yaw: number
+  pitch: number
+  /** Magnification over the auto-fit, and the pan applied after it, in CSS pixels. */
+  zoom: number
+  panX: number
+  panY: number
+}
+const INITIAL_VIEW: View = { yaw: 0.6, pitch: 0.3, zoom: 1, panX: 0, panY: 0 }
 
 /** Packs r, g, b as a little-endian RGBA word for a Uint32Array view of ImageData. */
 const pack = (r: number, g: number, b: number) => ((0xff << 24) | (b << 16) | (g << 8) | r) >>> 0
@@ -87,6 +101,9 @@ function makeScratch(n: number) {
   }
 }
 
+/** The middle of the space the layout is fitted into (below the overlay), in canvas pixels. */
+const plotCentre = (w: number, h: number, dpr: number) => [w / 2, PAD_TOP * dpr + (h - (PAD + PAD_TOP) * dpr) / 2]
+
 /** The page background as [r, g, b], so the canvas follows light/dark mode. */
 function background(el: Element) {
   const probe = document.createElement('canvas').getContext('2d')!
@@ -100,19 +117,27 @@ function background(el: Element) {
  * Every point as a small square, coloured by digit and refitted to the canvas on every draw
  * (the layout grows ~1000x over a run). Points are drawn straight into ImageData.
  *
- * In 3D the layout is seen in perspective, turned by dragging (double-click to reset) or
- * auto-rotating. It's fitted to its bounding sphere, so the zoom doesn't wobble as it turns;
- * nearer points are drawn over farther ones, which fade towards the background.
+ * In 3D the layout is seen in perspective, turned by dragging or auto-rotating. It's fitted to
+ * its bounding sphere, so the zoom doesn't wobble as it turns; nearer points are drawn over
+ * farther ones, which fade towards the background.
+ *
+ * Zoom and pan sit on top of the auto-fit, so they hold as the layout grows: the wheel (or a
+ * trackpad or two-finger pinch) zooms about the cursor, and dragging pans (in 3D, shift- or
+ * right-drag, or two fingers). Double-click resets the view.
  */
 export function Scatter({ Y, dim, labels, version, autoRotate = false, children }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
-  /** The 3D view: yaw about the vertical axis, then pitch towards the viewer. */
-  const viewRef = useRef({ ...INITIAL_VIEW })
-  /** Bumped whenever the view turns, to redraw. */
+  const viewRef = useRef<View>({ ...INITIAL_VIEW })
+  /** Bumped whenever the view changes, to redraw. */
   const [viewVersion, setViewVersion] = useState(0)
-  const dragRef = useRef<{ x: number; y: number } | null>(null)
+  /** Whether the view has been zoomed or panned, to offer resetting it. */
+  const [moved, setMoved] = useState(false)
+  /** Pointers down on the plot, by id, at their last canvas position (CSS pixels). */
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>())
+  /** What a single pointer's drag does. */
+  const dragModeRef = useRef<'turn' | 'pan'>('pan')
 
   const order = useMemo(() => shuffledOrder(labels.length), [labels])
   /** Per-point working space for a draw, reused between draws. */
@@ -134,7 +159,7 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children 
     let frame = 0
     let last = performance.now()
     const tick = (now: number) => {
-      if (!dragRef.current) {
+      if (!pointersRef.current.size) {
         viewRef.current.yaw += (SPIN * (now - last)) / 1000
         setViewVersion((v) => v + 1)
       }
@@ -233,6 +258,16 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children 
       drawOrder = sorted
     }
 
+    // Zoom about the plot's centre, then pan.
+    const { zoom, panX, panY } = viewRef.current
+    if (zoom !== 1 || panX || panY) {
+      const [cx, cy] = plotCentre(w, h, dpr)
+      for (let i = 0; i < n; i++) {
+        sx[i] = cx + (sx[i] - cx) * zoom + panX * dpr
+        sy[i] = cy + (sy[i] - cy) * zoom + panY * dpr
+      }
+    }
+
     const bg = background(canvas)
     const colors = packedColors(bg)
     const ctx = canvas.getContext('2d')!
@@ -250,31 +285,90 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children 
   }, [Y, dim, labels, order, size, version, viewVersion])
 
   const turnable = dim === 3
+  const redraw = () => setViewVersion((v) => v + 1)
+
+  /** Zoom by `factor` about a canvas point (CSS pixels), keeping what's under it in place. */
+  const zoomAt = (x: number, y: number, factor: number) => {
+    const view = viewRef.current
+    const zoom = Math.min(ZOOM_RANGE[1], Math.max(ZOOM_RANGE[0], view.zoom * factor))
+    const [cx, cy] = plotCentre(size.width, size.height, 1)
+    const k = zoom / view.zoom
+    view.panX = (x - cx) - k * (x - cx - view.panX)
+    view.panY = (y - cy) - k * (y - cy - view.panY)
+    view.zoom = zoom
+    setMoved(true)
+    redraw()
+  }
+
+  // A native listener, as React's wheel listeners can't preventDefault to stop the page scrolling.
+  // Trackpad pinches arrive as wheel events with ctrlKey, finer-grained, so they're scaled up.
+  const zoomAtRef = useRef(zoomAt)
+  useEffect(() => {
+    zoomAtRef.current = zoomAt
+  })
+  useEffect(() => {
+    const canvas = canvasRef.current!
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      const pixels = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
+      zoomAtRef.current(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-pixels * WHEEL_ZOOM * (e.ctrlKey ? 5 : 1)))
+    }
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', onWheel)
+  }, [])
+
+  const at = (e: PointerEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
   const onPointerDown = (e: PointerEvent) => {
-    if (!turnable) return
     e.currentTarget.setPointerCapture(e.pointerId)
-    dragRef.current = { x: e.clientX, y: e.clientY }
+    pointersRef.current.set(e.pointerId, at(e))
+    dragModeRef.current = turnable && e.button === 0 && !e.shiftKey ? 'turn' : 'pan'
   }
   const onPointerMove = (e: PointerEvent) => {
-    const drag = dragRef.current
-    if (!drag) return
+    const pointers = pointersRef.current
+    const last = pointers.get(e.pointerId)
+    if (!last) return
+    const now = at(e)
     const view = viewRef.current
-    view.yaw += (e.clientX - drag.x) * DRAG_TURN
-    view.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, view.pitch + (e.clientY - drag.y) * DRAG_TURN))
-    dragRef.current = { x: e.clientX, y: e.clientY }
-    setViewVersion((v) => v + 1)
+    if (pointers.size === 1) {
+      const dx = now.x - last.x, dy = now.y - last.y
+      if (dragModeRef.current === 'turn') {
+        view.yaw += dx * DRAG_TURN
+        view.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, view.pitch + dy * DRAG_TURN))
+      } else {
+        view.panX += dx
+        view.panY += dy
+        setMoved(true)
+      }
+      pointers.set(e.pointerId, now)
+      redraw()
+    } else if (pointers.size === 2) {
+      // Two fingers: pan with their midpoint, zoom with their spread.
+      const other = [...pointers.entries()].find(([id]) => id !== e.pointerId)![1]
+      const before = { x: (last.x + other.x) / 2, y: (last.y + other.y) / 2, d: Math.hypot(last.x - other.x, last.y - other.y) }
+      const after = { x: (now.x + other.x) / 2, y: (now.y + other.y) / 2, d: Math.hypot(now.x - other.x, now.y - other.y) }
+      pointers.set(e.pointerId, now)
+      view.panX += after.x - before.x
+      view.panY += after.y - before.y
+      zoomAt(after.x, after.y, before.d ? after.d / before.d : 1)
+    }
   }
-  const onPointerUp = () => {
-    dragRef.current = null
+  const onPointerUp = (e: PointerEvent) => {
+    pointersRef.current.delete(e.pointerId)
+    // Lifting one of two fingers leaves the other panning, not turning.
+    dragModeRef.current = 'pan'
   }
-  const onDoubleClick = () => {
-    if (!turnable) return
+  const resetView = () => {
     viewRef.current = { ...INITIAL_VIEW }
-    setViewVersion((v) => v + 1)
+    setMoved(false)
+    redraw()
   }
 
   return (
-    <div ref={wrapRef} className={`scatter${turnable ? ' turnable' : ''}`}>
+    <div ref={wrapRef} className="scatter">
       <canvas
         ref={canvasRef}
         style={{ width: size.width, height: size.height }}
@@ -282,9 +376,15 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children 
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onDoubleClick={onDoubleClick}
+        onDoubleClick={resetView}
+        onContextMenu={(e) => e.preventDefault()}
       />
       {children && <div className="scatter-overlay">{children}</div>}
+      {moved && (
+        <button type="button" className="scatter-reset" onClick={resetView} title="Or double-click the plot">
+          Reset view
+        </button>
+      )}
     </div>
   )
 }
