@@ -45,9 +45,9 @@ export function GroupLegend({
           <span className="swatch" style={{ background: rgbCss(colors[gi]) }} />
           <span className="group-name">{g.name}</span>
           <span className="num muted">{g.size}</span>
-          <div className="group-mood">
-            <div className="group-mood-zero" />
-            <div className="group-mood-bar" ref={(el) => void (barRefs.current[gi] = el)} />
+          <div className="group-mean">
+            <div className="group-mean-zero" />
+            <div className="group-mean-bar" ref={(el) => void (barRefs.current[gi] = el)} />
           </div>
         </li>
       ))}

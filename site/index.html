@@ -52,7 +52,7 @@
         Each v1 version flattens MNIST digits into rows of pixels, clusters the rows scanpy-style (PCA → kNN graph →
         Leiden), and links the original and sorted pixel matrices to UMAP, PaCMAP and LocalMAP projections in 2D and 3D.
         Each builds on the one before. v2 turns to how PaCMAP gets there, running its optimisation live for you to play.
-        v3 reads each digit out as a reaction over time and plays the crowd of them through a valence visualiser.
+        v3 uses the digits as stand-in data for a valence visualisation.
       </p>
       <ol>
         <li>
@@ -90,11 +90,10 @@
         </li>
         <li>
           <a class="card" href="v3-0/">
-            <h2><span>v3.0</span>A crowd of digits</h2>
+            <h2><span>v3.0</span>Valence traces</h2>
             <p>
-              Every digit a participant reacting to a content stream: its pixels read out as valence, played slowly and
-              smoothed as chords and cursors in the reaction canvas's visualiser, grouped by digit or by Leiden clusters
-              found live among the digits you pick.
+              A valence visualisation with stand-in data: each digit's pixels, read in order, as one participant's valence
+              over time, grouped by digit or Leiden cluster.
             </p>
           </a>
         </li>

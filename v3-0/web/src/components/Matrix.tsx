@@ -7,7 +7,7 @@ const STRIP_WIDTH = 8
 const MATRIX_HEIGHT = 360
 
 /**
- * The matrix of v1, turned into a score: one row per digit taking part (in chord order, so a
+ * v1's matrix with a playhead: one row per digit taking part (in chord order, so a
  * grouped order shows each group as a band), one column per moment, in grey as it's played
  * (smoothed). The playhead sweeps across it, with the trail's reach shaded behind.
  */

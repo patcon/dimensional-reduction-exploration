@@ -106,14 +106,3 @@ export function chordSlots(grouping: Grouping, points: Float32Array, dim: number
   return slotOf
 }
 
-/**
- * Where on its valence chord each participant's cursor sits on the reaction canvas (0 at the pass
- * edge, 1 on the agree–disagree diagonal). Random: anywhere. Grouped: near the group's own spot.
- */
-export function cursorSpots(grouping: Grouping, order: ChordOrder, seed: number) {
-  const rand = makeRng(seed + 7919)
-  const count = grouping.groups.length
-  return Float32Array.from(grouping.groupOf, (g) =>
-    order === 'random' ? rand() : (g + 0.5) / count + (rand() - 0.5) * Math.min(0.12, 0.8 / count),
-  )
-}

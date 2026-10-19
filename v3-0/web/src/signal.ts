@@ -1,5 +1,5 @@
 /**
- * Each digit read out as a reaction over time: its pixels, in some reading order, become one
+ * Each digit read out as a trace over time: its pixels, in some reading order, become one
  * value per moment, smoothed, then mapped to valence (−1 disagree … +1 agree).
  */
 
@@ -93,7 +93,7 @@ export const READINGS: Record<ReadingKey, Int32Array> = {
   hilbert: hilbertOrder(),
 }
 
-/** blur: a centred Gaussian. lag: an exponential moving average, so a reaction trails what caused it. */
+/** blur: a centred Gaussian. lag: an exponential moving average, which trails the input. */
 export type SmoothingKind = 'blur' | 'lag'
 /** ink: ink agrees, paper disagrees (−1…+1). ink-only: ink agrees, paper is neutral (0…+1). */
 export type ValenceMapping = 'ink' | 'ink-only'

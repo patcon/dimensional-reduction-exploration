@@ -6,8 +6,8 @@ import { Matrix } from './components/Matrix'
 import { Transport } from './components/Transport'
 import { DIGIT_COLORS, groupColors } from './palette'
 import { usePlayhead } from './playhead'
-import { chordSlots, cursorSpots, groupParticipants, N_DIGITS, pcsOf, pickRows, type ChordOrder, type GroupBy } from './selection'
-import { buildTraces, READING_LABELS, SIDE, type ReadingKey, type SignalSettings } from './signal'
+import { chordSlots, groupParticipants, N_DIGITS, pcsOf, pickRows, type ChordOrder, type GroupBy } from './selection'
+import { buildTraces, READING_LABELS, type ReadingKey, type SignalSettings } from './signal'
 import { useData, type PoolData } from './useData'
 import { DEFAULT_STYLE, ELEMENTS, GEO_MODES, MAX_CHORDS, VIEW_LABELS, type GeoMode, type ViewMode, type VizStyle } from './vizSettings'
 
@@ -47,7 +47,7 @@ function Explorer({ data }: { data: PoolData }) {
   const [view, setView] = useState<ViewMode>('3d')
   const [geometry, setGeometry] = useState<GeoMode>('diametric')
   const [style, setStyle] = useState<VizStyle>({ ...DEFAULT_STYLE, colorBy: { ...DEFAULT_STYLE.colorBy, chord: 'group' } })
-  const [trailPixels, setTrailPixels] = useState(SIDE * 2)
+  const [trailSeconds, setTrailSeconds] = useState(30)
   const [focus, setFocus] = useState<number | null>(0)
   const [hover, setHover] = useState<number | null>(null)
   const playhead = usePlayhead()
@@ -63,7 +63,6 @@ function Explorer({ data }: { data: PoolData }) {
   )
   const colors = useMemo(() => groupColors(grouping), [grouping])
   const slotOf = useMemo(() => chordSlots(grouping, points, meta.nPcs, order), [grouping, points, meta.nPcs, order])
-  const spots = useMemo(() => cursorSpots(grouping, order, seed), [grouping, order, seed])
   const traces = useMemo(() => buildTraces(pixels, rows, signal), [pixels, rows, signal])
   useEffect(() => playhead.setLength(traces.length), [playhead, traces.length])
 
@@ -80,11 +79,11 @@ function Explorer({ data }: { data: PoolData }) {
   return (
     <main>
       <header className="page-header">
-        <h1>MNIST, a crowd of digits</h1>
+        <h1>Valence traces from MNIST</h1>
         <p>
-          Every digit is a participant, and its 784 pixels one reaction to a content stream, read out pixel by pixel as valence:
-          ink agrees, paper disagrees. Played slowly and smoothed, the crowd drives the reaction canvas's valence
-          visualiser: a chord per digit, grouped by digit or by the Leiden clusters found among just these digits.
+          A valence visualisation, fed with stand-in data: each digit's pixels, read in order, are one participant's
+          valence over time (paper −1, ink +1). Pick digits and a sample size, group them by digit or Leiden cluster,
+          and play.
         </p>
       </header>
 
@@ -176,14 +175,13 @@ function Explorer({ data }: { data: PoolData }) {
             pickKey={rows}
             playhead={playhead}
             slotOf={slotOf}
-            spots={spots}
             groupOf={grouping.groupOf}
             colors={colors}
             focus={followed}
             view={view}
             geometry={geometry}
             style={style}
-            trailPixels={trailPixels}
+            trailSeconds={trailSeconds}
           />
           <div className="viz-controls">
             <Segmented options={['2d', '2d-ts', '3d'] as const} value={view} onChange={setView} labels={VIEW_LABELS} />
@@ -203,11 +201,11 @@ function Explorer({ data }: { data: PoolData }) {
               groupColor={colors[grouping.groupOf[shown]]}
               traces={traces}
               playhead={playhead}
-              trailPixels={trailPixels}
+              trailPixels={trailSeconds * playhead.speed}
               following={hover === null}
             />
           )}
-          <h2>Groups, and their mood now</h2>
+          <h2>Groups: mean valence now</h2>
           <GroupLegend groups={grouping.groups} groupOf={grouping.groupOf} colors={colors} traces={traces} playhead={playhead} />
           <h2>Colour by</h2>
           <div className="style-grid">
@@ -250,12 +248,12 @@ function Explorer({ data }: { data: PoolData }) {
         </aside>
       </div>
 
-      <section className="score">
-        <h2>The score</h2>
+      <section className="matrix-section">
+        <h2>Matrix</h2>
         <p className="muted">
-          One row per digit, in chord order, one column per pixel read. Click a row to follow that digit.
+          One row per digit, in chord order, one column per pixel. Click a row to follow that digit.
         </p>
-        <Transport playhead={playhead} traces={traces} trailPixels={trailPixels} onTrailPixels={setTrailPixels} />
+        <Transport playhead={playhead} traces={traces} trailSeconds={trailSeconds} onTrailSeconds={setTrailSeconds} />
         <Matrix
           traces={traces}
           slotOf={slotOf}
@@ -267,7 +265,7 @@ function Explorer({ data }: { data: PoolData }) {
           onFocus={setFocus}
           onHover={setHover}
           playhead={playhead}
-          trailPixels={trailPixels}
+          trailPixels={trailSeconds * playhead.speed}
         />
       </section>
     </main>

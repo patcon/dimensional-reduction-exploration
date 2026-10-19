@@ -2,23 +2,25 @@ import { useEffect, useRef } from 'react'
 import type { Playhead } from '../playhead'
 import { SIDE, type Traces } from '../signal'
 
-// Speed slider: logarithmic, 1–120 pixels per second.
-const SPEED_MIN = 1
-const SPEED_MAX = 120
-const toSpeed = (u: number) => Math.round(SPEED_MIN * (SPEED_MAX / SPEED_MIN) ** u * 10) / 10
+// Speed slider: logarithmic, 0.25–60 pixels per second.
+const SPEED_MIN = 0.25
+const SPEED_MAX = 60
+const toSpeed = (u: number) => Number((SPEED_MIN * (SPEED_MAX / SPEED_MIN) ** u).toPrecision(2))
 const fromSpeed = (s: number) => Math.log(s / SPEED_MIN) / Math.log(SPEED_MAX / SPEED_MIN)
+
+const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
 
 /** Play/pause, the scrubber (as wide as the matrix below it), speed, looping and how far trails reach. */
 export function Transport({
   playhead,
   traces,
-  trailPixels,
-  onTrailPixels,
+  trailSeconds,
+  onTrailSeconds,
 }: {
   playhead: Playhead
   traces: Traces
-  trailPixels: number
-  onTrailPixels: (pixels: number) => void
+  trailSeconds: number
+  onTrailSeconds: (seconds: number) => void
 }) {
   const scrubRef = useRef<HTMLInputElement>(null)
   const readoutRef = useRef<HTMLSpanElement>(null)
@@ -29,9 +31,9 @@ export function Transport({
       if (!scrubbing.current) scrubRef.current!.value = String(playhead.moment)
       const t = Math.min(traces.length - 1, Math.round(playhead.moment))
       const p = traces.pixelAt[t]
-      readoutRef.current!.textContent = `pixel ${t + 1} of ${traces.length} · row ${Math.floor(p / SIDE) + 1}, column ${(p % SIDE) + 1} · ${(
-        playhead.moment / playhead.speed
-      ).toFixed(0)}s of ${((traces.length - 1) / playhead.speed).toFixed(0)}s`
+      readoutRef.current!.textContent = `pixel ${t + 1} of ${traces.length} · row ${Math.floor(p / SIDE) + 1}, column ${(p % SIDE) + 1} · ${clock(
+        playhead.moment / playhead.speed,
+      )} of ${clock((traces.length - 1) / playhead.speed)}`
     }
     update()
     return playhead.onFrame(update)
@@ -65,8 +67,8 @@ export function Transport({
         </label>
         <label className="slider">
           trail
-          <input type="range" min={SIDE / 4} max={SIDE * 8} step={1} value={trailPixels} onChange={(e) => onTrailPixels(Number(e.target.value))} />
-          <span className="num">{trailPixels} px</span>
+          <input type="range" min={5} max={300} step={5} value={trailSeconds} onChange={(e) => onTrailSeconds(Number(e.target.value))} />
+          <span className="num">{trailSeconds} s</span>
         </label>
         <label className="check">
           <input type="checkbox" checked={playhead.loop} onChange={(e) => playhead.setLoop(e.target.checked)} /> loop

@@ -3,11 +3,11 @@
 The source sprite (mnist_images.png) is a 784 x 65000 image: each row is one
 28x28 digit flattened. Labels are 65000 one-hot rows of 10 uint8 bytes.
 
-v3.0 treats every digit as a participant, and the 784 pixels of its row as one
-reaction to a content stream, read out pixel by pixel as valence. Which digits
-take part (filtered to some labels, then subsampled) is picked in the browser, so
-the browser also builds the kNN graph and runs Leiden on whichever digits it picked.
-This exports the pool to pick from, with the principal components to cluster on.
+v3.0 uses digits as stand-in data for a valence visualisation: each digit's pixels,
+read in order, are one participant's valence over time. Which digits take part
+(filtered by label, then subsampled) is picked in the browser, which also builds the
+kNN graph and runs Leiden on them. This exports the pool to pick from, with the
+principal components to cluster on.
 
 Outputs (written to ../v3-0/web/public/data/):
   matrix.png   N x 784 grayscale, the pool in random order

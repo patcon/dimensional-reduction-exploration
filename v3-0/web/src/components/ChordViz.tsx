@@ -8,10 +8,9 @@ import { MAX_CHORDS, type GeoMode, type ViewMode, type VizStyle } from '../vizSe
 // Ported from the reaction canvas's valence cross-section (plugins/valenceCrossSection in
 // patcon/polislike-partykit-reaction-canvas, itself from valence-onboarding-v3.html): each
 // participant is a chord, rooted at the centre and displaced by its valence, laid out in one
-// of several geometries and seen in three views. Here the valence comes from reading a digit's
-// pixels rather than a live cursor, so a chord's whole past is known: trails are drawn from the
-// trace itself, which also lets them follow a scrub backwards. Added: group colouring (by
-// digit or Leiden cluster), chord order, and a reaction-canvas geometry ("cursors").
+// of several geometries and seen in three views. Here the valence comes from a precomputed
+// trace rather than a live cursor, so trails are drawn from the trace itself, which also lets
+// them follow a scrub backwards. Added: group colouring and chord order.
 
 // ── Layout, in the original's 480×480 authoring space ──
 const CENTER = 240
@@ -31,21 +30,11 @@ const FILL_LATER = [false, false, true, false, true, true]
 const FILL_IS_ROOT = [true, false, true, false, false, true]
 const DOT_SIZE = 10
 const TRANS_SPEED = 0.04
-/** How fast chords glide to a new slot, or cursors to a new spot, per frame. */
+/** How fast chords glide to a new slot, per frame. */
 const REORDER_EASE = 0.08
 const BG: RGB = [15, 15, 14]
 
 const COLORS = { pos: [80, 255, 140] as RGB, neg: [255, 80, 60] as RGB, neutral: BG }
-
-// The reaction canvas's anchors (0–100, y down), as in its voteRegion.ts DEFAULT_ANCHORS.
-const ANCHORS = { positive: { x: 95, y: 5 }, negative: { x: 5, y: 95 }, neutral: { x: 95, y: 95 } }
-
-// Where each anchor's label goes: just outside its corner of the canvas (agree, disagree, pass).
-const LABEL_CORNERS = [
-  { x: 100, y: 0, shift: 'translate(-100%, -130%)' },
-  { x: 0, y: 100, shift: 'translate(0, 30%)' },
-  { x: 100, y: 100, shift: 'translate(-100%, 30%)' },
-]
 
 function ease(t: number) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t }
 function clamp01(t: number) { return Math.min(1, Math.max(0, t)) }
@@ -89,26 +78,6 @@ function chordPoints(i: number, n: number, v: number, m: Morph, out: Float64Arra
     tipX += (CENTER - tipX) * m.lp2; tipY += (CENTER - R * v - tipY) * m.lp2
   }
   out[0] = rootX; out[1] = rootY; out[2] = tipX; out[3] = tipY
-}
-
-/** The reaction canvas, 0–100 with y down, laid over the circle's square. */
-function canvasX(x: number) { return CENTER - R + (x / 100) * 2 * R }
-function canvasY(y: number) { return CENTER - R + (y / 100) * 2 * R }
-
-/**
- * On the reaction canvas, every point on one chord has the same valence (from its voteRegion.ts):
- * A(v) on an edge beside the pass corner, B(v) on the agree–disagree diagonal. A cursor sits at
- * `spot` along it. out = [Ax, Ay, Bx, By, cursorX, cursorY], in canvas space.
- */
-function cursorPoints(v: number, spot: number, out: Float64Array) {
-  const { positive: p, negative: q, neutral: z } = ANCHORS
-  const a = v >= 0 ? v : -v
-  const end = v >= 0 ? p : q
-  const ax = z.x + (end.x - z.x) * a, ay = z.y + (end.y - z.y) * a
-  const b = (v + 1) / 2
-  const bx = q.x + (p.x - q.x) * b, by = q.y + (p.y - q.y) * b
-  out[0] = canvasX(ax); out[1] = canvasY(ay); out[2] = canvasX(bx); out[3] = canvasY(by)
-  out[4] = canvasX(ax + (bx - ax) * spot); out[5] = canvasY(ay + (by - ay) * spot)
 }
 
 function makeLine(points: [number, number][], z: number, color: number, closed: boolean) {
@@ -155,22 +124,19 @@ export interface ChordVizProps {
   playhead: Playhead
   /** slotOf[participant] = its chord's position in the geometry. */
   slotOf: Int32Array
-  /** Where along its valence chord each participant's cursor sits, in the cursors geometry. */
-  spots: Float32Array
   groupOf: Int32Array
   colors: RGB[]
   focus: number | null
   view: ViewMode
   geometry: GeoMode
   style: VizStyle
-  /** How far back trails reach, in pixels read. */
-  trailPixels: number
+  /** How far back trails reach, in seconds of playback. */
+  trailSeconds: number
 }
 
 export function ChordViz(props: ChordVizProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
-  const labelRefs = useRef<(HTMLDivElement | null)[]>([])
   const live = useRef(props)
   useEffect(() => {
     live.current = props
@@ -192,13 +158,7 @@ export function ChordViz(props: ChordVizProps) {
     const ghostRings = [-120, -240, -360].map((z) => makeRingLine(R, z, 0x1e1e1c))
     const zAxis = makeLine([[0, 0], [0, 0]], 0, 0x404040, false)
     zAxis.geometry.attributes.position.setZ(1, -420)
-    // The reaction canvas, for the cursors geometry: its square and the agree/disagree/pass triangle.
-    const toWorld = (x: number, y: number): [number, number] => [canvasX(x) - CENTER, CENTER - canvasY(y)]
-    const square = makeLine([toWorld(0, 0), toWorld(100, 0), toWorld(100, 100), toWorld(0, 100)], 0, 0x383835, true)
-    const { positive, negative, neutral } = ANCHORS
-    const triangle = makeLine([positive, negative, neutral].map((a) => toWorld(a.x, a.y)), 0, 0x2a2a28, true)
-    const labelPoint = new THREE.Vector3()
-    const guides = [outerRing, midRing, ...ghostRings, zAxis, square, triangle]
+    const guides = [outerRing, midRing, ...ghostRings, zAxis]
     guides.forEach((g) => scene.add(g))
     const ringDotsArr = new Float32Array(48 * 3)
     for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2; ringDotsArr[i * 3] = Math.cos(a) * R; ringDotsArr[i * 3 + 1] = Math.sin(a) * R }
@@ -278,34 +238,17 @@ export function ChordViz(props: ChordVizProps) {
       camera.up.set(0, 1, 0)
     }
 
-    // ── Per-participant animation: chords grow in, and glide to new slots / spots ──
+    // ── Per-participant animation: chords grow in, and glide to new slots ──
     let n = 0
     let shownSlot = new Float32Array(0)
-    let shownSpot = new Float32Array(0)
     let arrival = new Float32Array(0)
     let lastPick: unknown = undefined
-    const geoTarget: Record<GeoMode, number> = { radial: 1, diametric: 0, linear: -1, parallel: -2, cursors: 0 }
-    let morphT = geoTarget[live.current.geometry === 'cursors' ? 'diametric' : live.current.geometry]
-    let chordGeo: GeoMode = live.current.geometry === 'cursors' ? 'diametric' : live.current.geometry
-    let cursorsT = live.current.geometry === 'cursors' ? 1 : 0
+    const geoTarget: Record<GeoMode, number> = { radial: 1, diametric: 0, linear: -1, parallel: -2 }
+    let morphT = geoTarget[live.current.geometry]
 
     const morph: Morph = { p1: 0, p2: 0, pp1: 0, pp2: 0, lp1: 0, lp2: 0 }
-    const cp = new Float64Array(4)
-    const kp = new Float64Array(6)
-    // Root, tip and cursor of one chord at valence v, blended between chord geometry and reaction canvas.
-    const pts = new Float64Array(6)
-    function points(slot: number, spot: number, v: number) {
-      chordPoints(slot, Math.max(n, 1), v, morph, cp)
-      const c = ease(cursorsT)
-      if (c <= 0) {
-        pts[0] = cp[0]; pts[1] = cp[1]; pts[2] = cp[2]; pts[3] = cp[3]; pts[4] = cp[2]; pts[5] = cp[3]
-        return
-      }
-      cursorPoints(v, spot, kp)
-      pts[0] = cp[0] + (kp[0] - cp[0]) * c; pts[1] = cp[1] + (kp[1] - cp[1]) * c
-      pts[2] = cp[2] + (kp[2] - cp[2]) * c; pts[3] = cp[3] + (kp[3] - cp[3]) * c
-      pts[4] = cp[2] + (kp[4] - cp[2]) * c; pts[5] = cp[3] + (kp[5] - cp[3]) * c
-    }
+    // Root and tip of one chord at valence v: [rootX, rootY, tipX, tipY].
+    const pts = new Float64Array(4)
 
     const rgb = [0, 0, 0]
     // An element's colour at valence v, by valence or by group, into rgb (0–1).
@@ -319,14 +262,13 @@ export function ChordViz(props: ChordVizProps) {
     let animFrameId = 0
     function animate() {
       animFrameId = requestAnimationFrame(animate)
-      const { traces, pickKey, playhead, slotOf, spots, groupOf, colors, focus, view, geometry, style, trailPixels } = live.current
+      const { traces, pickKey, playhead, slotOf, groupOf, colors, focus, view, geometry, style, trailSeconds } = live.current
 
       // A new set of digits: chords start over from nothing; otherwise each keeps its place and glides.
       if (pickKey !== lastPick || traces.n !== n) {
         lastPick = pickKey
         n = Math.min(traces.n, MAX_CHORDS)
         shownSlot = Float32Array.from(slotOf.subarray(0, n))
-        shownSpot = Float32Array.from(spots.subarray(0, n))
         arrival = new Float32Array(n)
       }
 
@@ -351,12 +293,10 @@ export function ChordViz(props: ChordVizProps) {
       camTargetZ = CAM_2D_TS.targetZ * ease(transTts)
       applyCam()
 
-      // ── Geometry: the chord geometries morph into one another; the reaction canvas fades over them ──
-      if (geometry !== 'cursors') chordGeo = geometry
-      cursorsT = clamp01(cursorsT + ((geometry === 'cursors' ? 1 : 0) - cursorsT) * 0.05)
-      morphT = Math.max(-2, Math.min(1, morphT + (geoTarget[chordGeo] - morphT) * 0.05))
+      // ── Geometry: the chord geometries morph into one another ──
+      morphT = Math.max(-2, Math.min(1, morphT + (geoTarget[geometry] - morphT) * 0.05))
       if (morphT >= 0) {
-        Object.assign(morph, getPhases(morphT, chordGeo === 'radial'), { pp1: 0, pp2: 0, lp1: 0, lp2: 0 })
+        Object.assign(morph, getPhases(morphT, geometry === 'radial'), { pp1: 0, pp2: 0, lp1: 0, lp2: 0 })
       } else if (morphT >= -1) {
         const le = ease(-morphT)
         Object.assign(morph, { p1: 0, p2: 0, pp1: 0, pp2: 0, lp1: le, lp2: le })
@@ -365,39 +305,26 @@ export function ChordViz(props: ChordVizProps) {
         Object.assign(morph, { p1: 0, p2: 0, pp1: 1, pp2: 1, lp1: le, lp2: le })
       }
       const depthA = ease(transT), depthTs = ease(transTts)
-      const cEase = ease(cursorsT), circle = 1 - cEase
-      outerRing.material.opacity = 0.8 * circle
-      ringDotsMat.opacity = circle
-      midRing.material.opacity = morph.p1 * 0.35 * circle
+      outerRing.material.opacity = 0.8
+      midRing.material.opacity = morph.p1 * 0.35
       zAxis.material.opacity = Math.max(depthA, depthTs) * 0.45
       ghostRings.forEach((r, i) => { r.material.opacity = depthA * (0.12 - i * 0.03); r.visible = depthA > 0.02 })
-      square.material.opacity = 0.8 * cEase
-      triangle.material.opacity = 0.5 * cEase
-      // Agree / disagree / pass labels by their corners of the canvas, wherever the camera sees them.
-      labelRefs.current.forEach((el, i) => {
-        if (!el) return
-        const [x, y] = toWorld(LABEL_CORNERS[i].x, LABEL_CORNERS[i].y)
-        const p = labelPoint.set(x, y, 0).project(camera)
-        el.style.opacity = String(cEase * (1 - depthTs))
-        el.style.transform = `translate(${((p.x + 1) / 2) * wrap.clientWidth}px, ${((1 - p.y) / 2) * wrap.clientHeight}px) ${LABEL_CORNERS[i].shift}`
-      })
-
       // ── Chords, cursors and trails ──
       const moment = playhead.moment
       const showTrace = view === '2d-ts' || view === '3d'
-      const step = trailPixels / TRACE_SEGS
+      // Trail samples are spread over the last `trailSeconds` of playback, in moments.
+      const step = (trailSeconds * playhead.speed) / TRACE_SEGS
       const by = style.colorBy
       let focusShown = false
       for (let i = 0; i < n; i++) {
         shownSlot[i] += (slotOf[i] - shownSlot[i]) * REORDER_EASE
-        shownSpot[i] += (spots[i] - shownSpot[i]) * REORDER_EASE
         arrival[i] = Math.min(1, arrival[i] + 1 / 30)
         const scale = arrival[i] * arrival[i]
         const group = colors[groupOf[i]] ?? BG
         const v = valenceAt(traces, i, moment) * scale
-        points(shownSlot[i], shownSpot[i], v)
-        const [rx, ry, tx, ty, dx, dy] = [pts[0] - CENTER, CENTER - pts[1], pts[2] - CENTER, CENTER - pts[3], pts[4] - CENTER, CENTER - pts[5]]
-        chord.pos.set([rx, ry, 0, tx, ty, 0], i * 6)
+        chordPoints(shownSlot[i], Math.max(n, 1), v, morph, pts)
+        const [rx, ry, dx, dy] = [pts[0] - CENTER, CENTER - pts[1], pts[2] - CENTER, CENTER - pts[3]]
+        chord.pos.set([rx, ry, 0, dx, dy, 0], i * 6)
         colour(by.chord, v, group)
         chord.col.set([bg[0], bg[1], bg[2], rgb[0], rgb[1], rgb[2]], i * 6)
         dot.pos.set([dx, dy, 0], i * 3)
@@ -410,12 +337,12 @@ export function ChordViz(props: ChordVizProps) {
         }
 
         if (!showTrace) continue
-        // The trail: this chord's last `trailPixels` of trace, oldest first, receding into the screen.
+        // The trail: this chord's recent trace, oldest first, receding into the screen and fading out.
         const hlen = step > 0 ? Math.min(TRACE_LEN, Math.floor(moment / step) + 1) : 1
         for (let k = 0; k < hlen; k++) {
           const hv = valenceAt(traces, i, moment - (hlen - 1 - k) * step) * scale
-          points(shownSlot[i], shownSpot[i], hv)
-          hist[k * 5] = pts[4] - CENTER; hist[k * 5 + 1] = CENTER - pts[5]
+          chordPoints(shownSlot[i], Math.max(n, 1), hv, morph, pts)
+          hist[k * 5] = pts[2] - CENTER; hist[k * 5 + 1] = CENTER - pts[3]
           hist[k * 5 + 2] = pts[0] - CENTER; hist[k * 5 + 3] = CENTER - pts[1]; hist[k * 5 + 4] = hv
         }
         for (let j = 0; j < TRACE_SEGS; j++) {
@@ -428,7 +355,8 @@ export function ChordViz(props: ChordVizProps) {
           }
           const a = j * 5, b = (j + 1) * 5
           const zA = -(hlen - 1 - j) * TRACE_Z_STEP, zB = -(hlen - 2 - j) * TRACE_Z_STEP
-          const fadeA = j / (hlen - 1), fadeB = (j + 1) / (hlen - 1)
+          // Fades by age over the whole trail, so it thins into the background rather than ending abruptly.
+          const fadeA = (1 - (hlen - 1 - j) / TRACE_SEGS) ** 2, fadeB = (1 - (hlen - 2 - j) / TRACE_SEGS) ** 2
           // Thousands of segments a frame, so written in place rather than through arrays.
           const tp = trace.pos, tc = trace.col
           tp[base] = hist[a]; tp[base + 1] = hist[a + 1]; tp[base + 2] = zA
@@ -559,11 +487,6 @@ export function ChordViz(props: ChordVizProps) {
   return (
     <div ref={wrapRef} className="viz-canvas" style={{ cursor: isOrbiting ? 'grabbing' : props.view === '3d' ? 'grab' : 'default' }}>
       <canvas ref={canvasRef} />
-      {['agree', 'disagree', 'pass'].map((label, i) => (
-        <div key={label} ref={(el) => void (labelRefs.current[i] = el)} className={`viz-anchor viz-anchor-${label}`}>
-          {label}
-        </div>
-      ))}
     </div>
   )
 }
