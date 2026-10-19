@@ -69,28 +69,29 @@ export interface MomentumParams {
 export class Momentum implements Optimiser {
   params: MomentumParams
   private vel: Float32Array
+  private dim: number
 
-  constructor(size: number, params: MomentumParams) {
+  constructor(size: number, params: MomentumParams, dim = 2) {
     this.params = params
     this.vel = new Float32Array(size)
+    this.dim = dim
   }
 
   step(Y: Float32Array, grad: Float32Array, speed: number) {
-    const { vel } = this
+    const { vel, dim } = this
     const { momentum, maxStep } = this.params
     const lr = speed * this.params.lr
-    for (let i = 0; i < Y.length; i += 2) {
-      let vx = momentum * vel[i] - lr * grad[i]
-      let vy = momentum * vel[i + 1] - lr * grad[i + 1]
-      const len = Math.hypot(vx, vy)
-      if (len > maxStep) {
-        vx *= maxStep / len
-        vy *= maxStep / len
+    for (let i = 0; i < Y.length; i += dim) {
+      let len2 = 0
+      for (let d = i; d < i + dim; d++) {
+        vel[d] = momentum * vel[d] - lr * grad[d]
+        len2 += vel[d] * vel[d]
       }
-      vel[i] = vx
-      vel[i + 1] = vy
-      Y[i] += vx
-      Y[i + 1] += vy
+      const scale = len2 > maxStep * maxStep ? maxStep / Math.sqrt(len2) : 1
+      for (let d = i; d < i + dim; d++) {
+        vel[d] *= scale
+        Y[d] += vel[d]
+      }
     }
   }
 
@@ -123,13 +124,13 @@ export class OptimiserBank {
   private adam: AdamParams
   private all: { adam: Adam; 'adam-kick': Adam; 'adam-short': Adam; momentum: Momentum }
 
-  constructor(size: number, adam: AdamParams) {
+  constructor(size: number, adam: AdamParams, dim = 2) {
     this.adam = adam
     this.all = {
       adam: new Adam(size, adam),
       'adam-kick': new Adam(size, adam, true),
       'adam-short': new Adam(size, { ...adam, beta2: DEFAULT_OPTIMISER.shortBeta2 }),
-      momentum: new Momentum(size, { ...DEFAULT_OPTIMISER.momentum }),
+      momentum: new Momentum(size, { ...DEFAULT_OPTIMISER.momentum }, dim),
     }
   }
 

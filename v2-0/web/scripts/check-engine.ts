@@ -1,5 +1,5 @@
-// Step the browser engine from init.bin under PaCMAP's schedule and compare against
-// reference.bin, PaCMAP's own run (both written by pipeline/v2-0.py).
+// Step the browser engine from init_<DIM>d.bin under PaCMAP's schedule and compare against
+// reference_<DIM>d.bin, PaCMAP's own run (both written by pipeline/v2-0.py). DIM=3 checks 3D.
 //
 // Judged like `v2-0.py --check`: on a high percentile of per-point error, not the max.
 // Float summation order differs from numba's, and Adam's m/sqrt(v) amplifies that for
@@ -14,9 +14,10 @@ import { readFileSync } from 'node:fs'
 import { Engine } from '../src/engine.ts'
 import { Adam } from '../src/optimisers.ts'
 import { pacmapWeights } from '../src/schedule.ts'
-import type { Meta, Pairs } from '../src/types.ts'
+import type { Dim, Meta, Pairs } from '../src/types.ts'
 
 const ITERS = Number(process.env.ITERS ?? 100) // ITERS=450 checks the whole schedule (slower)
+const DIM = Number(process.env.DIM ?? 2) as Dim
 const PERCENTILE = 99
 // As a fraction of the layout spread: strict through phase 1, loose after (see above).
 const TOLERANCE = 1e-4
@@ -35,13 +36,13 @@ const pairs: Pairs = {
   mn: new Uint32Array(read('pairs_mn.bin')),
   fp: new Uint32Array(read('pairs_fp.bin')),
 }
-const reference = new Float32Array(read('reference.bin'))
-const snapshot = (k: number) => reference.subarray(k * n * 2, (k + 1) * n * 2)
+const reference = new Float32Array(read(`reference_${DIM}d.bin`))
+const snapshot = (k: number) => reference.subarray(k * n * DIM, (k + 1) * n * DIM)
 
 let spread = 0
 for (const x of reference) spread = Math.max(spread, Math.abs(x))
 
-const engine = new Engine(pairs, new Float32Array(read('init.bin')), new Adam(n * 2, meta.adam))
+const engine = new Engine(pairs, new Float32Array(read(`init_${DIM}d.bin`)), new Adam(n * DIM, meta.adam), DIM)
 const targets = new Map(meta.reference.iterations.map((it, k) => [it, k]))
 
 const phase1 = meta.schedule.phases[0]
@@ -58,7 +59,7 @@ for (let itr = 0; itr < ITERS; itr++) {
   const ref = snapshot(k)
   const err = new Float64Array(n)
   for (let i = 0; i < n; i++)
-    err[i] = Math.max(Math.abs(engine.Y[2 * i] - ref[2 * i]), Math.abs(engine.Y[2 * i + 1] - ref[2 * i + 1]))
+    for (let d = i * DIM; d < (i + 1) * DIM; d++) err[i] = Math.max(err[i], Math.abs(engine.Y[d] - ref[d]))
   err.sort()
   const p = err[Math.min(n - 1, Math.floor((PERCENTILE / 100) * n))]
   if (itr + 1 <= phase1) worst = Math.max(worst, p / spread)
@@ -67,7 +68,7 @@ for (let itr = 0; itr < ITERS; itr++) {
 }
 
 const ok = worst < TOLERANCE && worstAfter < TOLERANCE_AFTER_PHASE_1
-console.log(`${(elapsed / ITERS).toFixed(1)} ms per iteration (${n} points)`)
+console.log(`${(elapsed / ITERS).toFixed(1)} ms per iteration (${n} points, ${DIM}D)`)
 console.log(
   `${ok ? 'OK' : 'MISMATCH'}: p${PERCENTILE} error ${worst.toExponential(2)} of layout spread ${spread.toFixed(2)} ` +
     `through phase 1 (tolerance ${TOLERANCE})` +

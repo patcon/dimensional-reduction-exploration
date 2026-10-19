@@ -1,3 +1,4 @@
+import type { Dim } from '../types'
 import type { ClockStatus } from '../useLoopClock'
 
 interface Props {
@@ -15,9 +16,14 @@ interface Props {
   onAutopilot: (on: boolean) => void
   interpolate: boolean
   onInterpolate: (on: boolean) => void
+  dim: Dim
+  /** Switching dimension starts over from that dimension's initial layout. */
+  onDim: (dim: Dim) => void
+  autoRotate: boolean
+  onAutoRotate: (on: boolean) => void
 }
 
-/** Play/pause, reset, speed, autopilot and smoothing, with where the loop is up to. */
+/** Play/pause, reset, speed, autopilot, smoothing and 2D/3D, with where the loop is up to. */
 export function Transport(p: Props) {
   return (
     <div className="toolbar">
@@ -48,6 +54,22 @@ export function Transport(p: Props) {
       </label>
       <label className="smooth" title="Glide between steps (drawn at 30 fps, one step behind)">
         <input type="checkbox" checked={p.interpolate} onChange={(e) => p.onInterpolate(e.target.checked)} /> smooth
+      </label>
+      <div className="segmented" role="group" aria-label="Dimensions" title="Switching starts over from the initial layout">
+        {([2, 3] as const).map((dim) => (
+          <button key={dim} type="button" className={p.dim === dim ? 'on' : ''} onClick={() => p.dim !== dim && p.onDim(dim)}>
+            {dim}D
+          </button>
+        ))}
+      </div>
+      <label className="spin" title="Spin the 3D layout (drag it to turn it yourself, double-click to reset the view)">
+        <input
+          type="checkbox"
+          checked={p.autoRotate}
+          disabled={p.dim !== 3}
+          onChange={(e) => p.onAutoRotate(e.target.checked)}
+        />{' '}
+        auto-rotate
       </label>
       <span className="readout">
         {p.status === 'idle' ? (

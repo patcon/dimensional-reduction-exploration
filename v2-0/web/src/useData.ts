@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
-import { PAIR_TYPES, type Meta, type Pairs } from './types'
+import { DIMS, PAIR_TYPES, type Dim, type Meta, type Pairs } from './types'
 
 const base = `${import.meta.env.BASE_URL}data`
 
 export interface PacmapData {
   meta: Meta
   pairs: Pairs
-  /** PaCMAP's layout before its first iteration: float32, nSamples x 2 row-major. */
-  init: Float32Array
+  /** PaCMAP's layout before its first iteration, per dimension: float32, nSamples x dim row-major.
+   * Both share the pairs; the 3D one is the 2D one plus the third principal component. */
+  init: Record<Dim, Float32Array>
 }
 
 async function fetchBinary(name: string) {
@@ -28,12 +29,12 @@ export function useData() {
         return r.json() as Promise<Meta>
       })
       .then(async (meta) => {
-        const [init, ...pairBuffers] = await Promise.all([
-          fetchBinary('init.bin'),
+        const [init2, init3, ...pairBuffers] = await Promise.all([
+          ...DIMS.map((dim) => fetchBinary(`init_${dim}d.bin`)),
           ...PAIR_TYPES.map((type) => fetchBinary(`pairs_${type}.bin`)),
         ])
         const pairs = Object.fromEntries(PAIR_TYPES.map((type, k) => [type, new Uint32Array(pairBuffers[k])])) as Pairs
-        setState({ data: { meta, pairs, init: new Float32Array(init) } })
+        setState({ data: { meta, pairs, init: { 2: new Float32Array(init2), 3: new Float32Array(init3) } } })
       })
       .catch((e: Error) => setState({ error: e.message }))
   }, [])

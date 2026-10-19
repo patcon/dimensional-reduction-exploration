@@ -13,14 +13,16 @@ export const KERNEL_SCALE: Record<PairType, number> = { nb: 10, mn: 10000, fp: 1
 
 /**
  * PaCMAP's optimisation on fixed pairs, one step at a time with live weights: the gradient is
- * computed here, and a swappable optimiser turns it into a step.
+ * computed here, and a swappable optimiser turns it into a step. Runs in 2D or 3D (`dim`).
  * Float32 storage throughout, like pacmap's numba kernels.
  */
 export class Engine {
   readonly n: number
+  /** 2 or 3. */
+  readonly dim: number
   readonly pairs: Pairs
   readonly init: Float32Array
-  /** Current layout, n x 2 row-major. Mutated in place by step(). */
+  /** Current layout, n x dim row-major. Mutated in place by step(). */
   readonly Y: Float32Array
   readonly grad: Float32Array
   optimiser: Optimiser
@@ -29,8 +31,9 @@ export class Engine {
   /** Steps taken since the last reset. */
   steps = 0
 
-  constructor(pairs: Pairs, init: Float32Array, optimiser: Optimiser) {
-    this.n = init.length / 2
+  constructor(pairs: Pairs, init: Float32Array, optimiser: Optimiser, dim = 2) {
+    this.dim = dim
+    this.n = init.length / dim
     this.pairs = pairs
     this.init = init
     this.optimiser = optimiser
@@ -64,18 +67,36 @@ export class Engine {
       const A = KERNEL_SCALE[type]
       const k = mult * 2 * A
       const p = this.pairs[type]
-      for (let t = 0; t < p.length; t += 2) {
-        const i = p[t] * 2
-        const j = p[t + 1] * 2
-        const dx = Y[i] - Y[j]
-        const dy = Y[i + 1] - Y[j + 1]
-        const r = A + 1 + dx * dx + dy * dy
-        const c = k / (r * r)
-        grad[i] += c * dx
-        grad[i + 1] += c * dy
-        grad[j] -= c * dx
-        grad[j + 1] -= c * dy
-      }
+      // One loop per dimension, unrolled, as this is the hot path.
+      if (this.dim === 2)
+        for (let t = 0; t < p.length; t += 2) {
+          const i = p[t] * 2
+          const j = p[t + 1] * 2
+          const dx = Y[i] - Y[j]
+          const dy = Y[i + 1] - Y[j + 1]
+          const r = A + 1 + dx * dx + dy * dy
+          const c = k / (r * r)
+          grad[i] += c * dx
+          grad[i + 1] += c * dy
+          grad[j] -= c * dx
+          grad[j + 1] -= c * dy
+        }
+      else
+        for (let t = 0; t < p.length; t += 2) {
+          const i = p[t] * 3
+          const j = p[t + 1] * 3
+          const dx = Y[i] - Y[j]
+          const dy = Y[i + 1] - Y[j + 1]
+          const dz = Y[i + 2] - Y[j + 2]
+          const r = A + 1 + dx * dx + dy * dy + dz * dz
+          const c = k / (r * r)
+          grad[i] += c * dx
+          grad[i + 1] += c * dy
+          grad[i + 2] += c * dz
+          grad[j] -= c * dx
+          grad[j + 1] -= c * dy
+          grad[j + 2] -= c * dz
+        }
     }
   }
 

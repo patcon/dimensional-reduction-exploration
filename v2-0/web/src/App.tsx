@@ -11,7 +11,7 @@ import { InputStore, useControlValues, type ControlValues } from './inputStore'
 import { DEFAULT_OPTIMISER, OptimiserBank, type OptimiserSettings } from './optimisers'
 import { DIGIT_COLORS } from './palette'
 import { pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
-import { PAIR_TYPES, type PairType, type Weights } from './types'
+import { PAIR_TYPES, type Dim, type PairType, type Weights } from './types'
 import { useData, type PacmapData } from './useData'
 import { useLoopClock } from './useLoopClock'
 import type { Zero } from './midi'
@@ -25,10 +25,12 @@ const mapValues = <A, B>(r: Record<PairType, A>, f: (a: A, type: PairType) => B)
 
 function Playground({ data }: { data: PacmapData }) {
   const { meta } = data
-  const optimisers = useMemo(() => new OptimiserBank(data.init.length, meta.adam), [data, meta.adam])
+  const [dim, setDim] = useState<Dim>(2)
+  const [autoRotate, setAutoRotate] = useState(true)
+  const optimisers = useMemo(() => new OptimiserBank(data.init[dim].length, meta.adam, dim), [data, meta.adam, dim])
   const engine = useMemo(
-    () => new Engine(data.pairs, data.init, optimisers.configure(DEFAULT_OPTIMISER)),
-    [data, optimisers],
+    () => new Engine(data.pairs, data.init[dim], optimisers.configure(DEFAULT_OPTIMISER), dim),
+    [data, optimisers, dim],
   )
   const length = scheduleLength(meta.schedule)
 
@@ -131,9 +133,17 @@ function Playground({ data }: { data: PacmapData }) {
         onAutopilot={(on) => (on ? setAutopilot(true) : takeOver())}
         interpolate={clock.interpolate}
         onInterpolate={clock.setInterpolate}
+        dim={dim}
+        onDim={(d) => {
+          // The new dimension's engine starts from its own initial layout; the loop starts over too.
+          reset()
+          setDim(d)
+        }}
+        autoRotate={autoRotate}
+        onAutoRotate={setAutoRotate}
       />
       <div className="stage">
-        <Scatter Y={clock.display} labels={meta.labels} version={clock.version}>
+        <Scatter Y={clock.display} dim={dim} labels={meta.labels} version={clock.version} autoRotate={autoRotate}>
           <ul className="legend">
             {DIGIT_COLORS.map((color, digit) => (
               <li key={digit}>

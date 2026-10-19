@@ -47,7 +47,7 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .toolbar .segmented button + button { border-left: 1px solid var(--border); }
 .toolbar .segmented button.on { background: var(--fg); color: var(--bg); }
 .rate { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 190px; }
-.smooth { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+.smooth, .spin { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
 
 .stage { display: flex; gap: 16px; align-items: stretch; }
 .scatter { position: relative; flex: 1; min-width: 0; height: min(75vh, 900px); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
@@ -100,6 +100,9 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 .force-range { display: flex; gap: 8px; color: var(--muted); }
 .force-range input { width: 64px; font: inherit; }
 .scatter canvas { display: block; }
+/* 3D: drag to turn the layout. */
+.scatter.turnable canvas { cursor: grab; touch-action: none; }
+.scatter.turnable canvas:active { cursor: grabbing; }
 
 .schedule { margin-top: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px 8px; overflow: hidden; }
 .schedule svg { display: block; font-size: 10px; }

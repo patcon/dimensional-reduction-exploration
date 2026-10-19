@@ -1,3 +1,8 @@
+/** The layout's dimensions: PaCMAP runs in either. */
+export type Dim = 2 | 3
+
+export const DIMS: Dim[] = [2, 3]
+
 export type PairType = 'nb' | 'mn' | 'fp'
 
 export const PAIR_TYPES: PairType[] = ['nb', 'mn', 'fp']
@@ -29,6 +34,7 @@ export interface Meta {
   labels: number[]
   sourceIndex: number[]
   pairs: Record<PairType, { count: number; perPoint: number }>
+  dims: Dim[]
   reference: { iterations: number[] }
   schedule: Schedule
   adam: AdamParams

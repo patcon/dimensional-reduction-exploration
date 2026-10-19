@@ -5,7 +5,7 @@ forces in your hands. PaCMAP samples three sets of pairs once (neighbours, mid-n
 pairs and far pairs) and then pulls and pushes on them with weights that follow a fixed
 450-iteration schedule. Here the pairs are fixed and the weights are yours: play each
 force from on-screen sliders or a MIDI controller, attracting or repelling, against a
-graph of PaCMAP's own schedule.
+graph of PaCMAP's own schedule, in 2D or 3D.
 
 ```sh
 # 1. Process data (downloads MNIST sprite on first run; writes v2-0/web/public/data/)
@@ -34,6 +34,10 @@ pnpm dev
   PaCMAP's 450-iteration schedule at the chosen rate (1–60 it/s; about 30 is the most this
   machine manages) and wraps, with the layout carrying on. **smooth** glides between
   steps at 30 fps. Reset returns to the initial layout (staying paused if paused).
+- **2D / 3D.** The same pairs laid out in two or three dimensions; switching starts over
+  from that dimension's initial layout (PaCMAP's first two or three principal components).
+  In 3D, drag the plot to turn it (double-click to reset the view), or tick
+  **auto-rotate** to spin it. Nearer points are drawn over farther ones, which fade.
 - **Autopilot** plays PaCMAP's own schedule once and stops. Grabbing a slider, pressing
   Manual or moving a MIDI control takes over from autopilot's current forces.
 - **Schedule graph.** PaCMAP's three weights over one loop (dashed; far pairs below zero,
@@ -97,15 +101,17 @@ or connect over Wi-Fi with a
 
 ## How it works
 
-- `pipeline/v2-0.py` runs PaCMAP once (`save_pairs=True`) and exports its pairs
-  (`pairs_{nb,mn,fp}.bin`, uint32 i/j), its initial layout (`init.bin`), its layout every
-  10 iterations as a reference (`reference.bin`) and the schedule and Adam constants
-  (`meta.json`).
+- `pipeline/v2-0.py` runs PaCMAP in 2D and in 3D (`save_pairs=True`) and exports their
+  shared pairs (`pairs_{nb,mn,fp}.bin`, uint32 i/j), each run's initial layout
+  (`init_{2,3}d.bin`), its layout every 10 iterations as a reference
+  (`reference_{2,3}d.bin`) and the schedule and Adam constants (`meta.json`). The pairs
+  are sampled from the PCA'd data alone, so both runs draw the same ones.
 - `src/engine.ts` steps PaCMAP's gradient on those pairs with live signed weights. All
   three pair types share the kernel `2A / (A + dd)²` (A = 10, 10000 and 1), with the sign
   moved into the multiplier, so PaCMAP itself is (+w_nb, +w_mn, −w_fp). About 12–15 ms
-  per iteration at 20k points, on the main thread.
+  per iteration at 20k points in 2D (about 20 ms in 3D), on the main thread.
 - `pnpm run check:engine` checks the engine against PaCMAP's reference run (p99 error
   3e-6 of the layout through phase 1; `ITERS=450` checks the rest at a looser bar, as
-  phase 2's rearrangement amplifies float rounding into a slightly rotated copy).
+  phase 2's rearrangement amplifies float rounding into a slightly rotated copy; `DIM=3`
+  checks the 3D run).
   `check:scale` and `check:midi` cover the control scale and MIDI decoding.
