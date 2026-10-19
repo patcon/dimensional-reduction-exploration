@@ -5,7 +5,8 @@ import { PAIR_TYPES, type Weights } from './types'
 /**
  * idle: waiting at iteration 0 for the first non-zero force.
  * running: stepping at `rate` iterations per second. Keeps going even if every force returns to 0.
- * paused: stopped by hand; resume() picks up where it left off. Resetting keeps it paused.
+ * paused: stopped by hand, or by reset(true); resume() picks up where it left off. Resetting
+ *   keeps it paused.
  * ended: reached the end of the schedule with looping off. Reset starts over (from idle);
  *   resume() carries on, wrapping to iteration 0 with the layout as it is.
  */
@@ -144,14 +145,19 @@ export function useLoopClock(
 
   const pause = useCallback(() => setStatus((s) => (s === 'running' ? 'paused' : s)), [])
   const resume = useCallback(() => setStatus((s) => (s === 'paused' || s === 'ended' ? 'running' : s)), [])
-  const reset = useCallback(() => {
+  /** Back to the initial layout. `stop` leaves it paused there, whatever it was doing. */
+  const reset = useCallback((stop = false) => {
     engine.reset()
     prevY.set(engine.Y)
     owedRef.current = 0
     playheadRef.current = 0
     dirtyRef.current = true
+    if (stop) {
+      statusRef.current = 'paused'
+      setStatus('paused')
+    }
     // A paused loop stays paused (resume() restarts it); otherwise wait for the next force.
-    if (statusRef.current !== 'paused') {
+    else if (statusRef.current !== 'paused') {
       statusRef.current = 'idle'
       setStatus('idle')
     }

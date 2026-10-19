@@ -70,9 +70,10 @@ function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps)
   const onStep = useCallback((playhead: number, w: Weights) => trail.record(playhead, w), [trail])
   // Autopilot plays PaCMAP's schedule once and stops; manual play loops.
   const clock = useLoopClock(engine, length, getWeights, !autopilot, onStep, true)
+  // The Reset button: back to the start, stopped there until Start simulation.
   const reset = () => {
     trail.clear()
-    clock.reset()
+    clock.reset(true)
   }
   // A new engine (another dimension or sample size) starts from its own initial layout, so the
   // loop starts over too: in an effect, once the old engine's clock has stopped stepping.

@@ -29,8 +29,14 @@ interface Props {
   loadError?: string
 }
 
+/** The play/pause button's labels; the first, before anything has run, is drawn bold. */
+const PLAY_LABELS = ['Start simulation', 'Resume', 'Pause']
+
 /** 2D/3D, sample size, play/pause, reset, speed, autopilot and smoothing, with where the loop is up to. */
 export function Transport(p: Props) {
+  const stopped = p.status === 'paused' || p.status === 'ended'
+  const start = stopped && p.steps === 0
+  const playLabel = start ? PLAY_LABELS[0] : stopped ? PLAY_LABELS[1] : PLAY_LABELS[2]
   return (
     <div className="toolbar">
       <div className="segmented" role="group" aria-label="Dimensions" title="Switching starts over from the initial layout">
@@ -66,21 +72,22 @@ export function Transport(p: Props) {
           Autopilot
         </button>
       </div>
-      {p.status === 'paused' || p.status === 'ended' ? (
+      <button
+        type="button"
+        className={start ? 'start' : ''}
+        onClick={stopped ? p.onResume : p.onPause}
         // Resuming a finished autopilot run would only replay it; that's what Reset is for.
-        <button
-          type="button"
-          className={p.steps === 0 ? 'start' : ''}
-          onClick={p.onResume}
-          disabled={p.status === 'ended' && p.autopilot}
-        >
-          {p.steps === 0 ? 'Start simulation' : 'Resume'}
-        </button>
-      ) : (
-        <button type="button" onClick={p.onPause} disabled={p.status === 'idle'}>
-          Pause
-        </button>
-      )}
+        disabled={stopped ? p.status === 'ended' && p.autopilot : p.status === 'idle'}
+      >
+        {/* Every label stacked in one cell, only this one shown, so the button never changes width. */}
+        <span className="play-labels">
+          {PLAY_LABELS.map((label) => (
+            <span key={label} className={label === playLabel ? '' : 'hidden'} aria-hidden={label !== playLabel}>
+              {label}
+            </span>
+          ))}
+        </span>
+      </button>
       <button type="button" onClick={p.onReset} disabled={p.steps === 0}>
         Reset
       </button>
@@ -105,7 +112,7 @@ export function Transport(p: Props) {
             iteration {p.playhead} / {p.length} · phase {p.phase} · {p.steps} steps total
             {p.status === 'paused' && ' · paused'}
             {p.status === 'ended' &&
-              (p.autopilot ? ' · autopilot finished: Reset to replay, or switch to Manual to carry on' : ' · ended')}
+              (p.autopilot ? ' · autopilot finished: Reset, then Start simulation, to replay, or switch to Manual to carry on' : ' · ended')}
           </>
         )}
       </span>

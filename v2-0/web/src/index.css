@@ -46,7 +46,11 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
 }
 .toolbar button:hover:not(:disabled) { border-color: var(--accent); }
 .toolbar button:disabled { opacity: 0.4; cursor: not-allowed; }
-.toolbar button.start { background: var(--go); border-color: var(--go); color: var(--on-go); font-weight: 600; }
+.toolbar button.start { background: var(--go); border-color: var(--go); color: var(--on-go); }
+.play-labels { display: inline-grid; justify-items: center; }
+.play-labels > span { grid-area: 1 / 1; }
+.play-labels > span:first-child { font-weight: 600; }
+.play-labels > .hidden { visibility: hidden; }
 .toolbar button.start:hover { background: var(--go-hover); border-color: var(--go-hover); }
 /* Ends a line of the toolbar; the negative margin cancels the extra row gap an empty line adds. */
 .toolbar-break { flex-basis: 100%; height: 0; margin-bottom: -8px; }

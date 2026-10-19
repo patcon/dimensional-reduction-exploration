@@ -40,7 +40,7 @@ pnpm dev
 - **Loop.** In Manual, nothing runs until a force is non-zero. Then a playhead steps through
   PaCMAP's 450-iteration schedule at the chosen rate (1–60 it/s; at 20k about 30 is the
   most this machine manages, at 65k about 13) and wraps, with the layout carrying on. **smooth** glides between
-  steps at 30 fps. Reset returns to the initial layout (staying paused if paused).
+  steps at 30 fps. Reset returns to the initial layout and stops there until you start it again.
 - **2D / 3D.** The same pairs laid out in two or three dimensions; switching starts over
   from that dimension's initial layout (PaCMAP's first two or three principal components).
   In 3D, drag the plot to turn it, or tick **auto-rotate** to spin it. Nearer points are
