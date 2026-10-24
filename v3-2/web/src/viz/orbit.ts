@@ -33,7 +33,7 @@ export interface OrbitOptions {
 }
 
 /**
- * Drag to turn or pan the camera, and wheel or pinch to zoom, as offsets from where the view puts it:
+ * Drag to turn or pan the camera, wheel or pinch to zoom, and move two fingers to pan, as offsets from where the view puts it:
  * `dTheta` and `dPhi` (radians), `dPanX` and `dPanY` (world units, across the screen), and `dRadius`.
  */
 export class Orbit {
@@ -49,6 +49,7 @@ export class Orbit {
   private dragLast = { x: 0, y: 0 }
   private base = { dTheta: 0, dPhi: 0, dPanX: 0, dPanY: 0 }
   private lastTouchDist = 0
+  private lastTouchMid = { x: 0, y: 0 }
   /** Whether this touch is still one finger that could be a tap. */
   private tapping = false
 
@@ -62,6 +63,7 @@ export class Orbit {
     canvas.addEventListener('touchstart', this.onTouchStart, { passive: false })
     canvas.addEventListener('touchmove', this.onTouchMove, { passive: false })
     canvas.addEventListener('touchend', this.onTouchEnd)
+    canvas.addEventListener('touchcancel', this.onTouchCancel)
   }
 
   /** The offsets now, with turns round the scene taken as the shortest way back. */
@@ -87,6 +89,7 @@ export class Orbit {
     this.canvas.removeEventListener('touchstart', this.onTouchStart)
     this.canvas.removeEventListener('touchmove', this.onTouchMove)
     this.canvas.removeEventListener('touchend', this.onTouchEnd)
+    this.canvas.removeEventListener('touchcancel', this.onTouchCancel)
   }
 
   private startDrag(mode: DragMode, x: number, y: number) {
@@ -159,6 +162,7 @@ export class Orbit {
       this.dragging = false
       this.tapping = false
       this.lastTouchDist = touchDistance(e)
+      this.lastTouchMid = touchMidpoint(e)
     }
     e.preventDefault()
   }
@@ -168,22 +172,37 @@ export class Orbit {
     if (e.touches.length === 1 && this.dragging) {
       this.drag(e.touches[0].clientX, e.touches[0].clientY)
     } else if (e.touches.length === 2 && this.opts.canZoom()) {
-      const d = touchDistance(e)
-      const [a, b] = [e.touches[0], e.touches[1]]
-      this.zoomTo((this.opts.baseRadius() + this.dRadius) * (this.lastTouchDist / d), (a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2)
+      // Spreading zooms, about the point between the fingers; moving them together pans, in any view.
+      const d = touchDistance(e), mid = touchMidpoint(e)
+      this.zoomTo((this.opts.baseRadius() + this.dRadius) * (this.lastTouchDist / d), mid.x, mid.y)
+      const s = this.opts.panScale()
+      this.dPanX -= (mid.x - this.lastTouchMid.x) * s
+      this.dPanY += (mid.y - this.lastTouchMid.y) * s
       this.lastTouchDist = d
+      this.lastTouchMid = mid
     }
     e.preventDefault()
   }
 
   private onTouchEnd = (e: TouchEvent) => {
-    this.dragging = false
     const t = e.changedTouches[0]
     if (this.tapping && this.opts.dragMode() && e.touches.length === 0 && t && Math.hypot(t.clientX - this.dragLast.x, t.clientY - this.dragLast.y) <= CLICK_SLOP) {
       this.opts.onTap(t.clientX, t.clientY)
     }
-    if (e.touches.length === 0) this.tapping = false
+    this.onTouchCancel(e)
   }
+
+  private onTouchCancel = (e: TouchEvent) => {
+    this.dragging = false
+    if (e.touches.length === 0) this.tapping = false
+    // A pinch let go of by one finger: the other carries on dragging from where it is.
+    const mode = this.opts.dragMode()
+    if (e.touches.length === 1 && mode) this.startDrag(mode, e.touches[0].clientX, e.touches[0].clientY)
+  }
+}
+
+function touchMidpoint(e: TouchEvent) {
+  return { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 }
 }
 
 function touchDistance(e: TouchEvent) {
