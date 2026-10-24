@@ -269,7 +269,9 @@ export function ChordViz(props: ChordVizProps) {
     // Side on, far enough back to see a whole trail, looking at its middle; from the left, so time
     // runs left to right with now at the right edge, like a strip chart.
     const CAM_2D_TS = { radius: 820, theta: -Math.PI / 2, phi: 0, targetZ: -TRACE_DEPTH / 2 }
-    const CAM_3D = { radius: 560, theta: Math.PI / 5, phi: Math.PI / 9 }
+    // From the front left and above, so trails recede to the left, with time running left to right as
+    // in the time series view.
+    const CAM_3D = { radius: 560, theta: -Math.PI / 5, phi: Math.PI / 9 }
     let transT = 0, transTts = 0
     // Perspective is a dolly zoom: the field of view narrows from `baseFov` (the panel's, at full
     // perspective) while the camera backs off by `dolly`, so the plane it looks at stays the same size.
