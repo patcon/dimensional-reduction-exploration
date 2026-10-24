@@ -139,3 +139,5 @@ button.start:hover { background: var(--go-hover); border-color: var(--go-hover);
 select { font: inherit; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); }
 button:disabled { opacity: 0.5; cursor: default; }
 button.drop-target { border-style: dashed; border-color: var(--accent); color: var(--accent); }
+.drop-hint { font-size: 0.8rem; }
+.drop-hint.drop-target { color: var(--accent); }

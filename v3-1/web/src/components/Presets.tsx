@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { exportPreset, importPreset, loadPresets, storePresets, type Presets as PresetMap, type Settings } from '../presets'
 
 /** Save the page's settings under a name and load them back, or carry them between browsers as files. */
@@ -29,6 +29,34 @@ export function Presets({ settings, onLoad }: { settings: Settings; onLoad: (set
     update(rest)
     setSelected('')
   }
+  // A preset file dropped anywhere on the page imports it (rather than the browser opening it).
+  const importRef = useRef<(file: File) => void>(undefined)
+  useEffect(() => {
+    const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes('Files') ?? false
+    const onOver = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      setDragging(true)
+    }
+    // Leaving the window has no element to go to.
+    const onLeave = (e: DragEvent) => void (e.relatedTarget === null && setDragging(false))
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      setDragging(false)
+      const file = e.dataTransfer!.files[0]
+      if (file) importRef.current?.(file)
+    }
+    window.addEventListener('dragover', onOver)
+    window.addEventListener('dragleave', onLeave)
+    window.addEventListener('drop', onDrop)
+    return () => {
+      window.removeEventListener('dragover', onOver)
+      window.removeEventListener('dragleave', onLeave)
+      window.removeEventListener('drop', onDrop)
+    }
+  }, [])
+
   const importFile = async (file: File) => {
     try {
       const { name, settings: imported } = await importPreset(file)
@@ -39,6 +67,9 @@ export function Presets({ settings, onLoad }: { settings: Settings; onLoad: (set
       window.alert(`Couldn't read a preset from ${file.name}.`)
     }
   }
+  useEffect(() => {
+    importRef.current = (file) => void importFile(file)
+  })
 
   return (
     <div className="toolbar">
@@ -53,6 +84,7 @@ export function Presets({ settings, onLoad }: { settings: Settings; onLoad: (set
             </option>
           ))}
       </select>
+      <span className={`muted drop-hint${dragging ? ' drop-target' : ''}`}>{dragging ? 'drop to load it' : 'or drop a preset file anywhere'}</span>
       <button onClick={save} title="Save the current settings as a preset, in this browser">
         Save
       </button>
@@ -65,18 +97,7 @@ export function Presets({ settings, onLoad }: { settings: Settings; onLoad: (set
       <button
         className={dragging ? 'drop-target' : ''}
         onClick={() => fileRef.current?.click()}
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDragging(true)
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDragging(false)
-          const file = e.dataTransfer.files[0]
-          if (file) void importFile(file)
-        }}
-        title="Load settings from an exported file (or drop one here), and keep them as a preset"
+        title="Load settings from an exported file (or drop one anywhere on the page), and keep them as a preset"
       >
         {dragging ? 'Drop to import' : 'Import'}
       </button>
