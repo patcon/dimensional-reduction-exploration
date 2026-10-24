@@ -33,6 +33,10 @@ const FILL_LATER = [false, false, true, false, true, true]
 const FILL_IS_ROOT = [true, false, true, false, false, true]
 /** The focus ring's size, relative to a cursor dot. */
 const FOCUS_RING_SCALE = 2.6
+/** How far from its root a chord reaches full width; shorter chords never get there. */
+const CHORD_TAPER = 60
+/** A chord's ribbon: root, then the two corners where the taper ends, then the two at the tip. */
+const CHORD_VERTS = 9
 const TRANS_SPEED = 0.04
 /** How fast chords glide to a new slot, per frame. */
 const REORDER_EASE = 0.08
@@ -186,14 +190,15 @@ export function ChordViz(props: ChordVizProps) {
       geo.setAttribute('color', col)
       return { geo, pos: pos.array as Float32Array, col: col.array as Float32Array }
     }
-    // Chords are drawn wide, as in the prototype (WebGL lines are always 1px, so these are quads).
-    const chord = { pos: new Float32Array(MAX_CHORDS * 6), col: new Float32Array(MAX_CHORDS * 6) }
-    const chordGeo = new LineSegmentsGeometry()
-    const chordMat = new LineMaterial({ vertexColors: true, transparent: true, depthWrite: false, linewidth: DEFAULT_STYLE.chordWidth })
-    const chordLines = new LineSegments2(chordGeo, chordMat)
-    chordLines.renderOrder = 7
-    chordLines.frustumCulled = false
-    scene.add(chordLines)
+    // Chords are ribbons facing the camera, tapering to a point at the root, so the many that meet
+    // there don't pile up into a blob; they're rebuilt each frame, with widths kept in pixels.
+    const chord = buffer(MAX_CHORDS * CHORD_VERTS)
+    const chordMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide })
+    const chordMesh = new THREE.Mesh(chord.geo, chordMat)
+    chordMesh.renderOrder = 7
+    chordMesh.frustumCulled = false
+    scene.add(chordMesh)
+    let viewHeight = 1
 
     const dotTex = dotTexture(false)
     const dot = buffer(MAX_CHORDS)
@@ -277,6 +282,36 @@ export function ChordViz(props: ChordVizProps) {
       else for (let c = 0; c < 3; c++) rgb[c] = group[c] / 255
     }
     const bg = BG.map((c) => c / 255)
+    const ribbon = new Float64Array(CHORD_VERTS * 3)
+    const ribbonCol = new Float64Array(CHORD_VERTS * 3)
+    /** Writes chord i's ribbon from (rx, ry) to (dx, dy), coloured rootCol to tipCol, `width` pixels wide. */
+    function writeChord(i: number, rx: number, ry: number, dx: number, dy: number, rootCol: number[], tipCol: number[], width: number) {
+      const len = Math.hypot(dx - rx, dy - ry)
+      const ux = len > 1e-6 ? (dx - rx) / len : 0, uy = len > 1e-6 ? (dy - ry) / len : 0
+      // Sideways is across the chord and across the line of sight, so the ribbon faces the camera.
+      const cp = camera.position
+      const vx = cp.x - dx, vy = cp.y - dy, vz = cp.z
+      let px = uy * vz, py = -ux * vz, pz = ux * vy - uy * vx
+      const pl = Math.hypot(px, py, pz) || 1
+      const dist = Math.hypot(vx, vy, vz)
+      const half = (width / 2) * ((2 * dist * Math.tan((camera.fov * Math.PI) / 360)) / viewHeight) * Math.min(1, len / CHORD_TAPER)
+      px *= half / pl; py *= half / pl; pz *= half / pl
+      const tm = Math.min(len, CHORD_TAPER), mx = rx + ux * tm, my = ry + uy * tm
+      const f = len > 1e-6 ? tm / len : 1
+      const corners = [
+        [rx, ry, 0], [mx + px, my + py, pz], [mx - px, my - py, -pz],
+        [mx + px, my + py, pz], [dx + px, dy + py, pz], [dx - px, dy - py, -pz],
+        [mx + px, my + py, pz], [dx - px, dy - py, -pz], [mx - px, my - py, -pz],
+      ]
+      // 0 at the root, f where the taper ends, 1 at the tip.
+      const along = [0, f, f, f, 1, 1, f, 1, f]
+      for (let q = 0; q < CHORD_VERTS; q++) {
+        ribbon.set(corners[q], q * 3)
+        for (let c = 0; c < 3; c++) ribbonCol[q * 3 + c] = rootCol[c] + (tipCol[c] - rootCol[c]) * along[q]
+      }
+      chord.pos.set(ribbon, i * CHORD_VERTS * 3)
+      chord.col.set(ribbonCol, i * CHORD_VERTS * 3)
+    }
     const hist = new Float64Array(TRACE_LEN * 5)
     /** Each trail sample's age, in steps. */
     const age = new Float64Array(TRACE_LEN)
@@ -346,9 +381,10 @@ export function ChordViz(props: ChordVizProps) {
         const v = valenceAt(traces, i, moment) * scale
         chordPoints(shownSlot[i], Math.max(n, 1), v, morph, pts)
         const [rx, ry, dx, dy] = [pts[0] - CENTER, CENTER - pts[1], pts[2] - CENTER, CENTER - pts[3]]
-        chord.pos.set([rx, ry, 0, dx, dy, 0], i * 6)
         colour(by.chord, v, group)
-        chord.col.set([bg[0], bg[1], bg[2], rgb[0], rgb[1], rgb[2]], i * 6)
+        // Valence is zero at the root, so a valence-coloured chord fades in from the background; a
+        // group-coloured one is its group's colour all along.
+        writeChord(i, rx, ry, dx, dy, by.chord === 'valence' ? bg : rgb, rgb, style.chordWidth)
         dot.pos.set([dx, dy, 0], i * 3)
         colour(by.cursor, v, group)
         dot.col.set(rgb, i * 3)
@@ -407,13 +443,12 @@ export function ChordViz(props: ChordVizProps) {
           }
         }
       }
-      chordGeo.setPositions(chord.pos.subarray(0, Math.max(n, 1) * 6))
-      chordGeo.setColors(chord.col.subarray(0, Math.max(n, 1) * 6))
+      chord.geo.setDrawRange(0, n * CHORD_VERTS)
       dot.geo.setDrawRange(0, n)
       traceGeo.instanceCount = n * TRACE_SEGS
       for (const b of traceBuffers) b.needsUpdate = true
       fill.geo.setDrawRange(0, n * TRACE_SEGS * FILL_VERTS_PER_SEG)
-      for (const b of [dot, fill]) {
+      for (const b of [chord, dot, fill]) {
         b.geo.attributes.position.needsUpdate = true
         b.geo.attributes.color.needsUpdate = true
       }
@@ -426,7 +461,6 @@ export function ChordViz(props: ChordVizProps) {
       fillMat.opacity = style.opacity.fill
       dotMat.size = style.cursorSize
       focusMat.size = style.cursorSize * FOCUS_RING_SCALE
-      chordMat.linewidth = style.chordWidth
       traceMat.linewidth = style.traceWidth
 
       renderer.render(scene, camera)
@@ -493,7 +527,7 @@ export function ChordViz(props: ChordVizProps) {
     const resize = new ResizeObserver(() => {
       const w = wrap.clientWidth, h = wrap.clientHeight
       renderer.setSize(w, h, false)
-      chordMat.resolution.set(w, h)
+      viewHeight = h
       traceMat.resolution.set(w, h)
       camera.aspect = w / h
       // Keep the whole circle in view on narrow panels too.
@@ -513,7 +547,7 @@ export function ChordViz(props: ChordVizProps) {
       canvas.removeEventListener('touchmove', onTouchMove)
       canvas.removeEventListener('touchend', onTouchEnd)
       renderer.dispose()
-      for (const g of [chordGeo, dot.geo, traceGeo, fill.geo, focusGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
+      for (const g of [chord.geo, dot.geo, traceGeo, fill.geo, focusGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
       for (const m of [chordMat, dotMat, traceMat, fillMat, focusMat, ringDotsMat, ...guides.map((l) => l.material)]) m.dispose()
       dotTex.dispose()
       ringTex.dispose()
