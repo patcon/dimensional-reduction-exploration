@@ -1,10 +1,33 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Dark follows the system, as the page always has. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+/* shadcn/ui's stone theme. */
 :root {
-  --bg: #fafaf9;
-  --fg: #1c1917;
-  --muted: #78716c;
-  --border: #e7e5e4;
-  --panel: #ffffff;
-  --accent: #e11d48;
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.147 0.004 49.25);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.147 0.004 49.25);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.147 0.004 49.25);
+  --primary: oklch(0.216 0.006 56.043);
+  --primary-foreground: oklch(0.985 0.001 106.423);
+  --secondary: oklch(0.97 0.001 106.424);
+  --secondary-foreground: oklch(0.216 0.006 56.043);
+  --muted: oklch(0.97 0.001 106.424);
+  --muted-foreground: oklch(0.553 0.013 58.071);
+  --accent: oklch(0.97 0.001 106.424);
+  --accent-foreground: oklch(0.216 0.006 56.043);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.923 0.003 48.717);
+  --input: oklch(0.923 0.003 48.717);
+  --ring: oklch(0.709 0.01 56.259);
+
+  /* The page's own. The followed digit and the playhead, wherever they're drawn. */
+  --highlight: #e11d48;
   /* The play button, to draw the eye before anything has run. */
   --go: #15803d;
   --go-hover: #166534;
@@ -12,20 +35,33 @@
   /* Valence, as in the reaction canvas's visualiser. */
   --agree: #22c55e;
   --disagree: #ef4444;
-  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-  color: var(--fg);
-  background: var(--bg);
+  /* The visualiser stays dark in either theme: its neutral colour is its background. */
+  --viz: #0f0f0e;
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0c0a09;
-    --fg: #f5f5f4;
-    --muted: #a8a29e;
-    --border: #292524;
-    --panel: #1c1917;
-    --accent: #fb7185;
+    --background: oklch(0.147 0.004 49.25);
+    --foreground: oklch(0.985 0.001 106.423);
+    --card: oklch(0.216 0.006 56.043);
+    --card-foreground: oklch(0.985 0.001 106.423);
+    --popover: oklch(0.216 0.006 56.043);
+    --popover-foreground: oklch(0.985 0.001 106.423);
+    --primary: oklch(0.923 0.003 48.717);
+    --primary-foreground: oklch(0.216 0.006 56.043);
+    --secondary: oklch(0.268 0.007 34.298);
+    --secondary-foreground: oklch(0.985 0.001 106.423);
+    --muted: oklch(0.268 0.007 34.298);
+    --muted-foreground: oklch(0.709 0.01 56.259);
+    --accent: oklch(0.268 0.007 34.298);
+    --accent-foreground: oklch(0.985 0.001 106.423);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.553 0.013 58.071);
+
+    --highlight: #fb7185;
     --go: #22c55e;
     --go-hover: #4ade80;
     --on-go: #052e16;
@@ -34,115 +70,88 @@
   }
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); }
-main { padding: 24px 16px; max-width: 1280px; margin: 0 auto; }
-.status { padding: 48px; color: var(--muted); }
-h1 { margin: 0 0 8px; font-size: 1.6rem; }
-h2 { margin: 16px 0 6px; font-size: 0.85rem; }
-.muted { color: var(--muted); }
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-highlight: var(--highlight);
+  --color-go: var(--go);
+  --color-go-hover: var(--go-hover);
+  --color-on-go: var(--on-go);
+  --color-viz: var(--viz);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  /* One screen, nothing to scroll: the visualiser fills what the drawer leaves. */
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    @apply bg-viz font-sans text-foreground;
+  }
+}
+
 .num { font-variant-numeric: tabular-nums; }
-.page-header p { margin: 0 0 12px; color: var(--muted); max-width: 80ch; line-height: 1.5; }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: baseline; }
 
-/* ── Controls ── */
-.controls { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
-.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.85rem; }
-.control-label { font-weight: 600; min-width: 4.5em; }
-.toolbar .control-label + .segmented, .toolbar .control-label + button { margin-left: 0; }
-.toolbar * + .control-label { margin-left: 12px; min-width: 0; }
-button {
-  font: inherit; padding: 4px 12px; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--panel); color: var(--fg); cursor: pointer;
-}
-button:hover:not(:disabled) { border-color: var(--accent); }
-button.start { background: var(--go); border-color: var(--go); color: var(--on-go); }
-button.start:hover { background: var(--go-hover); border-color: var(--go-hover); }
-.play-labels { display: inline-grid; justify-items: center; }
-.play-labels > span { grid-area: 1 / 1; }
-.play-labels > .hidden { visibility: hidden; }
-
-.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-.segmented button { border: 0; border-radius: 0; }
-.segmented button + button { border-left: 1px solid var(--border); }
-.segmented button.on { background: var(--fg); color: var(--bg); }
-.segmented.digits button { padding: 4px 9px; font-variant-numeric: tabular-nums; box-shadow: inset 0 -3px 0 var(--digit); }
-.segmented.digits button:not(.on) { color: var(--muted); box-shadow: none; }
-.slider, .check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
-.slider input { width: 110px; }
-
-/* ── Stage: the visualiser, with the followed digit and groups beside it ── */
-.stage { display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap; }
-.viz {
-  position: relative; flex: 1 1 520px; min-width: 0; height: min(72vh, 760px); min-height: 380px;
-  border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #0f0f0e;
-}
+/* ── The visualiser ── */
 .viz-canvas { position: absolute; inset: 0; touch-action: none; }
 .viz-canvas canvas { display: block; width: 100%; height: 100%; }
-.viz-controls { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none; }
-.viz-controls .segmented { pointer-events: auto; border-color: rgba(200, 198, 190, 0.18); }
-/* The visualiser stays dark in either theme: its neutral colour is its background. */
-.viz-controls button {
-  font-family: 'DM Mono', ui-monospace, 'Courier New', monospace; font-size: 11px; letter-spacing: 0.06em;
-  padding: 4px 10px; background: rgba(15, 15, 14, 0.75); color: rgba(200, 198, 190, 0.75); border-color: rgba(200, 198, 190, 0.18);
-}
-.viz-controls .segmented button.on { background: rgba(200, 198, 190, 0.16); color: #e8e6de; }
-.viz-hint { position: absolute; bottom: 8px; right: 10px; font-family: 'DM Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: rgba(200, 198, 190, 0.45); pointer-events: none; }
 
-.sidebar { flex: 0 1 300px; min-width: 260px; font-size: 0.85rem; }
-.sidebar h2:first-of-type { margin-top: 12px; }
-.digit-preview { display: flex; gap: 12px; align-items: flex-start; min-height: 128px; color: var(--accent); }
+/* ── The followed digit ── (canvases take the highlight from their CSS colour) */
+.digit-preview { display: flex; gap: 12px; align-items: flex-start; min-height: 128px; color: var(--highlight); font-size: 0.875rem; }
 .digit-preview canvas { width: 126px; height: 126px; image-rendering: pixelated; border: 1px solid var(--border); background: #000; flex-shrink: 0; cursor: crosshair; touch-action: none; }
-.digit-info { display: flex; flex-direction: column; gap: 6px; color: var(--fg); flex: 1; }
-.valence-meter { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; color: var(--muted); }
+.digit-info { display: flex; flex-direction: column; gap: 6px; color: var(--foreground); flex: 1; }
+.valence-meter { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; color: var(--muted-foreground); }
 .valence-track {
   position: relative; flex: 1; height: 10px; border-radius: 5px;
   background: linear-gradient(to right, var(--disagree), var(--border) 50%, var(--agree));
 }
-.valence-zero { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted); }
-.valence-mark { position: absolute; top: -3px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--fg); }
+.valence-zero { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted-foreground); }
+.valence-mark { position: absolute; top: -3px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--foreground); }
+.digit-info .muted { color: var(--muted-foreground); }
 
-/* A fixed height, so groups coming and going with re-clustering don't shift the controls below. */
-.group-legend { list-style: none; padding: 0; margin: 0; display: grid; align-content: start; gap: 2px; height: 160px; overflow-y: auto; }
-.group-legend li { cursor: pointer; display: grid; grid-template-columns: 12px 2em 2em minmax(24px, 48px) auto; align-items: center; gap: 6px; }
+/* ── Groups ── */
+.group-legend { list-style: none; padding: 0; margin: 0; display: grid; align-content: start; gap: 4px; font-size: 0.875rem; }
+.group-legend li { cursor: pointer; display: grid; grid-template-columns: 12px 2em 2em minmax(24px, 48px) auto; align-items: center; gap: 6px; padding: 2px 0; }
+.group-legend .muted { color: var(--muted-foreground); }
 .group-name { font-weight: 600; }
 .group-mean { position: relative; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
-.group-mean-zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--muted); }
+.group-mean-zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--muted-foreground); }
 .group-mean-bar { position: absolute; top: 0; bottom: 0; }
-.group-legend li.on { background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 3px; }
-.group-thumbs { display: flex; gap: 2px; }
-.group-thumbs canvas { width: 16px; height: 16px; image-rendering: pixelated; background: #000; color: var(--accent); cursor: pointer; }
-.group-thumbs canvas:hover, .group-thumbs canvas.on { outline: 1px solid var(--accent); }
+.group-legend li.on { background: color-mix(in srgb, var(--highlight) 14%, transparent); border-radius: 3px; }
+.group-thumbs { display: flex; gap: 2px; flex-wrap: wrap; }
+.group-thumbs canvas { width: 16px; height: 16px; image-rendering: pixelated; background: #000; color: var(--highlight); cursor: pointer; }
+.group-thumbs canvas:hover, .group-thumbs canvas.on { outline: 1px solid var(--highlight); }
 
-.style-grid { display: grid; grid-template-columns: auto repeat(4, 1fr); gap: 3px; align-items: center; }
-.style-grid button { padding: 2px 4px; font-size: 0.75rem; }
-.style-grid button.on { background: var(--fg); color: var(--bg); }
-.style-grid input { width: 100%; min-width: 0; }
-.particle-settings { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.particle-settings p { margin: 0 0 2px; }
-.style-head { font-size: 0.75rem; color: var(--muted); text-align: center; }
-
-/* ── Transport and matrix ── */
-.matrix-section { margin-top: 20px; }
-.matrix-section p { margin: 0 0 8px; font-size: 0.85rem; }
-/* Pinned to the bottom of the window, so playback is always in reach; it settles above the matrix when scrolled to. */
-.transport {
-  display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px;
-  position: sticky; bottom: 0; z-index: 5; padding: 8px 0; background: var(--bg); border-top: 1px solid var(--border);
-}
-.readout { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.8rem; }
-.scrubber { width: calc(100% - 12px); margin: 0 0 0 12px; accent-color: var(--accent); }
+/* ── Matrix ── */
 .matrix { display: flex; gap: 4px; align-items: flex-start; }
 .matrix-strip { display: block; image-rendering: pixelated; flex-shrink: 0; }
-.matrix-image { position: relative; cursor: pointer; background: #000; color: var(--accent); }
+.matrix-image { position: relative; cursor: pointer; background: #000; color: var(--highlight); }
 .matrix-image canvas { position: absolute; left: 0; top: 0; display: block; image-rendering: pixelated; }
-
-@media (max-width: 560px) {
-  .viz-controls button { padding: 4px 6px; font-size: 10px; letter-spacing: 0.02em; }
-  .viz { height: 70vh; min-height: 320px; }
-}
-select { font: inherit; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); }
-button:disabled { opacity: 0.5; cursor: default; }
-button.drop-target { border-style: dashed; border-color: var(--accent); color: var(--accent); }
-.drop-hint { font-size: 0.8rem; }
-.drop-hint.drop-target { color: var(--accent); }

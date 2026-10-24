@@ -1,7 +1,10 @@
+import { ChevronDown, ChevronUp, Pause, Play, SkipBack } from 'lucide-react'
 import { useEffect, useRef } from 'react'
+import { cn } from '@/lib/utils'
 import type { Playhead } from '../playhead'
 import { SIDE, type Traces } from '../signal'
-import { Slider } from './controls'
+import { Section, Slider, Toggle } from './controls'
+import { Button } from './ui/button'
 
 // Speed slider: logarithmic, 0.25–60 pixels per second.
 const SPEED_MIN = 0.25
@@ -11,67 +14,43 @@ const fromSpeed = (s: number) => Math.log(s / SPEED_MIN) / Math.log(SPEED_MAX / 
 
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
 
-/** Play/pause, the scrubber (as wide as the matrix below it), speed, looping and how far trails reach. */
-export function Transport({
-  playhead,
-  traces,
-  speed,
-  onSpeed,
-  loop,
-  onLoop,
-  trailSeconds,
-  onTrailSeconds,
-}: {
+/** Play/pause, back to the start, the scrubber and the time; and a button to open or close the drawer it sits on. */
+export function TransportBar({ playhead, traces, open, onOpen }: {
   playhead: Playhead
   traces: Traces
-  speed: number
-  onSpeed: (speed: number) => void
-  loop: boolean
-  onLoop: (loop: boolean) => void
-  trailSeconds: number
-  onTrailSeconds: (seconds: number) => void
+  /** Whether the drawer below is open. */
+  open: boolean
+  onOpen: (open: boolean) => void
 }) {
   const scrubRef = useRef<HTMLInputElement>(null)
-  const readoutRef = useRef<HTMLSpanElement>(null)
+  const timeRef = useRef<HTMLSpanElement>(null)
   const scrubbing = useRef<{ wasPlaying: boolean } | null>(null)
 
   useEffect(() => {
     const update = () => {
       if (!scrubbing.current) scrubRef.current!.value = String(playhead.moment)
-      const t = Math.min(traces.length - 1, Math.round(playhead.moment))
-      const p = traces.pixelAt[t]
-      readoutRef.current!.textContent = `pixel ${t + 1} of ${traces.length} · row ${Math.floor(p / SIDE) + 1}, column ${(p % SIDE) + 1} · ${clock(
-        playhead.moment / playhead.speed,
-      )} of ${clock((traces.length - 1) / playhead.speed)}`
+      timeRef.current!.textContent = `${clock(playhead.moment / playhead.speed)} / ${clock((traces.length - 1) / playhead.speed)}`
     }
     update()
     return playhead.onFrame(update)
   }, [playhead, traces, playhead.speed])
 
   return (
-    <div className="transport">
-      <div className="toolbar">
-        <button
-          className={playhead.playing ? '' : 'start'}
-          onClick={() => playhead.setPlaying(!playhead.playing)}
-          aria-label={playhead.playing ? 'Pause' : 'Play'}
-        >
-          <span className="play-labels">
-            <span className={playhead.playing ? 'hidden' : ''}>▶ Play</span>
-            <span className={playhead.playing ? '' : 'hidden'}>❚❚ Pause</span>
-          </span>
-        </button>
-        <button onClick={() => playhead.restart()}>⏮ Start</button>
-        <Slider label="speed" value={fromSpeed(speed)} min={0} max={1} step={0.001} onChange={(u) => onSpeed(toSpeed(u))} format={() => `${speed} px/s`} />
-        <Slider label="trail" value={trailSeconds} min={5} max={300} step={5} onChange={onTrailSeconds} format={(v) => `${v} s`} />
-        <label className="check">
-          <input type="checkbox" checked={loop} onChange={(e) => onLoop(e.target.checked)} /> loop
-        </label>
-        <span className="readout" ref={readoutRef} />
-      </div>
+    <div className="flex items-center gap-1.5">
+      <Button
+        size="icon"
+        className={cn('rounded-full', !playhead.playing && 'bg-go text-on-go hover:bg-go-hover')}
+        onClick={() => playhead.setPlaying(!playhead.playing)}
+        aria-label={playhead.playing ? 'Pause' : 'Play'}
+      >
+        {playhead.playing ? <Pause className="fill-current" /> : <Play className="fill-current" />}
+      </Button>
+      <Button variant="ghost" size="icon-sm" onClick={() => playhead.restart()} aria-label="Back to the start">
+        <SkipBack />
+      </Button>
       <input
         ref={scrubRef}
-        className="scrubber"
+        className="h-8 min-w-0 flex-1 accent-highlight"
         type="range"
         min={0}
         max={traces.length - 1}
@@ -87,6 +66,42 @@ export function Transport({
         }}
         onChange={(e) => playhead.seek(Number(e.target.value))}
       />
+      <span ref={timeRef} className="num shrink-0 text-xs text-muted-foreground" />
+      <Button variant="ghost" size="icon-sm" onClick={() => onOpen(!open)} aria-label={open ? 'Hide settings' : 'Show settings'} aria-expanded={open}>
+        {open ? <ChevronDown /> : <ChevronUp />}
+      </Button>
     </div>
+  )
+}
+
+/** Speed, how far trails reach, looping, and where the playhead is in the digit's pixels. */
+export function PlaybackSection({ playhead, traces, speed, onSpeed, loop, onLoop, trailSeconds, onTrailSeconds }: {
+  playhead: Playhead
+  traces: Traces
+  speed: number
+  onSpeed: (speed: number) => void
+  loop: boolean
+  onLoop: (loop: boolean) => void
+  trailSeconds: number
+  onTrailSeconds: (seconds: number) => void
+}) {
+  const readoutRef = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    const update = () => {
+      const t = Math.min(traces.length - 1, Math.round(playhead.moment))
+      const p = traces.pixelAt[t]
+      readoutRef.current!.textContent = `pixel ${t + 1} of ${traces.length} · row ${Math.floor(p / SIDE) + 1}, column ${(p % SIDE) + 1}`
+    }
+    update()
+    return playhead.onFrame(update)
+  }, [playhead, traces])
+
+  return (
+    <Section title="Playback" description="Each pixel read is one moment; trails cover the last few seconds and fade out with age.">
+      <Slider label="speed" value={fromSpeed(speed)} min={0} max={1} step={0.001} onChange={(u) => onSpeed(toSpeed(u))} format={() => `${speed} px/s`} />
+      <Slider label="trail" value={trailSeconds} min={5} max={300} step={5} onChange={onTrailSeconds} format={(v) => `${v} s`} />
+      <Toggle label="loop" checked={loop} onChange={onLoop} />
+      <p ref={readoutRef} className="num text-xs text-muted-foreground" />
+    </Section>
   )
 }
