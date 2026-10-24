@@ -8,6 +8,7 @@ import { Matrix } from './components/Matrix'
 import { PresetsPanel } from './components/Presets'
 import { GroupingSection, ParticleSection, ReadingSection, SampleSection, StyleSection, ViewSection } from './components/SettingsPanels'
 import { PlaybackSection, TransportBar } from './components/Transport'
+import { ViewIcon } from './components/ViewIcons'
 import { Button } from './components/ui/button'
 import { Drawer, DrawerContent, DrawerDescription, DrawerHandle, DrawerTitle } from './components/ui/drawer'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './components/ui/sheet'
@@ -19,13 +20,17 @@ import { chordSlots, groupParticipants, pcsOf, pickRows, windowFeatures, type Gr
 import { buildTraces } from './signal'
 import { useData, type PoolData } from './useData'
 import { usePresets } from './usePresets'
-import { MAX_CHORDS } from './vizSettings'
+import { MAX_CHORDS, VIEW_LABELS, type ViewMode } from './vizSettings'
 
 /** Moments sampled across the trail's window when clustering over it. */
 const WINDOW_SAMPLES = 32
 /** vaul's own easing and duration, so the visualiser makes room as the drawer moves. */
 const DRAWER_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const DRAWER_SECONDS = 0.5
+/** The views the view button steps through, in order. */
+const VIEW_CYCLE: ViewMode[] = ['2d', '2d-ts', '3d']
+/** How long the view button names the view it moved to, as phones can't hover for a tooltip. */
+const VIEW_LABEL_MS = 1200
 
 /** The drawer's tabs, in order. */
 const TABS = [
@@ -115,6 +120,16 @@ function Explorer({ data }: { data: PoolData }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [tab, setTab] = useState<string>('playback')
   const [presetsOpen, setPresetsOpen] = useState(false)
+  const [viewLabelShown, setViewLabelShown] = useState(false)
+  const viewLabelTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(viewLabelTimer.current), [])
+  const followingView = VIEW_CYCLE[(VIEW_CYCLE.indexOf(view) + 1) % VIEW_CYCLE.length]
+  const nextView = () => {
+    set('view', followingView)
+    setViewLabelShown(true)
+    clearTimeout(viewLabelTimer.current)
+    viewLabelTimer.current = setTimeout(() => setViewLabelShown(false), VIEW_LABEL_MS)
+  }
   const [barHeight, setBarHeight] = useState(64)
   // A callback ref, as the drawer's portal mounts its content after the page does.
   const barRef = useCallback((bar: HTMLDivElement | null) => {
@@ -152,7 +167,23 @@ function Explorer({ data }: { data: PoolData }) {
           onFocus={setFocus}
           onHover={setHover}
         />
-        {/* Sat on the drawer's top edge, so it rises and falls with it. */}
+        {/* Both buttons sit on the drawer's top edge, so they rise and fall with it. */}
+        <span
+          className="pointer-events-none absolute bottom-11 left-3 rounded-md bg-black/65 px-2 py-0.5 text-xs text-white transition-opacity duration-300 motion-reduce:transition-none"
+          style={{ opacity: viewLabelShown ? 1 : 0 }}
+          aria-hidden
+        >
+          {VIEW_LABELS[view]}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute bottom-0 left-3 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
+          onClick={nextView}
+          aria-label={`View: ${VIEW_LABELS[view]}. Switch to ${VIEW_LABELS[followingView]}.`}
+        >
+          <ViewIcon view={view} className="size-5" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
