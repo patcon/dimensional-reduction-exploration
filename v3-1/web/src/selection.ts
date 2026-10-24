@@ -23,13 +23,14 @@ export function pcsOf(pcs: Float32Array, dim: number, rows: number[]) {
 
 /**
  * Each participant's valence over the window [moment − span, moment], sampled at `samples` evenly
- * spaced moments: what clustering over a window compares, packed n × samples.
+ * spaced moments: what clustering over a window compares, packed n × samples. With `wrap` (playback
+ * loops), a window reaching back past the start takes in the end.
  */
-export function windowFeatures(traces: Traces, moment: number, span: number, samples: number) {
+export function windowFeatures(traces: Traces, moment: number, span: number, samples: number, wrap = false) {
   const out = new Float32Array(traces.n * samples)
   for (let s = 0; s < samples; s++) {
     const t = moment - span + (span * s) / (samples - 1)
-    for (let i = 0; i < traces.n; i++) out[i * samples + s] = valenceAt(traces, i, t)
+    for (let i = 0; i < traces.n; i++) out[i * samples + s] = valenceAt(traces, i, t, wrap)
   }
   return out
 }

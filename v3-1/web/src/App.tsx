@@ -136,7 +136,7 @@ function Explorer({ data }: { data: PoolData }) {
       if (playhead.moment === lastMoment) return
       lastMoment = playhead.moment
       const previous = lastWindow.current?.rows === rows ? lastWindow.current.grouping : fullGrouping
-      const features = windowFeatures(traces, playhead.moment, trailSeconds * playhead.speed, WINDOW_SAMPLES)
+      const features = windowFeatures(traces, playhead.moment, trailSeconds * playhead.speed, WINDOW_SAMPLES, playhead.loop)
       const grouping = groupParticipants(rowLabels, features, WINDOW_SAMPLES, 'leiden', { resolution, neighbours, seed }, previous)
       lastWindow.current = { rows, grouping }
       setWindowGrouping(lastWindow.current)
@@ -144,7 +144,7 @@ function Explorer({ data }: { data: PoolData }) {
     run()
     const id = setInterval(run, 1000 / clusterRate)
     return () => clearInterval(id)
-  }, [windowed, clusterRate, rows, rowLabels, traces, playhead, playhead.speed, trailSeconds, resolution, neighbours, seed, fullGrouping])
+  }, [windowed, clusterRate, rows, rowLabels, traces, playhead, playhead.speed, playhead.loop, trailSeconds, resolution, neighbours, seed, fullGrouping])
   const grouping = windowed && windowGrouping?.rows === rows ? windowGrouping.grouping : fullGrouping
 
   const colors = useMemo(() => groupColors(grouping), [grouping])

@@ -12,6 +12,8 @@ export class Playhead {
   /** Pixels per second. */
   speed = 14
   loop = true
+  /** Times playback has looped back to the start, so `elapsed` keeps counting through the loop. */
+  laps = 0
   private frameListeners = new Set<() => void>()
   private stateListeners = new Set<() => void>()
   private version = 0
@@ -31,6 +33,11 @@ export class Playhead {
   private changed() {
     this.version++
     this.stateListeners.forEach((fn) => fn())
+  }
+
+  /** Moments played through, counting each lap whole: unlike `moment`, it doesn't jump back when playback loops. */
+  get elapsed() {
+    return this.moment + this.laps * (this.length - 1)
   }
 
   frame() {
@@ -70,7 +77,10 @@ export class Playhead {
     if (!this.playing) return
     this.moment += this.speed * seconds
     if (this.moment >= this.length - 1) {
-      if (this.loop) this.moment %= this.length - 1
+      if (this.loop) {
+        this.moment %= this.length - 1
+        this.laps++
+      }
       else {
         this.moment = this.length - 1
         this.setPlaying(false)

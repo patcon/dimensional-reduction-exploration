@@ -47,10 +47,12 @@ export function DigitPreview({
       for (let p = 0; p < N_PIXELS; p++) {
         const v = pixels[poolRow * N_PIXELS + p]
         const m = traces.momentOf[p]
-        // Skipped (blank everywhere) or still to come: dim. In the trail: tinted. The head: the accent.
+        // Skipped (blank everywhere) or still to come: dim. In the trail (which, looping, reaches back
+        // round to the end): tinted. The head: the accent.
+        const inTrail = m >= 0 && ((m <= now && m >= now - trailPixels) || (playhead.loop && m > now && m >= now - trailPixels + traces.length - 1))
         let rgb = [v, v, v]
-        if (m < 0 || m > now) rgb = rgb.map((c) => c * 0.22 + 10)
-        else if (m >= now - trailPixels) rgb = rgb.map((c, i) => c * 0.7 + accent[i] * 0.3)
+        if (inTrail) rgb = rgb.map((c, i) => c * 0.7 + accent[i] * 0.3)
+        else if (m < 0 || m > now) rgb = rgb.map((c) => c * 0.22 + 10)
         if (m === head) rgb = accent
         img.data.set([rgb[0], rgb[1], rgb[2], 255], p * 4)
       }
@@ -61,7 +63,7 @@ export function DigitPreview({
     }
     draw()
     return playhead.onFrame(draw)
-  }, [pixels, poolRow, participant, traces, playhead, trailPixels])
+  }, [pixels, poolRow, participant, traces, playhead, playhead.loop, trailPixels])
 
   return (
     <div className="digit-preview">

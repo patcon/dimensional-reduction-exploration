@@ -174,10 +174,11 @@ export function buildTraces(pixels: Uint8Array, rows: number[], settings: Signal
   return { n, length: L, pixelAt, momentOf, ink, valence }
 }
 
-/** Participant i's valence at a fractional moment, interpolated between pixels. */
-export function valenceAt(traces: Traces, i: number, moment: number) {
+/** Participant i's valence at a fractional moment, interpolated between pixels; with `wrap`, moments past either end loop round. */
+export function valenceAt(traces: Traces, i: number, moment: number, wrap = false) {
   const L = traces.length
-  const t = Math.max(0, Math.min(L - 1, moment))
+  // Wrapping, as when playback loops: before the start is the end, as the end loops back to the start.
+  const t = wrap && L > 1 ? (((moment % (L - 1)) + L - 1) % (L - 1)) : Math.max(0, Math.min(L - 1, moment))
   const t0 = Math.floor(t)
   const t1 = Math.min(L - 1, t0 + 1)
   const f = t - t0
