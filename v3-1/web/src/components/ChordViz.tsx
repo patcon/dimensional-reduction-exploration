@@ -33,8 +33,6 @@ const FILL_LATER = [false, false, true, false, true, true]
 const FILL_IS_ROOT = [true, false, true, false, false, true]
 /** The focus ring's size, relative to a cursor dot. */
 const FOCUS_RING_SCALE = 2.6
-/** Chord width in pixels, as the prototype's "radial width" default. */
-const CHORD_WIDTH = 2
 const TRANS_SPEED = 0.04
 /** How fast chords glide to a new slot, per frame. */
 const REORDER_EASE = 0.08
@@ -191,7 +189,7 @@ export function ChordViz(props: ChordVizProps) {
     // Chords are drawn wide, as in the prototype (WebGL lines are always 1px, so these are quads).
     const chord = { pos: new Float32Array(MAX_CHORDS * 6), col: new Float32Array(MAX_CHORDS * 6) }
     const chordGeo = new LineSegmentsGeometry()
-    const chordMat = new LineMaterial({ vertexColors: true, transparent: true, depthWrite: false, linewidth: CHORD_WIDTH })
+    const chordMat = new LineMaterial({ vertexColors: true, transparent: true, depthWrite: false, linewidth: DEFAULT_STYLE.chordWidth })
     const chordLines = new LineSegments2(chordGeo, chordMat)
     chordLines.renderOrder = 7
     chordLines.frustumCulled = false
@@ -420,6 +418,7 @@ export function ChordViz(props: ChordVizProps) {
       fillMat.opacity = style.opacity.fill
       dotMat.size = style.cursorSize
       focusMat.size = style.cursorSize * FOCUS_RING_SCALE
+      chordMat.linewidth = style.chordWidth
       traceMat.linewidth = style.traceWidth
 
       renderer.render(scene, camera)

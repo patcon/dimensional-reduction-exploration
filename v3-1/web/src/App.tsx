@@ -258,6 +258,18 @@ function Explorer({ data }: { data: PoolData }) {
             <span className="num">{style.cursorSize}</span>
           </label>
           <label className="slider">
+            chord width
+            <input
+              type="range"
+              min={0.5}
+              max={10}
+              step={0.5}
+              value={style.chordWidth}
+              onChange={(e) => setStyle((s) => ({ ...s, chordWidth: Number(e.target.value) }))}
+            />
+            <span className="num">{style.chordWidth} px</span>
+          </label>
+          <label className="slider">
             trace width
             <input
               type="range"
