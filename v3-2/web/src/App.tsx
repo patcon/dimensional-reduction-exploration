@@ -184,7 +184,7 @@ function Explorer({ data }: { data: PoolData }) {
         </div>
         {/* Both buttons sit on the drawer's top edge, so they rise and fall with it. */}
         <span
-          className="pointer-events-none absolute bottom-11 left-3 rounded-md bg-black/65 px-2 py-0.5 text-xs text-white transition-opacity duration-300 motion-reduce:transition-none"
+          className="pointer-events-none absolute right-3 bottom-11 rounded-md bg-black/65 px-2 py-0.5 text-xs text-white transition-opacity duration-300 motion-reduce:transition-none"
           style={{ opacity: viewLabelShown ? 1 : 0 }}
           aria-hidden
         >
@@ -193,7 +193,7 @@ function Explorer({ data }: { data: PoolData }) {
         <Button
           variant="ghost"
           size="icon"
-          className="absolute bottom-0 left-3 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
+          className="absolute right-3 bottom-0 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
           onClick={nextView}
           aria-label={`View: ${VIEW_LABELS[view]}. Switch to ${VIEW_LABELS[followingView]}.`}
         >
@@ -202,7 +202,7 @@ function Explorer({ data }: { data: PoolData }) {
         <Button
           variant="ghost"
           size="icon"
-          className="absolute right-3 bottom-0 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
+          className="absolute bottom-0 left-3 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
           onClick={() => setPresetsOpen(true)}
           aria-label="Presets"
         >
