@@ -39,7 +39,8 @@ pnpm run check:leiden        # the browser's kNN graph and Leiden against scanpy
 - **Particles** (particle geometry): each digit is a particle. Digits in the same group (label or
   Leiden cluster) pull together and other groups push away, and the centre pulls each digit in by
   its valence now: ink attracts, paper repels, or the other way round with "ink repels from
-  centre". The forces, their reach and damping can be set; "scatter" starts the particles over.
+  centre". Spread draws the whole cloud in (more crowding, so more interaction) or lets it out.
+  The forces, their reach and damping can be set; "scatter" starts the particles over.
 - **Playback**: 1 pixel per second by default (0.25–60). Trails cover the last 30 seconds
   (5–300) and fade out with age. The matrix below shows one row per digit and one column per
   pixel, with the playhead; click a row to follow that digit.

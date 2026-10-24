@@ -131,7 +131,7 @@ function Explorer({ data }: { data: PoolData }) {
   }
   const setSignalKey = <K extends keyof SignalSettings>(key: K, value: SignalSettings[K]) => setSignal((s) => ({ ...s, [key]: value }))
   const setParticleKey = <K extends keyof ParticleSettings>(key: K, value: ParticleSettings[K]) => setParticles((p) => ({ ...p, [key]: value }))
-  const particleSlider = (key: 'cohesion' | 'separation' | 'centreForce' | 'radius' | 'damping', label: string, min: number, max: number, step: number, digits: number) => (
+  const particleSlider = (key: 'cohesion' | 'separation' | 'centreForce' | 'spread' | 'radius' | 'damping', label: string, min: number, max: number, step: number, digits: number) => (
     <label className="slider">
       {label}
       <input type="range" min={min} max={max} step={step} value={particles[key]} onChange={(e) => setParticleKey(key, Number(e.target.value))} />
@@ -288,6 +288,7 @@ function Explorer({ data }: { data: PoolData }) {
               {particleSlider('cohesion', 'within groups', -1, 1, 0.05, 2)}
               {particleSlider('separation', 'between groups', -1, 1, 0.05, 2)}
               {particleSlider('centreForce', 'centre', 0, 6, 0.1, 1)}
+              {particleSlider('spread', 'spread', 0.2, 1.5, 0.05, 2)}
               {particleSlider('radius', 'reach', 10, 150, 1, 0)}
               {particleSlider('damping', 'damping', 0.5, 0.99, 0.01, 2)}
               <label className="check">

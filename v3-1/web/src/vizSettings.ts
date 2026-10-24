@@ -36,6 +36,8 @@ export interface ParticleSettings {
   centreForce: number
   /** Ink pushes away from the centre and paper pulls in, rather than the other way round. */
   reverseCentre: boolean
+  /** Scales the centre's reach and the boundary past it: below 1 crowds particles in, above 1 lets them spread out. */
+  spread: number
   /** How far particles feel each other, in the authoring space's units. */
   radius: number
   /** Velocity kept from one frame to the next. */
@@ -47,6 +49,7 @@ export const DEFAULT_PARTICLES: ParticleSettings = {
   separation: -0.3,
   centreForce: 3.4,
   reverseCentre: false,
+  spread: 1,
   radius: 92,
   damping: 0.94,
 }

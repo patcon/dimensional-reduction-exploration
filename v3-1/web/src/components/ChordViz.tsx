@@ -315,7 +315,7 @@ export function ChordViz(props: ChordVizProps) {
       for (let i = 0; i < n; i++) {
         const cx = dot.pos[i * 3], cy = dot.pos[i * 3 + 1]
         if (!scatter && (cx !== 0 || cy !== 0)) { px[i] = cx; py[i] = cy } else {
-          const a = Math.random() * Math.PI * 2, r = Math.random() * P_S_RMAX * 0.55
+          const a = Math.random() * Math.PI * 2, r = Math.random() * P_S_RMAX * live.current.particles.spread * 0.55
           px[i] = Math.cos(a) * r; py[i] = Math.sin(a) * r
         }
         pvx[i] = 0; pvy[i] = 0
@@ -325,8 +325,10 @@ export function ChordViz(props: ChordVizProps) {
 
     function stepParticles(groupOf: Int32Array, ps: ParticleSettings) {
       pax.fill(0); pay.fill(0)
-      const rMax = ps.radius, RR = rMax * rMax, S_RR = P_S_RMAX * P_S_RMAX
-      const S_BRR = (P_S_RMAX + P_S_BWIDTH) ** 2
+      const rMax = ps.radius, RR = rMax * rMax
+      // Spread scales the centre's reach, so the boundary closes in or opens out with it.
+      const sRMax = P_S_RMAX * ps.spread, sRMin = P_S_RMIN * ps.spread
+      const S_RR = sRMax * sRMax, S_BRR = (sRMax + P_S_BWIDTH) ** 2
       const sign = ps.reverseCentre ? -1 : 1
       // Pairs: the force is the same both ways, so each pair is visited once.
       for (let i = 0; i < n; i++) {
@@ -349,12 +351,12 @@ export function ChordViz(props: ChordVizProps) {
         const r = Math.sqrt(r2)
         if (r2 <= S_RR) {
           // The centre pulls in by valence (ink in, paper out, unless reversed), and pushes out up close.
-          const f = r < P_S_RMIN ? r / P_S_RMIN - 1 : sign * vNow[i] * (1 - r / P_S_RMAX)
+          const f = r < sRMin ? r / sRMin - 1 : sign * vNow[i] * (1 - r / sRMax)
           const inv = (f * ps.centreForce) / r
           pax[i] += dx * inv; pay[i] += dy * inv
         } else if (r2 <= S_BRR) {
           // Past the centre's reach, the boundary pushes back.
-          const inv = ((r - P_S_RMAX) / P_S_BWIDTH) * P_S_BG / r
+          const inv = ((r - sRMax) / P_S_BWIDTH) * P_S_BG / r
           pax[i] += dx * inv; pay[i] += dy * inv
         }
       }
