@@ -6,6 +6,9 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import type { RGB } from '../palette'
 import type { Playhead } from '../playhead'
 import { valenceAt, type Traces } from '../signal'
+import { CLICK_SLOP, Orbit } from '../viz/orbit'
+import { Particles } from '../viz/particles'
+import { pickDigit } from '../viz/picking'
 import { DEFAULT_STYLE, MAX_CHORDS, type GeoMode, type ParticleSettings, type ViewMode, type VizStyle } from '../vizSettings'
 
 // Ported from the reaction canvas's valence cross-section (plugins/valenceCrossSection in
@@ -44,25 +47,8 @@ const TRANS_SPEED = 0.04
 const REORDER_EASE = 0.08
 const BG: RGB = [15, 15, 14]
 
-// ── Particle physics, as the prototype's (its defaults), in the authoring space's units ──
-/** Closer than this, particles push apart whatever their groups. */
-const P_R_MIN = 12
-const P_DT = 0.5
-const P_G = 1.1
-/** The centre's reach; beyond it, the boundary pushes particles back. */
-const P_S_RMAX = 175
-/** Closer to the centre than this, particles are pushed out. */
-const P_S_RMIN = 35
-const P_S_BWIDTH = 400
-const P_S_BG = 20
 /** Frames a cursor takes to glide from its particle back onto its chord. */
 const PARTICLE_EXIT_FRAMES = 30
-/** How near a cursor, in pixels, a click or hover has to be to pick its digit. */
-const PICK_RADIUS = 14
-/** How near a chord, in pixels past its edge, a click or hover has to be to pick its digit (when no cursor is near). */
-const CHORD_PICK_SLOP = 3
-/** A press that moves further than this, in pixels, is a drag (orbiting), not a click. */
-const CLICK_SLOP = 5
 
 const COLORS = { pos: [80, 255, 140] as RGB, neg: [255, 80, 60] as RGB, neutral: BG }
 
@@ -279,15 +265,26 @@ export function ChordViz(props: ChordVizProps) {
     const CAM_2D_TS = { radius: 820, theta: -Math.PI / 2, phi: 0, targetZ: -TRACE_DEPTH / 2 }
     const CAM_3D = { radius: 560, theta: Math.PI / 5, phi: Math.PI / 9 }
     let transT = 0, transTts = 0
-    let orbitDTheta = 0, orbitDPhi = 0, orbitDRadius = 0
     // Opens on whatever view is chosen, without animating there from 2d.
     if (live.current.view === '3d') transT = 1
     if (live.current.view === '2d-ts') transTts = 1
 
+    // Drag to turn, wheel or pinch to zoom: 3d only.
+    const orbit = new Orbit(canvas, {
+      canOrbit: () => live.current.view === '3d' && transT > 0.7,
+      canZoom: () => live.current.view === '3d',
+      baseRadius: () => camRadius,
+      onTap: (x, y) => {
+        const i = pickAt(x, y)
+        if (i !== null) live.current.onFocus(i)
+      },
+      onOrbiting: setIsOrbiting,
+    })
+
     function applyCam() {
-      const theta = camTheta + orbitDTheta
-      const phi = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camPhi + orbitDPhi))
-      const effR = camRadius + orbitDRadius
+      const theta = camTheta + orbit.dTheta
+      const phi = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camPhi + orbit.dPhi))
+      const effR = camRadius + orbit.dRadius
       camera.position.set(effR * Math.sin(theta) * Math.cos(phi), effR * Math.sin(phi), camTargetZ + effR * Math.cos(theta) * Math.cos(phi))
       camera.lookAt(0, 0, camTargetZ)
       camera.up.set(0, 1, 0)
@@ -308,97 +305,13 @@ export function ChordViz(props: ChordVizProps) {
     /** Each chord's root (x, y), for picking; its tip is the cursor. */
     const chordRoot = new Float32Array(MAX_CHORDS * 2)
 
-    // ── Particles: positions and velocities, and trails recorded as they move ──
-    let px = new Float32Array(0), py = new Float32Array(0), pvx = new Float32Array(0), pvy = new Float32Array(0)
-    let pax = new Float32Array(0), pay = new Float32Array(0)
+    // ── Particles ──
+    const sim = new Particles(TRACE_LEN)
     /** 1 while particles are shown, falling to 0 as cursors glide back onto their chords. */
     let particleBlend = live.current.geometry === 'particle' ? 1 : 0
     let wasParticle = false
     let lastReset: unknown = live.current.particleReset
-    // Particle trails can't be read off the trace, so they're recorded, on the same grid of moments
-    // as chord trails: a ring of samples (x, y, valence) per participant, and each sample's grid point.
-    let pHist = new Float32Array(0)
-    const pGrid = new Float64Array(TRACE_LEN)
-    let pHead = 0, pCount = 0, pLastGrid = -Infinity, pStep = 0
-
-    function clearParticleTrails() { pCount = 0; pLastGrid = -Infinity }
-    /** Scatters particles in a disc, or starts them where the cursors are. */
-    function seedParticles(scatter: boolean) {
-      for (let i = 0; i < n; i++) {
-        const cx = dot.pos[i * 3], cy = dot.pos[i * 3 + 1]
-        if (!scatter && (cx !== 0 || cy !== 0)) { px[i] = cx; py[i] = cy } else {
-          const a = Math.random() * Math.PI * 2, r = Math.random() * P_S_RMAX * live.current.particles.spread * 0.55
-          px[i] = Math.cos(a) * r; py[i] = Math.sin(a) * r
-        }
-        pvx[i] = 0; pvy[i] = 0
-      }
-      clearParticleTrails()
-    }
-
-    function stepParticles(groupOf: Int32Array, ps: ParticleSettings) {
-      pax.fill(0); pay.fill(0)
-      const rMax = ps.radius, RR = rMax * rMax
-      // Spread scales the centre's reach, so the boundary closes in or opens out with it.
-      const sRMax = P_S_RMAX * ps.spread, sRMin = P_S_RMIN * ps.spread
-      const S_RR = sRMax * sRMax, S_BRR = (sRMax + P_S_BWIDTH) ** 2
-      const sign = ps.reverseCentre ? -1 : 1
-      // Pairs: the force is the same both ways, so each pair is visited once.
-      for (let i = 0; i < n; i++) {
-        for (let j = i + 1; j < n; j++) {
-          const dx = px[j] - px[i], dy = py[j] - py[i]
-          const r2 = dx * dx + dy * dy
-          if (r2 < 0.01 || r2 > RR) continue
-          const r = Math.sqrt(r2)
-          const k = groupOf[i] === groupOf[j] ? ps.cohesion : ps.separation
-          const f = r < P_R_MIN ? r / P_R_MIN - 1 : k * (1 - r / rMax)
-          const inv = (f * P_G) / r
-          pax[i] += dx * inv; pay[i] += dy * inv
-          pax[j] -= dx * inv; pay[j] -= dy * inv
-        }
-      }
-      for (let i = 0; i < n; i++) {
-        const dx = -px[i], dy = -py[i]
-        const r2 = dx * dx + dy * dy
-        if (r2 < 0.01) continue
-        const r = Math.sqrt(r2)
-        if (r2 <= S_RR) {
-          // The centre pulls in by valence (ink in, paper out, unless reversed), and pushes out up close.
-          const f = r < sRMin ? r / sRMin - 1 : sign * vNow[i] * (1 - r / sRMax)
-          const inv = (f * ps.centreForce) / r
-          pax[i] += dx * inv; pay[i] += dy * inv
-        } else if (r2 <= S_BRR) {
-          // Past the centre's reach, the boundary pushes back.
-          const inv = ((r - sRMax) / P_S_BWIDTH) * P_S_BG / r
-          pax[i] += dx * inv; pay[i] += dy * inv
-        }
-      }
-      for (let i = 0; i < n; i++) {
-        pvx[i] = (pvx[i] + pax[i] * P_DT) * ps.damping
-        pvy[i] = (pvy[i] + pay[i] * P_DT) * ps.damping
-        px[i] += pvx[i] * P_DT
-        py[i] += pvy[i] * P_DT
-      }
-    }
-
-    /** Records a trail sample when the playhead reaches the next grid point; a jump back starts trails over. */
-    function recordParticles(moment: number, step: number) {
-      if (step !== pStep) { pStep = step; clearParticleTrails() }
-      if (step <= 0) return
-      const grid = Math.floor(moment / step)
-      if (grid < pLastGrid) clearParticleTrails()
-      if (grid === pLastGrid) return
-      pLastGrid = grid
-      for (let i = 0; i < n; i++) {
-        const o = (i * TRACE_LEN + pHead) * 3
-        pHist[o] = px[i]; pHist[o + 1] = py[i]; pHist[o + 2] = vNow[i]
-      }
-      pGrid[pHead] = grid
-      pHead = (pHead + 1) % TRACE_LEN
-      // One sample short of a full trail: the live position is its head.
-      pCount = Math.min(pCount + 1, TRACE_LEN - 1)
-      // Drop samples that have aged off the end.
-      while (pCount > 0 && moment / step - pGrid[(pHead - pCount + TRACE_LEN) % TRACE_LEN] > TRACE_SEGS) pCount--
-    }
+    const seedParticles = (scatter: boolean) => sim.seed(scatter, live.current.particles.spread, dot.pos)
 
     const morph: Morph = { p1: 0, p2: 0, pp1: 0, pp2: 0, lp1: 0, lp2: 0 }
     // Root and tip of one chord at valence v: [rootX, rootY, tipX, tipY].
@@ -458,19 +371,13 @@ export function ChordViz(props: ChordVizProps) {
         shownSlot = Float32Array.from(slotOf.subarray(0, n))
         arrival = new Float32Array(n)
         vNow = new Float32Array(n)
-        ;[px, py, pvx, pvy, pax, pay] = Array.from({ length: 6 }, () => new Float32Array(n))
-        pHist = new Float32Array(n * TRACE_LEN * 3)
+        sim.resize(n)
         if (inParticles) seedParticles(true)
-        else clearParticleTrails()
       }
 
       // ── Camera between views ──
       transT = clamp01(transT + ((view === '3d' ? 1 : 0) - transT) * TRANS_SPEED * 3)
-      if (view !== '3d') {
-        orbitDRadius += (0 - orbitDRadius) * TRANS_SPEED * 3
-        orbitDTheta += (0 - orbitDTheta) * TRANS_SPEED * 3
-        orbitDPhi += (0 - orbitDPhi) * TRANS_SPEED * 3
-      }
+      if (view !== '3d') orbit.relax(TRANS_SPEED * 3)
       transTts = clamp01(transTts + ((view === '2d-ts' ? 1 : 0) - transTts) * TRANS_SPEED * 3)
       const et3 = ease(transT)
       camRadius = CAM_2D.radius + (CAM_3D.radius - CAM_2D.radius) * et3
@@ -527,8 +434,8 @@ export function ChordViz(props: ChordVizProps) {
       particleBlend = inParticles ? 1 : Math.max(0, particleBlend - 1 / PARTICLE_EXIT_FRAMES)
       const pb = ease(particleBlend)
       if (inParticles) {
-        stepParticles(groupOf, particles)
-        recordParticles(elapsed, step)
+        sim.advance(groupOf, vNow, particles)
+        sim.record(elapsed, step, vNow)
       }
 
       let focusShown = false
@@ -541,7 +448,7 @@ export function ChordViz(props: ChordVizProps) {
         const [rx, ry] = [pts[0] - CENTER, CENTER - pts[1]]
         chordRoot[i * 2] = rx; chordRoot[i * 2 + 1] = ry
         let [dx, dy] = [pts[2] - CENTER, CENTER - pts[3]]
-        if (pb > 0) { dx += (px[i] - dx) * pb; dy += (py[i] - dy) * pb }
+        if (pb > 0) { dx += (sim.x[i] - dx) * pb; dy += (sim.y[i] - dy) * pb }
         if (!inParticles) {
           colour(by.chord, v, group)
           // Valence is zero at the root, so a valence-coloured chord fades in from the background; a
@@ -565,15 +472,15 @@ export function ChordViz(props: ChordVizProps) {
         if (inParticles) {
           // A particle's recorded samples, oldest first, then where it is now. Particles have no
           // root, so the fill (hidden here) collapses onto the trail.
-          hlen = pCount + 1
+          hlen = sim.count + 1
           for (let k = 0; k < hlen; k++) {
             const head = k === hlen - 1
-            const s = (pHead - pCount + k + TRACE_LEN) % TRACE_LEN
+            const s = sim.slot(k)
             const o = (i * TRACE_LEN + s) * 3
-            age[k] = head ? 0 : elapsed / step - pGrid[s]
-            hist[k * 5] = hist[k * 5 + 2] = head ? dx : pHist[o]
-            hist[k * 5 + 1] = hist[k * 5 + 3] = head ? dy : pHist[o + 1]
-            hist[k * 5 + 4] = head ? v : pHist[o + 2]
+            age[k] = head ? 0 : elapsed / step - sim.grid[s]
+            hist[k * 5] = hist[k * 5 + 2] = head ? dx : sim.history[o]
+            hist[k * 5 + 1] = hist[k * 5 + 3] = head ? dy : sim.history[o + 1]
+            hist[k * 5 + 4] = head ? v : sim.history[o + 2]
           }
         } else {
           const grid = step > 0 ? Math.floor(elapsed / step) : 0
@@ -647,35 +554,12 @@ export function ChordViz(props: ChordVizProps) {
     }
     animFrameId = requestAnimationFrame(animate)
 
-    // ── Picking: the cursor nearest the pointer on screen, if it's close enough; failing that, the
-    // nearest chord under it, while chords are drawn ──
-    const projected = new THREE.Vector3()
-    function toScreen(x: number, y: number, z: number, rect: DOMRect) {
-      projected.set(x, y, z).project(camera)
-      return [((projected.x + 1) / 2) * rect.width, ((1 - projected.y) / 2) * rect.height]
-    }
+    // ── Picking: a digit's cursor, or its chord while chords are drawn ──
     function pickAt(clientX: number, clientY: number): number | null {
       const rect = canvas.getBoundingClientRect()
-      const x = clientX - rect.left, y = clientY - rect.top
-      let best: number | null = null, bestD = PICK_RADIUS * PICK_RADIUS
-      for (let i = 0; i < n; i++) {
-        const [sx, sy] = toScreen(dot.pos[i * 3], dot.pos[i * 3 + 1], dot.pos[i * 3 + 2], rect)
-        const d = (sx - x) ** 2 + (sy - y) ** 2
-        if (d <= bestD) { best = i; bestD = d }
-      }
       const { geometry, style } = live.current
-      if (best !== null || geometry === 'particle' || style.opacity.chord === 0) return best
-      bestD = (style.chordWidth / 2 + CHORD_PICK_SLOP) ** 2
-      for (let i = 0; i < n; i++) {
-        const [ax, ay] = toScreen(chordRoot[i * 2], chordRoot[i * 2 + 1], 0, rect)
-        const [bx, by] = toScreen(dot.pos[i * 3], dot.pos[i * 3 + 1], 0, rect)
-        // Distance to the segment from root to tip.
-        const ex = bx - ax, ey = by - ay, len2 = ex * ex + ey * ey
-        const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / len2)) : 0
-        const d = (ax + ex * t - x) ** 2 + (ay + ey * t - y) ** 2
-        if (d <= bestD) { best = i; bestD = d }
-      }
-      return best
+      const chords = geometry === 'particle' || style.opacity.chord === 0 ? null : { roots: chordRoot, width: style.chordWidth }
+      return pickDigit(clientX - rect.left, clientY - rect.top, rect.width, rect.height, camera, n, dot.pos, chords)
     }
     let hovered: number | null = null
     function setHovered(i: number | null) {
@@ -687,86 +571,17 @@ export function ChordViz(props: ChordVizProps) {
     let pressAt = { x: 0, y: 0 }
     const isClick = (x: number, y: number) => Math.hypot(x - pressAt.x, y - pressAt.y) <= CLICK_SLOP
     function onPointerDown(e: PointerEvent) { pressAt = { x: e.clientX, y: e.clientY } }
-    function onCanvasMove(e: MouseEvent) { setHovered(dragging ? null : pickAt(e.clientX, e.clientY)) }
+    function onCanvasMove(e: MouseEvent) { setHovered(orbit.dragging ? null : pickAt(e.clientX, e.clientY)) }
     function onCanvasLeave() { setHovered(null) }
     function onClick(e: MouseEvent) {
       if (!isClick(e.clientX, e.clientY)) return
       const i = pickAt(e.clientX, e.clientY)
       if (i !== null) live.current.onFocus(i)
     }
-
-    // ── Orbit (3d only): drag to turn, wheel or pinch to zoom ──
-    let dragging = false, dragLast = { x: 0, y: 0 }, dtBase = 0, dpBase = 0
-    const canOrbit = () => live.current.view === '3d' && transT > 0.7
-    function onMouseDown(e: MouseEvent) {
-      if (!canOrbit()) return
-      dragging = true; dragLast = { x: e.clientX, y: e.clientY }
-      dtBase = orbitDTheta; dpBase = orbitDPhi
-      setIsOrbiting(true)
-      e.preventDefault()
-    }
-    function onMouseMove(e: MouseEvent) {
-      if (!dragging) return
-      orbitDTheta = dtBase - (e.clientX - dragLast.x) * 0.009
-      orbitDPhi = dpBase + (e.clientY - dragLast.y) * 0.009
-    }
-    function onMouseUp() { dragging = false; setIsOrbiting(false) }
-    function onWheel(e: WheelEvent) {
-      if (live.current.view !== '3d') return
-      orbitDRadius = Math.max(250 - camRadius, Math.min(1400 - camRadius, orbitDRadius + e.deltaY * 0.6))
-      e.preventDefault()
-    }
-    let lastTouchDist = 0, touchBase = { dt: 0, dp: 0 }, touchStart = { x: 0, y: 0 }
-    /** Whether this touch is still one finger that could be a tap. */
-    let tapping = false
-    function onTouchStart(e: TouchEvent) {
-      if (!canOrbit()) return
-      if (e.touches.length === 1) {
-        dragging = true
-        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-        tapping = true
-        touchBase = { dt: orbitDTheta, dp: orbitDPhi }
-      } else if (e.touches.length === 2) {
-        dragging = false
-        tapping = false
-        lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
-      }
-      e.preventDefault()
-    }
-    function onTouchMove(e: TouchEvent) {
-      if (!canOrbit()) return
-      if (e.touches.length === 1 && dragging) {
-        orbitDTheta = touchBase.dt - (e.touches[0].clientX - touchStart.x) * 0.009
-        orbitDPhi = touchBase.dp + (e.touches[0].clientY - touchStart.y) * 0.009
-      } else if (e.touches.length === 2) {
-        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
-        const eff = Math.max(250, Math.min(1400, (camRadius + orbitDRadius) * (lastTouchDist / d)))
-        orbitDRadius = eff - camRadius
-        lastTouchDist = d
-      }
-      e.preventDefault()
-    }
-    function onTouchEnd(e: TouchEvent) {
-      dragging = false
-      // Orbiting cancels the tap's click, so a tap that didn't move picks here instead.
-      const t = e.changedTouches[0]
-      if (tapping && canOrbit() && e.touches.length === 0 && t && Math.hypot(t.clientX - touchStart.x, t.clientY - touchStart.y) <= CLICK_SLOP) {
-        const i = pickAt(t.clientX, t.clientY)
-        if (i !== null) live.current.onFocus(i)
-      }
-      if (e.touches.length === 0) tapping = false
-    }
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('mousemove', onCanvasMove)
     canvas.addEventListener('mouseleave', onCanvasLeave)
     canvas.addEventListener('click', onClick)
-    canvas.addEventListener('mousedown', onMouseDown)
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-    canvas.addEventListener('wheel', onWheel, { passive: false })
-    canvas.addEventListener('touchstart', onTouchStart, { passive: false })
-    canvas.addEventListener('touchmove', onTouchMove, { passive: false })
-    canvas.addEventListener('touchend', onTouchEnd)
 
     // Fit the square authoring space to the panel, whichever side is shorter.
     const resize = new ResizeObserver(() => {
@@ -788,13 +603,7 @@ export function ChordViz(props: ChordVizProps) {
       canvas.removeEventListener('mousemove', onCanvasMove)
       canvas.removeEventListener('mouseleave', onCanvasLeave)
       canvas.removeEventListener('click', onClick)
-      canvas.removeEventListener('mousedown', onMouseDown)
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-      canvas.removeEventListener('wheel', onWheel)
-      canvas.removeEventListener('touchstart', onTouchStart)
-      canvas.removeEventListener('touchmove', onTouchMove)
-      canvas.removeEventListener('touchend', onTouchEnd)
+      orbit.dispose()
       renderer.dispose()
       for (const g of [chord.geo, dot.geo, traceGeo, fill.geo, focusGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
       for (const m of [chordMat, dotMat, traceMat, fillMat, focusMat, ringDotsMat, ...guides.map((l) => l.material)]) m.dispose()
