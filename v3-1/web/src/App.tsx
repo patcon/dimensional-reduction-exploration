@@ -3,9 +3,11 @@ import { ChordViz } from './components/ChordViz'
 import { DigitPreview } from './components/DigitPreview'
 import { GroupLegend } from './components/GroupLegend'
 import { Matrix } from './components/Matrix'
+import { Presets } from './components/Presets'
 import { Transport } from './components/Transport'
 import { DIGIT_COLORS, groupColors } from './palette'
 import { usePlayhead } from './playhead'
+import { DEFAULT_SETTINGS, type Settings } from './presets'
 import {
   chordSlots,
   groupParticipants,
@@ -13,25 +15,11 @@ import {
   pcsOf,
   pickRows,
   windowFeatures,
-  type ChordOrder,
-  type ClusterOver,
-  type GroupBy,
   type Grouping,
 } from './selection'
 import { buildTraces, READING_LABELS, type ReadingKey, type SignalSettings } from './signal'
 import { useData, type PoolData } from './useData'
-import {
-  DEFAULT_PARTICLES,
-  DEFAULT_STYLE,
-  ELEMENTS,
-  GEO_MODES,
-  MAX_CHORDS,
-  VIEW_LABELS,
-  type GeoMode,
-  type ParticleSettings,
-  type ViewMode,
-  type VizStyle,
-} from './vizSettings'
+import { ELEMENTS, GEO_MODES, MAX_CHORDS, VIEW_LABELS, type ParticleSettings } from './vizSettings'
 
 /** Moments sampled across the trail's window when clustering over it. */
 const WINDOW_SAMPLES = 32
@@ -58,29 +46,70 @@ function Explorer({ data }: { data: PoolData }) {
   const labels = meta.rows.label
 
   // Who takes part.
-  const [digits, setDigits] = useState<Set<number>>(() => new Set([0, 1, 6, 9]))
-  const [count, setCount] = useState(100)
-  const [seed, setSeed] = useState(0)
+  const [digits, setDigits] = useState<Set<number>>(() => new Set(DEFAULT_SETTINGS.digits))
+  const [count, setCount] = useState(DEFAULT_SETTINGS.count)
+  const [seed, setSeed] = useState(DEFAULT_SETTINGS.seed)
   // How they're grouped and laid out.
-  const [groupBy, setGroupBy] = useState<GroupBy>('digit')
-  const [resolution, setResolution] = useState(1)
-  const [neighbours, setNeighbours] = useState(15)
-  const [clusterOver, setClusterOver] = useState<ClusterOver>('full')
+  const [groupBy, setGroupBy] = useState(DEFAULT_SETTINGS.groupBy)
+  const [resolution, setResolution] = useState(DEFAULT_SETTINGS.resolution)
+  const [neighbours, setNeighbours] = useState(DEFAULT_SETTINGS.neighbours)
+  const [clusterOver, setClusterOver] = useState(DEFAULT_SETTINGS.clusterOver)
   /** Re-clusterings over the window per second (of wall time, while the playhead moves). */
-  const [clusterRate, setClusterRate] = useState(1)
-  const [order, setOrder] = useState<ChordOrder>('grouped')
+  const [clusterRate, setClusterRate] = useState(DEFAULT_SETTINGS.clusterRate)
+  const [order, setOrder] = useState(DEFAULT_SETTINGS.order)
   // How each digit is read out as valence.
-  const [signal, setSignal] = useState<SignalSettings>({ reading: 'hilbert', skipBlank: false, smoothing: 'blur', smoothingPixels: 1.5, mapping: 'ink' })
+  const [signal, setSignal] = useState(DEFAULT_SETTINGS.signal)
   // How it's drawn.
-  const [view, setView] = useState<ViewMode>('3d')
-  const [geometry, setGeometry] = useState<GeoMode>('diametric')
-  const [style, setStyle] = useState<VizStyle>({ ...DEFAULT_STYLE, colorBy: { ...DEFAULT_STYLE.colorBy, chord: 'group' } })
-  const [trailSeconds, setTrailSeconds] = useState(10)
-  const [particles, setParticles] = useState<ParticleSettings>(DEFAULT_PARTICLES)
+  const [view, setView] = useState(DEFAULT_SETTINGS.view)
+  const [geometry, setGeometry] = useState(DEFAULT_SETTINGS.geometry)
+  const [style, setStyle] = useState(DEFAULT_SETTINGS.style)
+  const [trailSeconds, setTrailSeconds] = useState(DEFAULT_SETTINGS.trailSeconds)
+  const [particles, setParticles] = useState(DEFAULT_SETTINGS.particles)
   const [particleReset, setParticleReset] = useState(0)
-  const [focus, setFocus] = useState<number | null>(0)
+  const [focus, setFocus] = useState(DEFAULT_SETTINGS.focus)
   const [hover, setHover] = useState<number | null>(null)
   const playhead = usePlayhead()
+
+  const settings: Settings = {
+    digits: [...digits].sort((a, b) => a - b),
+    count,
+    seed,
+    groupBy,
+    resolution,
+    neighbours,
+    clusterOver,
+    clusterRate,
+    order,
+    signal,
+    view,
+    geometry,
+    style,
+    trailSeconds,
+    particles,
+    focus,
+    speed: playhead.speed,
+    loop: playhead.loop,
+  }
+  const applySettings = (s: Settings) => {
+    setDigits(new Set(s.digits))
+    setCount(s.count)
+    setSeed(s.seed)
+    setGroupBy(s.groupBy)
+    setResolution(s.resolution)
+    setNeighbours(s.neighbours)
+    setClusterOver(s.clusterOver)
+    setClusterRate(s.clusterRate)
+    setOrder(s.order)
+    setSignal(s.signal)
+    setView(s.view)
+    setGeometry(s.geometry)
+    setStyle(s.style)
+    setTrailSeconds(s.trailSeconds)
+    setParticles(s.particles)
+    setFocus(s.focus)
+    playhead.setSpeed(s.speed)
+    playhead.setLoop(s.loop)
+  }
 
   const available = useMemo(() => labels.filter((l) => digits.has(l)).length, [labels, digits])
   const maxCount = Math.min(MAX_CHORDS, available)
@@ -151,6 +180,8 @@ function Explorer({ data }: { data: PoolData }) {
       </header>
 
       <div className="controls">
+        <Presets settings={settings} onLoad={applySettings} />
+
         <div className="toolbar">
           <span className="control-label">Digits</span>
           <span className="segmented digits">
