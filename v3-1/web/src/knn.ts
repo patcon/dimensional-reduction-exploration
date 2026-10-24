@@ -21,24 +21,39 @@ const N_ITER = 64
 export function nearestNeighbours(points: Float32Array, n: number, dim: number, k: number) {
   const indices = new Int32Array(n * k)
   const dists = new Float64Array(n * k)
-  const d2 = new Float64Array(n)
-  const order = new Int32Array(n)
+  // Squared distances, each pair computed once; n is at most a few hundred.
+  const d2 = new Float64Array(n * n)
   for (let i = 0; i < n; i++) {
-    for (let j = 0; j < n; j++) {
+    for (let j = i + 1; j < n; j++) {
       let s = 0
       for (let c = 0; c < dim; c++) {
         const diff = points[i * dim + c] - points[j * dim + c]
         s += diff * diff
       }
-      d2[j] = i === j ? -1 : s
-      order[j] = j
+      d2[i * n + j] = d2[j * n + i] = s
     }
-    // Only the first k matter; n is at most a few hundred, so a full sort is fine.
-    order.sort((a, b) => d2[a] - d2[b])
-    for (let m = 0; m < k; m++) {
-      indices[i * k + m] = order[m]
-      dists[i * k + m] = Math.sqrt(Math.max(0, d2[order[m]]))
+  }
+  // Per row, a running top k (the point itself first), kept sorted by insertion. Shifting only past
+  // strictly farther entries keeps ties in index order, as a stable sort would.
+  const best = new Float64Array(k)
+  for (let i = 0; i < n; i++) {
+    const row = indices.subarray(i * k, (i + 1) * k)
+    best.fill(Infinity)
+    best[0] = -1
+    row[0] = i
+    for (let j = 0; j < n; j++) {
+      const s = d2[i * n + j]
+      if (j === i || s >= best[k - 1]) continue
+      let m = k - 1
+      while (m > 1 && best[m - 1] > s) {
+        best[m] = best[m - 1]
+        row[m] = row[m - 1]
+        m--
+      }
+      best[m] = s
+      row[m] = j
     }
+    for (let m = 0; m < k; m++) dists[i * k + m] = Math.sqrt(Math.max(0, best[m]))
   }
   return { indices, dists }
 }
