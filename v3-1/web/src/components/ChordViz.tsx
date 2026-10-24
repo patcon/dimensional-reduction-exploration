@@ -453,9 +453,11 @@ export function ChordViz(props: ChordVizProps) {
         Object.assign(morph, { p1: 0, p2: 0, pp1: 1, pp2: 1, lp1: le, lp2: le })
       }
       const depthA = to3d, depthTs = toTs
+      // Depth (trails, fills and the time axis) fades in as the camera leaves the 2d time slice, and out as it returns.
+      const depth = Math.max(depthA, depthTs)
       outerRing.material.opacity = 0.8
       midRing.material.opacity = morph.p1 * 0.35 * (1 - particleBlend)
-      zAxis.material.opacity = Math.max(depthA, depthTs) * 0.45
+      zAxis.material.opacity = depth * 0.45
       ghostRings.forEach((r, i) => { r.material.opacity = depthA * (0.12 - i * 0.03); r.visible = depthA > 0.02 })
       // ── Chords, cursors and trails ──
       const moment = playhead.moment
@@ -463,7 +465,7 @@ export function ChordViz(props: ChordVizProps) {
       // start to the end); trail grids count moments played through, so they don't jump back when the
       // playhead does.
       const elapsed = playhead.loop ? playhead.elapsed : moment
-      const showTrace = view === '2d-ts' || view === '3d'
+      const showTrace = depth > 0.01
       // Trail samples are spread over the last `trailSeconds` of playback, in moments.
       const step = (trailSeconds * playhead.speed) / TRACE_SEGS
       const by = style.colorBy
@@ -592,8 +594,8 @@ export function ChordViz(props: ChordVizProps) {
       chordMesh.visible = !inParticles
       chordMat.opacity = style.opacity.chord
       dotMat.opacity = style.opacity.cursor
-      traceMat.opacity = style.opacity.trace
-      fillMat.opacity = style.opacity.fill
+      traceMat.opacity = style.opacity.trace * depth
+      fillMat.opacity = style.opacity.fill * depth
       // Points shrink with distance but not with the field of view, so they make up for the dolly.
       dotMat.size = style.cursorSize * dolly
       focusMat.size = style.cursorSize * FOCUS_RING_SCALE * dolly
