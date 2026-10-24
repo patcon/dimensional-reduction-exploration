@@ -46,9 +46,10 @@ check('restart forgets laps', [playhead.moment, playhead.laps, playhead.wraps], 
 const partial = completeSettings({ resolution: 0.5, style: { traceWidth: 3 } as never, particles: { cohesion: 0.65 } as never })
 check('given settings kept', [partial.resolution, partial.style.traceWidth, partial.particles.cohesion], [0.5, 3, 0.65])
 check('missing top-level settings filled', partial.digits, DEFAULT_SETTINGS.digits)
-check('missing nested settings filled', [partial.style.colorBy, partial.style.focusRing, partial.particles.damping], [
+check('missing nested settings filled', [partial.style.colorBy, partial.style.focusRing, partial.style.perspective, partial.particles.damping], [
   DEFAULT_SETTINGS.style.colorBy,
   true,
+  DEFAULT_SETTINGS.style.perspective,
   DEFAULT_SETTINGS.particles.damping,
 ])
 check('nested-nested settings merged', completeSettings({ style: { opacity: { fill: 0.1 } } as never }).style.opacity, {

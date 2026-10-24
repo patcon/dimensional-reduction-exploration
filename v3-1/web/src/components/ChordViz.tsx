@@ -38,11 +38,17 @@ const FILL_LATER = [false, false, true, false, true, true]
 const FILL_IS_ROOT = [true, false, true, false, false, true]
 /** The focus ring's size, relative to a cursor dot. */
 const FOCUS_RING_SCALE = 2.6
+/** The outer ring's dots, in the authoring space's units. */
+const RING_DOT_SIZE = 3
 /** How far from its root a chord reaches full width; shorter chords never get there. */
 const CHORD_TAPER = 60
 /** A chord's ribbon: root, then the two corners where the taper ends, then the two at the tip. */
 const CHORD_VERTS = 9
 const TRANS_SPEED = 0.04
+/** The camera's vertical field of view, in degrees, at full perspective on a panel at least as wide as it is tall. */
+const FOV = 53.13
+/** Its field of view at no perspective: narrow enough to look orthographic. */
+const FLAT_FOV = 1
 /** How fast chords glide to a new slot, per frame. */
 const REORDER_EASE = 0.08
 const BG: RGB = [15, 15, 14]
@@ -178,7 +184,7 @@ export function ChordViz(props: ChordVizProps) {
     THREE.ColorManagement.enabled = false
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(53.13, 1, 0.1, 10000)
+    const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 10000)
 
     // ── Scene objects ──
     const outerRing = makeRingLine(R, 0, 0x383835)
@@ -192,7 +198,7 @@ export function ChordViz(props: ChordVizProps) {
     for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2; ringDotsArr[i * 3] = Math.cos(a) * R; ringDotsArr[i * 3 + 1] = Math.sin(a) * R }
     const ringDotsGeo = new THREE.BufferGeometry()
     ringDotsGeo.setAttribute('position', new THREE.BufferAttribute(ringDotsArr, 3))
-    const ringDotsMat = new THREE.PointsMaterial({ color: 0x3a3935, size: 3, sizeAttenuation: true, transparent: true })
+    const ringDotsMat = new THREE.PointsMaterial({ color: 0x3a3935, size: RING_DOT_SIZE, sizeAttenuation: true, transparent: true })
     scene.add(new THREE.Points(ringDotsGeo, ringDotsMat))
 
     const buffer = (verts: number) => {
@@ -265,6 +271,21 @@ export function ChordViz(props: ChordVizProps) {
     const CAM_2D_TS = { radius: 820, theta: -Math.PI / 2, phi: 0, targetZ: -TRACE_DEPTH / 2 }
     const CAM_3D = { radius: 560, theta: Math.PI / 5, phi: Math.PI / 9 }
     let transT = 0, transTts = 0
+    // Perspective is a dolly zoom: the field of view narrows from `baseFov` (the panel's, at full
+    // perspective) while the camera backs off by `dolly`, so the plane it looks at stays the same size.
+    let baseFov = FOV, shownPerspective = live.current.style.perspective, dolly = 1
+    function setLens() {
+      const half = (deg: number) => Math.tan((deg * Math.PI) / 360)
+      // Blended in tan(fov/2), not in degrees, so lines converge less in even steps along the slider.
+      const t = half(FLAT_FOV) + (half(baseFov) - half(FLAT_FOV)) * shownPerspective
+      camera.fov = (2 * Math.atan(t) * 180) / Math.PI
+      dolly = half(baseFov) / t
+      // Near grows with the square of the distance, keeping the depth buffer's precision at the scene
+      // as it was (it goes as distance² / near); far just has to reach past the scene.
+      camera.near = 0.1 * dolly * dolly
+      camera.far = 10000 * dolly
+      camera.updateProjectionMatrix()
+    }
     // Opens on whatever view is chosen, without animating there from 2d.
     if (live.current.view === '3d') transT = 1
     if (live.current.view === '2d-ts') transTts = 1
@@ -273,6 +294,7 @@ export function ChordViz(props: ChordVizProps) {
     const orbit = new Orbit(canvas, {
       canOrbit: () => live.current.view === '3d' && transT > 0.7,
       canZoom: () => live.current.view === '3d',
+      // Orbit's radii are before the dolly, so its zoom limits and speed scale with it.
       baseRadius: () => camRadius,
       onTap: (x, y) => {
         const i = pickAt(x, y)
@@ -284,7 +306,7 @@ export function ChordViz(props: ChordVizProps) {
     function applyCam() {
       const theta = camTheta + orbit.dTheta
       const phi = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camPhi + orbit.dPhi))
-      const effR = camRadius + orbit.dRadius
+      const effR = (camRadius + orbit.dRadius) * dolly
       camera.position.set(effR * Math.sin(theta) * Math.cos(phi), effR * Math.sin(phi), camTargetZ + effR * Math.cos(theta) * Math.cos(phi))
       camera.lookAt(0, 0, camTargetZ)
       camera.up.set(0, 1, 0)
@@ -390,6 +412,8 @@ export function ChordViz(props: ChordVizProps) {
         camPhi += (CAM_2D_TS.phi - camPhi) * et
       }
       camTargetZ = CAM_2D_TS.targetZ * ease(transTts)
+      shownPerspective += (clamp01(style.perspective) - shownPerspective) * TRANS_SPEED * 3
+      setLens()
       applyCam()
 
       // ── Geometry: the chord geometries morph into one another ──
@@ -546,8 +570,10 @@ export function ChordViz(props: ChordVizProps) {
       dotMat.opacity = style.opacity.cursor
       traceMat.opacity = style.opacity.trace
       fillMat.opacity = style.opacity.fill
-      dotMat.size = style.cursorSize
-      focusMat.size = style.cursorSize * FOCUS_RING_SCALE
+      // Points shrink with distance but not with the field of view, so they make up for the dolly.
+      dotMat.size = style.cursorSize * dolly
+      focusMat.size = style.cursorSize * FOCUS_RING_SCALE * dolly
+      ringDotsMat.size = RING_DOT_SIZE * dolly
       traceMat.linewidth = style.traceWidth
 
       renderer.render(scene, camera)
@@ -591,8 +617,8 @@ export function ChordViz(props: ChordVizProps) {
       traceMat.resolution.set(w, h)
       camera.aspect = w / h
       // Keep the whole circle in view on narrow panels too.
-      camera.fov = w >= h ? 53.13 : (2 * Math.atan(Math.tan((53.13 * Math.PI) / 360) * (h / w)) * 180) / Math.PI
-      camera.updateProjectionMatrix()
+      baseFov = w >= h ? FOV : (2 * Math.atan(Math.tan((FOV * Math.PI) / 360) * (h / w)) * 180) / Math.PI
+      setLens()
     })
     resize.observe(wrap)
 

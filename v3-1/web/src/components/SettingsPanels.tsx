@@ -134,7 +134,7 @@ export function ParticlePanel({ settings, patch, onScatter }: SettingsEditor & {
   )
 }
 
-/** What each element is coloured by, its opacity, and the sizes of cursors, chords and traces. */
+/** What each element is coloured by, its opacity, the sizes of cursors, chords and traces, and the camera's perspective. */
 export function StylePanel({ settings, patch }: SettingsEditor) {
   const { style } = settings
   return (
@@ -178,6 +178,16 @@ export function StylePanel({ settings, patch }: SettingsEditor) {
       <Slider label="cursor size" value={style.cursorSize} min={2} max={30} onChange={(v) => patch('style', { cursorSize: v })} />
       <Slider label="chord width" value={style.chordWidth} min={0.5} max={10} step={0.5} onChange={(v) => patch('style', { chordWidth: v })} format={(v) => `${v} px`} />
       <Slider label="trace width" value={style.traceWidth} min={0.5} max={10} step={0.5} onChange={(v) => patch('style', { traceWidth: v })} />
+      <Slider
+        label="perspective"
+        title="From the camera's usual perspective (1) to a flat, orthographic look (0), where lines into the distance stay parallel"
+        value={style.perspective}
+        min={0}
+        max={1}
+        step={0.05}
+        onChange={(v) => patch('style', { perspective: v })}
+        format={fixed(2)}
+      />
     </>
   )
 }
