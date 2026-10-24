@@ -21,9 +21,9 @@ export const ELEMENTS: Element[] = ['cursor', 'chord', 'trace', 'fill']
 export const DEFAULT_STYLE: VizStyle = {
   colorBy: { cursor: 'valence', chord: 'valence', trace: 'valence', fill: 'valence' },
   opacity: { cursor: 1, chord: 1, trace: 0.8, fill: 0.45 },
-  cursorSize: 9,
-  chordWidth: 2,
-  traceWidth: 1.5,
+  cursorSize: 12,
+  chordWidth: 8,
+  traceWidth: 8,
 }
 
 /** At most this many digits take part (one chord each). */

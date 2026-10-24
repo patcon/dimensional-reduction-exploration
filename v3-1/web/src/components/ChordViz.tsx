@@ -200,9 +200,10 @@ export function ChordViz(props: ChordVizProps) {
     scene.add(chordMesh)
     let viewHeight = 1
 
+    // Cursors skip the depth test, so they're always drawn over chords and trails.
     const dotTex = dotTexture(false)
     const dot = buffer(MAX_CHORDS)
-    const dotMat = new THREE.PointsMaterial({ vertexColors: true, size: DEFAULT_STYLE.cursorSize, sizeAttenuation: true, transparent: true, depthWrite: false, map: dotTex, alphaTest: 0.05 })
+    const dotMat = new THREE.PointsMaterial({ vertexColors: true, size: DEFAULT_STYLE.cursorSize, sizeAttenuation: true, transparent: true, depthWrite: false, depthTest: false, map: dotTex, alphaTest: 0.05 })
     const dotPoints = new THREE.Points(dot.geo, dotMat)
     dotPoints.renderOrder = 10
     dotPoints.frustumCulled = false
