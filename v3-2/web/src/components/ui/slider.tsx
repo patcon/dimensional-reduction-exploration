@@ -1,13 +1,32 @@
 import * as SliderPrimitive from '@radix-ui/react-slider'
 import type * as React from 'react'
 import { cn } from '@/lib/utils'
+import { useSteadyRelease } from '../../useSteadyRelease'
 
-// From shadcn/ui, for a single thumb.
-function Slider({ className, ...props }: React.ComponentProps<typeof SliderPrimitive.Root>) {
+// From shadcn/ui, for a single thumb. Added: lifting a finger off doesn't nudge it (see useSteadyRelease).
+function Slider({ className, onValueChange, onPointerDown, onPointerMove, onPointerUp, ...props }: React.ComponentProps<typeof SliderPrimitive.Root>) {
+  const steady = useSteadyRelease<number[]>()
   return (
     <SliderPrimitive.Root
       data-slot="slider"
       className={cn('relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50', className)}
+      onValueChange={(v) => {
+        steady.noteValue(v)
+        onValueChange?.(v)
+      }}
+      onPointerDown={(e) => {
+        steady.onPointerDown(e, props.value ?? props.defaultValue ?? [])
+        onPointerDown?.(e)
+      }}
+      onPointerMove={(e) => {
+        steady.onPointerMove(e)
+        onPointerMove?.(e)
+      }}
+      onPointerUp={(e) => {
+        const settled = steady.release(e)
+        if (settled) onValueChange?.(settled)
+        onPointerUp?.(e)
+      }}
       {...props}
     >
       <SliderPrimitive.Track data-slot="slider-track" className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-muted">

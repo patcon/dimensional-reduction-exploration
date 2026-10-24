@@ -5,6 +5,7 @@ import type { Playhead } from '../playhead'
 import { SIDE, type Traces } from '../signal'
 import { Section, Slider, Toggle } from './controls'
 import { Button } from './ui/button'
+import { useSteadyRelease } from '../useSteadyRelease'
 
 // Speed slider: logarithmic, 0.25–60 pixels per second.
 const SPEED_MIN = 0.25
@@ -25,6 +26,7 @@ export function TransportBar({ playhead, traces, open, onOpen }: {
   const scrubRef = useRef<HTMLInputElement>(null)
   const timeRef = useRef<HTMLSpanElement>(null)
   const scrubbing = useRef<{ wasPlaying: boolean } | null>(null)
+  const steady = useSteadyRelease<number>()
 
   useEffect(() => {
     const update = () => {
@@ -56,15 +58,25 @@ export function TransportBar({ playhead, traces, open, onOpen }: {
         max={traces.length - 1}
         step="any"
         aria-label="Moment"
-        onPointerDown={() => {
+        onPointerDown={(e) => {
           scrubbing.current = { wasPlaying: playhead.playing }
+          steady.onPointerDown(e, playhead.moment)
           playhead.setPlaying(false)
         }}
-        onPointerUp={() => {
+        onPointerMove={steady.onPointerMove}
+        onPointerUp={(e) => {
+          const settled = steady.release(e)
+          if (settled !== null) {
+            playhead.seek(settled)
+            scrubRef.current!.value = String(settled)
+          }
           if (scrubbing.current?.wasPlaying) playhead.setPlaying(true)
           scrubbing.current = null
         }}
-        onChange={(e) => playhead.seek(Number(e.target.value))}
+        onChange={(e) => {
+          steady.noteValue(Number(e.target.value))
+          playhead.seek(Number(e.target.value))
+        }}
       />
       <span ref={timeRef} className="num shrink-0 text-xs text-muted-foreground" />
       <Button variant="ghost" size="icon-sm" onClick={() => onOpen(!open)} aria-label={open ? 'Hide settings' : 'Show settings'} aria-expanded={open}>
