@@ -173,6 +173,11 @@ export interface ChordVizProps {
   onFocus: (participant: number | null) => void
   /** The pointer is over a digit's cursor (or chord), or none. */
   onHover: (participant: number | null) => void
+  /**
+   * How many pixels at the panel's bottom something covers, read every frame: the view centres in what's left,
+   * by shifting the lens rather than resizing the canvas, so it follows a drawer smoothly as it moves.
+   */
+  coveredBottom?: () => number
 }
 
 export function ChordViz(props: ChordVizProps) {
@@ -232,7 +237,14 @@ export function ChordViz(props: ChordVizProps) {
     chordMesh.renderOrder = 7
     chordMesh.frustumCulled = false
     scene.add(chordMesh)
-    let viewHeight = 1
+    let viewWidth = 1, viewHeight = 1
+    /** The pixels covered at the bottom, as the lens is shifted for now. */
+    let shownCovered = 0
+    function shiftLens() {
+      // The view's middle moves up by half what's covered; picking and panning go through the camera, so follow.
+      if (shownCovered > 0) camera.setViewOffset(viewWidth, viewHeight, 0, shownCovered / 2, viewWidth, viewHeight)
+      else camera.clearViewOffset()
+    }
 
     // Cursors skip the depth test, so they're always drawn over chords and trails.
     const dotTex = dotTexture(false)
@@ -450,6 +462,11 @@ export function ChordViz(props: ChordVizProps) {
       camPhi += (CAM_2D_TS.phi - camPhi) * toTs
       camTargetZ = tsTargetZ() * toTs
       shownPerspective += (clamp01(style.perspective) - shownPerspective) * TRANS_SPEED * 3
+      const covered = Math.max(0, Math.min(viewHeight, Math.round(live.current.coveredBottom?.() ?? 0)))
+      if (covered !== shownCovered) {
+        shownCovered = covered
+        shiftLens()
+      }
       setLens()
       applyCam()
 
@@ -681,7 +698,9 @@ export function ChordViz(props: ChordVizProps) {
     const resize = new ResizeObserver(() => {
       const w = wrap.clientWidth, h = wrap.clientHeight
       renderer.setSize(w, h, false)
+      viewWidth = w
       viewHeight = h
+      shiftLens()
       traceMat.resolution.set(w, h)
       camera.aspect = w / h
       // Keep the whole circle in view on narrow panels too.

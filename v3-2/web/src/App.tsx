@@ -24,7 +24,7 @@ import { MAX_CHORDS, VIEW_LABELS, type ViewMode } from './vizSettings'
 
 /** Moments sampled across the trail's window when clustering over it. */
 const WINDOW_SAMPLES = 32
-/** vaul's own easing and duration, so the visualiser makes room as the drawer moves. */
+/** vaul's own easing and duration, so what sits over the visualiser keeps clear of the drawer as it moves. */
 const DRAWER_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const DRAWER_SECONDS = 0.5
 /** The views the view button steps through, in order. */
@@ -117,7 +117,7 @@ function Explorer({ data }: { data: PoolData }) {
   const shown = hover ?? followed
 
   // The drawer is always there, at one of two heights: closed, only the playback bar on its top edge shows; open,
-  // its tabs show too. The visualiser takes the rest of the window, above it.
+  // its tabs show too. The visualiser centres in the rest of the window, above it.
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [tab, setTab] = useState<string>('playback')
   const [presetsOpen, setPresetsOpen] = useState(false)
@@ -133,7 +133,9 @@ function Explorer({ data }: { data: PoolData }) {
   }
   const [barHeight, setBarHeight] = useState(64)
   // A callback ref, as the drawer's portal mounts its content after the page does.
+  const barEl = useRef<HTMLDivElement | null>(null)
   const barRef = useCallback((bar: HTMLDivElement | null) => {
+    barEl.current = bar
     if (!bar) return
     const observer = new ResizeObserver(() => setBarHeight(Math.ceil(bar.getBoundingClientRect().height)))
     observer.observe(bar)
@@ -143,13 +145,17 @@ function Explorer({ data }: { data: PoolData }) {
   const panelHeight = Math.round(Math.min(windowHeight * 0.5, 560))
   const closedSnap = `${barHeight}px`
   const openSnap = `${barHeight + panelHeight}px`
+  // Where the drawer's top edge is right now, mid-move or mid-drag too, as the visualiser centres above it.
+  const drawerCovers = useCallback(() => {
+    const drawer = barEl.current?.parentElement
+    return drawer ? window.innerHeight - drawer.getBoundingClientRect().top : 0
+  }, [])
 
   return (
     <>
-      <main
-        className="fixed inset-x-0 top-0 overflow-hidden bg-viz"
-        style={{ bottom: drawerOpen ? openSnap : closedSnap, transition: `bottom ${DRAWER_SECONDS}s ${DRAWER_EASE}` }}
-      >
+      {/* The visualiser fills the window, behind the drawer, and centres in what the drawer leaves (as a map
+          would), so it never resizes as the drawer moves. */}
+      <div className="fixed inset-0 overflow-hidden bg-viz">
         <ChordViz
           traces={traces}
           pickKey={rows}
@@ -167,7 +173,14 @@ function Explorer({ data }: { data: PoolData }) {
           cameraReset={cameraReset}
           onFocus={setFocus}
           onHover={setHover}
+          coveredBottom={drawerCovers}
         />
+      </div>
+      {/* What sits over the visualiser, kept clear of the drawer. */}
+      <main
+        className="pointer-events-none fixed inset-x-0 top-0"
+        style={{ bottom: drawerOpen ? openSnap : closedSnap, transition: `bottom ${DRAWER_SECONDS}s ${DRAWER_EASE}` }}
+      >
         {/* The followed (or hovered) digit as it plays, as in the inspect tab, always in sight; with none, the
             trail's window still shows where in the reading the playhead is. */}
         <DigitImage
@@ -176,7 +189,7 @@ function Explorer({ data }: { data: PoolData }) {
           traces={traces}
           playhead={playhead}
           trailPixels={trailPixels}
-          className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 size-21 rounded-sm border-white/90!"
+          className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 size-21 rounded-sm border-white/90! pointer-events-auto"
         />
         {/* The digits taking part, along the top as in the digits tab, clear of the corner digit. */}
         <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-[calc(5.25rem+1.5rem)] left-3 pointer-events-none [&_button]:pointer-events-auto">
@@ -193,7 +206,7 @@ function Explorer({ data }: { data: PoolData }) {
         <Button
           variant="ghost"
           size="icon"
-          className="absolute right-3 bottom-0 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
+          className="pointer-events-auto absolute right-3 bottom-0 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
           onClick={nextView}
           aria-label={`View: ${VIEW_LABELS[view]}. Switch to ${VIEW_LABELS[followingView]}.`}
         >
@@ -202,7 +215,7 @@ function Explorer({ data }: { data: PoolData }) {
         <Button
           variant="ghost"
           size="icon"
-          className="absolute bottom-0 left-3 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
+          className="pointer-events-auto absolute bottom-0 left-3 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
           onClick={() => setPresetsOpen(true)}
           aria-label="Presets"
         >
