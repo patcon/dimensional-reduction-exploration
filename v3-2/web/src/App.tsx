@@ -238,92 +238,100 @@ function Explorer({ data }: { data: PoolData }) {
             <DrawerHandle className="mb-2" />
             <TransportBar playhead={playhead} traces={traces} open={drawerOpen} onOpen={setDrawerOpen} />
           </div>
-          {/* Out of reach of focus while closed, as it's out of sight. */}
-          <div className="flex flex-col border-t" style={{ height: panelHeight }} inert={!drawerOpen}>
-            <DrawerDescription className="sr-only">Settings, grouped in tabs, for what the visualiser shows.</DrawerDescription>
-            <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0">
-              <TabsList className="mx-3 mt-2 h-auto w-auto">
-                {TABS.map(({ value, label, icon: Icon }) => (
-                  <TabsTrigger key={value} value={value} className="flex-col gap-0.5 py-1.5 text-[11px] sm:flex-row sm:gap-1.5 sm:text-sm">
-                    <Icon /> {label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-6">
-                <TabsContent value="playback">
-                  <PlaybackSection
-                    playhead={playhead}
-                    traces={traces}
-                    speed={settings.speed}
-                    onSpeed={(v) => set('speed', v)}
-                    loop={settings.loop}
-                    onLoop={(v) => set('loop', v)}
-                    trailSeconds={trailSeconds}
-                    onTrailSeconds={(v) => set('trailSeconds', v)}
-                  />
-                </TabsContent>
-                <TabsContent value="digits" className="flex flex-col gap-8">
-                  <SampleSection {...editor} available={available} shownCount={shownCount} maxCount={maxCount} />
-                  <ReadingSection {...editor} />
-                </TabsContent>
-                <TabsContent value="groups" className="flex flex-col gap-8">
-                  <GroupingSection {...editor} grouping={grouping} />
-                  <Section title="Mean valence now" description="Tap a group, or one of its digits, to follow it.">
-                    <GroupLegend
-                      groups={grouping.groups}
-                      groupOf={grouping.groupOf}
-                      colors={colors}
-                      traces={traces}
+          {/* Out of reach of focus while closed, as it's out of sight. The panel inside stays on the window's bottom,
+              moving against the drawer as it moves (with vaul's own easing, so in step), so opening the drawer uncovers
+              it from the bottom up: tabs first, then settings. */}
+          <div className="overflow-hidden border-t" style={{ height: panelHeight }} inert={!drawerOpen}>
+            <div
+              className="flex h-full flex-col"
+              style={{ transform: `translateY(${drawerOpen ? 0 : -panelHeight}px)`, transition: `transform ${DRAWER_SECONDS}s ${DRAWER_EASE}` }}
+            >
+              <DrawerDescription className="sr-only">Settings, grouped in tabs, for what the visualiser shows.</DrawerDescription>
+              <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-6">
+                  <TabsContent value="playback">
+                    <PlaybackSection
                       playhead={playhead}
-                      trailPixels={trailPixels}
-                      pixels={pixels}
-                      rows={rows}
-                      hover={hover}
-                      onFocus={setFocus}
-                      onHover={setHover}
+                      traces={traces}
+                      speed={settings.speed}
+                      onSpeed={(v) => set('speed', v)}
+                      loop={settings.loop}
+                      onLoop={(v) => set('loop', v)}
+                      trailSeconds={trailSeconds}
+                      onTrailSeconds={(v) => set('trailSeconds', v)}
                     />
-                  </Section>
-                </TabsContent>
-                <TabsContent value="view" className="flex flex-col gap-8">
-                  <ViewSection {...editor} onView={(v) => (v === view ? setCameraReset((r) => r + 1) : set('view', v))} />
-                  {geometry === 'particle' && <ParticleSection {...editor} onScatter={() => setParticleReset((r) => r + 1)} />}
-                  <StyleSection {...editor} />
-                </TabsContent>
-                <TabsContent value="inspect" className="flex flex-col gap-8">
-                  <Section title="Followed digit" description="Tap or drag across the digit to move the playhead to where a pixel is read.">
-                    {shown !== null && (
-                      <DigitPreview
-                        pixels={pixels}
-                        poolRow={rows[shown]}
-                        participant={shown}
-                        label={labels[rows[shown]]}
-                        groupName={grouping.groups[grouping.groupOf[shown]].name}
-                        groupColor={colors[grouping.groupOf[shown]]}
+                  </TabsContent>
+                  <TabsContent value="digits" className="flex flex-col gap-8">
+                    <SampleSection {...editor} available={available} shownCount={shownCount} maxCount={maxCount} />
+                    <ReadingSection {...editor} />
+                  </TabsContent>
+                  <TabsContent value="groups" className="flex flex-col gap-8">
+                    <GroupingSection {...editor} grouping={grouping} />
+                    <Section title="Mean valence now" description="Tap a group, or one of its digits, to follow it.">
+                      <GroupLegend
+                        groups={grouping.groups}
+                        groupOf={grouping.groupOf}
+                        colors={colors}
                         traces={traces}
                         playhead={playhead}
                         trailPixels={trailPixels}
-                        following={hover === null}
+                        pixels={pixels}
+                        rows={rows}
+                        hover={hover}
+                        onFocus={setFocus}
+                        onHover={setHover}
                       />
-                    )}
-                  </Section>
-                  <Section title="Matrix" description="One row per digit, in chord order, one column per pixel. Tap a row to follow that digit.">
-                    <Matrix
-                      traces={traces}
-                      slotOf={slotOf}
-                      groupOf={grouping.groupOf}
-                      colors={colors}
-                      grouped={order === 'grouped'}
-                      focus={followed}
-                      hover={hover}
-                      onFocus={setFocus}
-                      onHover={setHover}
-                      playhead={playhead}
-                      trailPixels={trailPixels}
-                    />
-                  </Section>
-                </TabsContent>
-              </div>
-            </Tabs>
+                    </Section>
+                  </TabsContent>
+                  <TabsContent value="view" className="flex flex-col gap-8">
+                    <ViewSection {...editor} onView={(v) => (v === view ? setCameraReset((r) => r + 1) : set('view', v))} />
+                    {geometry === 'particle' && <ParticleSection {...editor} onScatter={() => setParticleReset((r) => r + 1)} />}
+                    <StyleSection {...editor} />
+                  </TabsContent>
+                  <TabsContent value="inspect" className="flex flex-col gap-8">
+                    <Section title="Followed digit" description="Tap or drag across the digit to move the playhead to where a pixel is read.">
+                      {shown !== null && (
+                        <DigitPreview
+                          pixels={pixels}
+                          poolRow={rows[shown]}
+                          participant={shown}
+                          label={labels[rows[shown]]}
+                          groupName={grouping.groups[grouping.groupOf[shown]].name}
+                          groupColor={colors[grouping.groupOf[shown]]}
+                          traces={traces}
+                          playhead={playhead}
+                          trailPixels={trailPixels}
+                          following={hover === null}
+                        />
+                      )}
+                    </Section>
+                    <Section title="Matrix" description="One row per digit, in chord order, one column per pixel. Tap a row to follow that digit.">
+                      <Matrix
+                        traces={traces}
+                        slotOf={slotOf}
+                        groupOf={grouping.groupOf}
+                        colors={colors}
+                        grouped={order === 'grouped'}
+                        focus={followed}
+                        hover={hover}
+                        onFocus={setFocus}
+                        onHover={setHover}
+                        playhead={playhead}
+                        trailPixels={trailPixels}
+                      />
+                    </Section>
+                  </TabsContent>
+                </div>
+                {/* A menu bar along the bottom. */}
+                <TabsList className="h-auto w-full rounded-none border-t px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+                  {TABS.map(({ value, label, icon: Icon }) => (
+                    <TabsTrigger key={value} value={value} className="flex-col gap-0.5 py-1.5 text-[11px] sm:flex-row sm:gap-1.5 sm:text-sm">
+                      <Icon /> {label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
           </div>
         </DrawerContent>
       </Drawer>
