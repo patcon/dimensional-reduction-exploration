@@ -45,6 +45,16 @@ export class Playhead {
     return this.loop && this.laps > 0
   }
 
+  /**
+   * The moments a trail `trailPixels` long covers now, as [from, to] ranges: one, or two once
+   * playback has looped and the trail reaches back past the start round to the end.
+   */
+  trailRanges(trailPixels: number): [number, number][] {
+    const from = this.moment - trailPixels
+    if (from >= 0 || !this.wraps) return [[Math.max(0, from), this.moment]]
+    return [[0, this.moment], [Math.max(this.moment, from + this.length - 1), this.length - 1]]
+  }
+
   /** Back to the start, as if never played: trails stop at the start again until the next loop. */
   restart() {
     this.resetLaps()

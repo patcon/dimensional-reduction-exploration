@@ -89,16 +89,13 @@ export function Matrix({
       ctx.clearRect(0, 0, width, height)
       const x = (m: number) => ((m + 0.5) / length) * width
       const head = x(playhead.moment)
-      const from = playhead.moment - trailPixels
-      const tail = x(Math.max(0, from))
       const accent = getComputedStyle(canvas).color
       ctx.fillStyle = accent
       ctx.globalAlpha = 0.18
-      ctx.fillRect(tail, 0, head - tail, height)
-      // Once playback has looped, a trail reaching back past the start carries on from the end.
-      if (playhead.wraps && from < 0) {
-        const wrapped = x(Math.max(playhead.moment, from + length - 1))
-        ctx.fillRect(wrapped, 0, width - wrapped, height)
+      // A range running to the end (as a wrapped trail's does) is shaded to the edge.
+      for (const [from, to] of playhead.trailRanges(trailPixels)) {
+        const right = to >= length - 1 ? width : x(to)
+        ctx.fillRect(x(from), 0, right - x(from), height)
       }
       ctx.globalAlpha = 1
       ctx.fillRect(head - 1, 0, 2, height)
