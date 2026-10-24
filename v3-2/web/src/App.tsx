@@ -152,10 +152,11 @@ function Explorer({ data }: { data: PoolData }) {
           onFocus={setFocus}
           onHover={setHover}
         />
+        {/* Sat on the drawer's top edge, so it rises and falls with it. */}
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
+          className="absolute right-3 bottom-0 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
           onClick={() => setPresetsOpen(true)}
           aria-label="Presets"
         >
