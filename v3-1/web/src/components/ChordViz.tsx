@@ -631,7 +631,7 @@ export function ChordViz(props: ChordVizProps) {
         b.geo.attributes.position.needsUpdate = true
         b.geo.attributes.color.needsUpdate = true
       }
-      focusPoint.visible = focusShown
+      focusPoint.visible = focusShown && style.focusRing
       traceLines.visible = showTrace
       fillMesh.visible = showTrace && !inParticles
       chordMesh.visible = !inParticles

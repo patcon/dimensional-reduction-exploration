@@ -20,6 +20,8 @@ export function DigitPreview({
   playhead,
   trailPixels,
   following,
+  focusRing,
+  onFocusRing,
 }: {
   pixels: Uint8Array
   poolRow: number
@@ -32,6 +34,9 @@ export function DigitPreview({
   trailPixels: number
   /** Whether this is the followed digit (rather than one hovered for a moment). */
   following: boolean
+  /** Whether the followed digit's cursor is ringed in the visualiser. */
+  focusRing: boolean
+  onFocusRing: (on: boolean) => void
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const meterRef = useRef<HTMLDivElement>(null)
@@ -74,6 +79,9 @@ export function DigitPreview({
         <div className="muted">
           valence <span ref={readoutRef} className="num" />
         </div>
+        <label className="check">
+          <input type="checkbox" checked={focusRing} onChange={(e) => onFocusRing(e.target.checked)} /> ring followed digit
+        </label>
       </div>
     </div>
   )

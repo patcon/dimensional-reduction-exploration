@@ -13,6 +13,8 @@ export interface VizStyle {
   chordWidth: number
   /** Trace width, in world units (the authoring space's, where the ring's radius is 180). */
   traceWidth: number
+  /** Ring the followed digit's cursor. */
+  focusRing: boolean
 }
 
 export const VIEW_LABELS: Record<ViewMode, string> = { '2d': '2d time slice', '2d-ts': '2d time series', '3d': '3d' }
@@ -24,6 +26,7 @@ export const DEFAULT_STYLE: VizStyle = {
   cursorSize: 12,
   chordWidth: 8,
   traceWidth: 8,
+  focusRing: true,
 }
 
 /** Forces in the particle geometry. Positive pulls together, negative pushes apart. */

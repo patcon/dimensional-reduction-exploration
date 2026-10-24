@@ -310,6 +310,8 @@ function Explorer({ data }: { data: PoolData }) {
               playhead={playhead}
               trailPixels={trailSeconds * playhead.speed}
               following={hover === null}
+              focusRing={style.focusRing}
+              onFocusRing={(on) => setStyle((s) => ({ ...s, focusRing: on }))}
             />
           )}
           <h2>Groups: mean valence now</h2>
