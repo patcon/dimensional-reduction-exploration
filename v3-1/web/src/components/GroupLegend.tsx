@@ -7,7 +7,7 @@ import { shuffle } from '../rng'
 import { SIDE, valenceAt, type Traces } from '../signal'
 
 /** Sample digits shown beside each group. */
-const THUMBS = 4
+const THUMBS = 8
 
 /**
  * Up to THUMBS participants per group: its members that come first in `order`, a random order of
