@@ -262,12 +262,12 @@ function Explorer({ data }: { data: PoolData }) {
             <input
               type="range"
               min={0.5}
-              max={8}
+              max={10}
               step={0.5}
               value={style.traceWidth}
               onChange={(e) => setStyle((s) => ({ ...s, traceWidth: Number(e.target.value) }))}
             />
-            <span className="num">{style.traceWidth} px</span>
+            <span className="num">{style.traceWidth}</span>
           </label>
         </aside>
       </div>

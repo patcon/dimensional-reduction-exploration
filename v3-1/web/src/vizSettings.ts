@@ -9,7 +9,7 @@ export interface VizStyle {
   opacity: Record<Element, number>
   /** Cursor dot size, in the authoring space's units. */
   cursorSize: number
-  /** Trace width, in pixels. */
+  /** Trace width, in world units (the authoring space's, where the ring's radius is 180). */
   traceWidth: number
 }
 
@@ -20,7 +20,7 @@ export const DEFAULT_STYLE: VizStyle = {
   colorBy: { cursor: 'valence', chord: 'valence', trace: 'valence', fill: 'valence' },
   opacity: { cursor: 1, chord: 1, trace: 0.8, fill: 0.45 },
   cursorSize: 9,
-  traceWidth: 1,
+  traceWidth: 1.5,
 }
 
 /** At most this many digits take part (one chord each). */

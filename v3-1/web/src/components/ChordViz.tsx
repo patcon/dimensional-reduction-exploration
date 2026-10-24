@@ -216,13 +216,16 @@ export function ChordViz(props: ChordVizProps) {
     scene.add(focusPoint)
 
     // Wide lines too, so their width can be set; the buffers are handed over once and written in place.
+    // Measured in world units, so trails taper into the distance. They write depth, so nearer, newer
+    // segments hide the dark, faded ends of trails behind them rather than being painted over by them;
+    // a strict depth test keeps a trail's overlapping joints from blending twice.
     const trace = { pos: new Float32Array(MAX_CHORDS * TRACE_SEGS * 6), col: new Float32Array(MAX_CHORDS * TRACE_SEGS * 6) }
     const traceGeo = new LineSegmentsGeometry()
     traceGeo.setPositions(trace.pos)
     traceGeo.setColors(trace.col)
     const traceBuffers = ['instanceStart', 'instanceColorStart'].map((a) => (traceGeo.getAttribute(a) as THREE.InterleavedBufferAttribute).data)
     for (const b of traceBuffers) b.setUsage(THREE.DynamicDrawUsage)
-    const traceMat = new LineMaterial({ vertexColors: true, transparent: true, depthWrite: false, linewidth: DEFAULT_STYLE.traceWidth })
+    const traceMat = new LineMaterial({ vertexColors: true, transparent: true, depthFunc: THREE.LessDepth, worldUnits: true, linewidth: DEFAULT_STYLE.traceWidth })
     const traceLines = new LineSegments2(traceGeo, traceMat)
     traceLines.renderOrder = 5
     traceLines.frustumCulled = false
