@@ -6,14 +6,16 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import type { RGB } from '../palette'
 import type { Playhead } from '../playhead'
 import { valenceAt, type Traces } from '../signal'
-import { DEFAULT_STYLE, MAX_CHORDS, type GeoMode, type ViewMode, type VizStyle } from '../vizSettings'
+import { DEFAULT_STYLE, MAX_CHORDS, type GeoMode, type ParticleSettings, type ViewMode, type VizStyle } from '../vizSettings'
 
 // Ported from the reaction canvas's valence cross-section (plugins/valenceCrossSection in
 // patcon/polislike-partykit-reaction-canvas, itself from valence-onboarding-v3.html): each
 // participant is a chord, rooted at the centre and displaced by its valence, laid out in one
 // of several geometries and seen in three views. Here the valence comes from a precomputed
 // trace rather than a live cursor, so trails are drawn from the trace itself, which also lets
-// them follow a scrub backwards. Added: group colouring and chord order.
+// them follow a scrub backwards. Added: group colouring and chord order. The particle geometry is
+// the prototype's charged particles, with its group force matrix replaced by one force within
+// groups and one between them, and its speaker's per-group pull by each digit's valence.
 
 // ── Layout, in the original's 480×480 authoring space ──
 const CENTER = 240
@@ -41,6 +43,20 @@ const TRANS_SPEED = 0.04
 /** How fast chords glide to a new slot, per frame. */
 const REORDER_EASE = 0.08
 const BG: RGB = [15, 15, 14]
+
+// ── Particle physics, as the prototype's (its defaults), in the authoring space's units ──
+/** Closer than this, particles push apart whatever their groups. */
+const P_R_MIN = 12
+const P_DT = 0.5
+const P_G = 1.1
+/** The centre's reach; beyond it, the boundary pushes particles back. */
+const P_S_RMAX = 175
+/** Closer to the centre than this, particles are pushed out. */
+const P_S_RMIN = 35
+const P_S_BWIDTH = 400
+const P_S_BG = 20
+/** Frames a cursor takes to glide from its particle back onto its chord. */
+const PARTICLE_EXIT_FRAMES = 30
 
 const COLORS = { pos: [80, 255, 140] as RGB, neg: [255, 80, 60] as RGB, neutral: BG }
 
@@ -140,6 +156,9 @@ export interface ChordVizProps {
   style: VizStyle
   /** How far back trails reach, in seconds of playback. */
   trailSeconds: number
+  particles: ParticleSettings
+  /** Changes when particles should be scattered afresh. */
+  particleReset: unknown
 }
 
 export function ChordViz(props: ChordVizProps) {
@@ -269,8 +288,103 @@ export function ChordViz(props: ChordVizProps) {
     let shownSlot = new Float32Array(0)
     let arrival = new Float32Array(0)
     let lastPick: unknown = undefined
-    const geoTarget: Record<GeoMode, number> = { radial: 1, diametric: 0, linear: -1, parallel: -2 }
-    let morphT = geoTarget[live.current.geometry]
+    type ChordGeo = Exclude<GeoMode, 'particle'>
+    const geoTarget: Record<ChordGeo, number> = { radial: 1, diametric: 0, linear: -1, parallel: -2 }
+    // The particle geometry has no chords of its own; they keep the last chord geometry's shape.
+    let chordGeo: ChordGeo = live.current.geometry === 'particle' ? 'diametric' : live.current.geometry
+    let morphT = geoTarget[chordGeo]
+    /** Valence now, per participant, scaled by how far it has grown in. */
+    let vNow = new Float32Array(0)
+
+    // ── Particles: positions and velocities, and trails recorded as they move ──
+    let px = new Float32Array(0), py = new Float32Array(0), pvx = new Float32Array(0), pvy = new Float32Array(0)
+    let pax = new Float32Array(0), pay = new Float32Array(0)
+    /** 1 while particles are shown, falling to 0 as cursors glide back onto their chords. */
+    let particleBlend = live.current.geometry === 'particle' ? 1 : 0
+    let wasParticle = false
+    let lastReset: unknown = live.current.particleReset
+    // Particle trails can't be read off the trace, so they're recorded, on the same grid of moments
+    // as chord trails: a ring of samples (x, y, valence) per participant, and each sample's grid point.
+    let pHist = new Float32Array(0)
+    const pGrid = new Float64Array(TRACE_LEN)
+    let pHead = 0, pCount = 0, pLastGrid = -Infinity, pStep = 0
+
+    function clearParticleTrails() { pCount = 0; pLastGrid = -Infinity }
+    /** Scatters particles in a disc, or starts them where the cursors are. */
+    function seedParticles(scatter: boolean) {
+      for (let i = 0; i < n; i++) {
+        const cx = dot.pos[i * 3], cy = dot.pos[i * 3 + 1]
+        if (!scatter && (cx !== 0 || cy !== 0)) { px[i] = cx; py[i] = cy } else {
+          const a = Math.random() * Math.PI * 2, r = Math.random() * P_S_RMAX * 0.55
+          px[i] = Math.cos(a) * r; py[i] = Math.sin(a) * r
+        }
+        pvx[i] = 0; pvy[i] = 0
+      }
+      clearParticleTrails()
+    }
+
+    function stepParticles(groupOf: Int32Array, ps: ParticleSettings) {
+      pax.fill(0); pay.fill(0)
+      const rMax = ps.radius, RR = rMax * rMax, S_RR = P_S_RMAX * P_S_RMAX
+      const S_BRR = (P_S_RMAX + P_S_BWIDTH) ** 2
+      const sign = ps.reverseCentre ? -1 : 1
+      // Pairs: the force is the same both ways, so each pair is visited once.
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const dx = px[j] - px[i], dy = py[j] - py[i]
+          const r2 = dx * dx + dy * dy
+          if (r2 < 0.01 || r2 > RR) continue
+          const r = Math.sqrt(r2)
+          const k = groupOf[i] === groupOf[j] ? ps.cohesion : ps.separation
+          const f = r < P_R_MIN ? r / P_R_MIN - 1 : k * (1 - r / rMax)
+          const inv = (f * P_G) / r
+          pax[i] += dx * inv; pay[i] += dy * inv
+          pax[j] -= dx * inv; pay[j] -= dy * inv
+        }
+      }
+      for (let i = 0; i < n; i++) {
+        const dx = -px[i], dy = -py[i]
+        const r2 = dx * dx + dy * dy
+        if (r2 < 0.01) continue
+        const r = Math.sqrt(r2)
+        if (r2 <= S_RR) {
+          // The centre pulls in by valence (ink in, paper out, unless reversed), and pushes out up close.
+          const f = r < P_S_RMIN ? r / P_S_RMIN - 1 : sign * vNow[i] * (1 - r / P_S_RMAX)
+          const inv = (f * ps.centreForce) / r
+          pax[i] += dx * inv; pay[i] += dy * inv
+        } else if (r2 <= S_BRR) {
+          // Past the centre's reach, the boundary pushes back.
+          const inv = ((r - P_S_RMAX) / P_S_BWIDTH) * P_S_BG / r
+          pax[i] += dx * inv; pay[i] += dy * inv
+        }
+      }
+      for (let i = 0; i < n; i++) {
+        pvx[i] = (pvx[i] + pax[i] * P_DT) * ps.damping
+        pvy[i] = (pvy[i] + pay[i] * P_DT) * ps.damping
+        px[i] += pvx[i] * P_DT
+        py[i] += pvy[i] * P_DT
+      }
+    }
+
+    /** Records a trail sample when the playhead reaches the next grid point; a jump back starts trails over. */
+    function recordParticles(moment: number, step: number) {
+      if (step !== pStep) { pStep = step; clearParticleTrails() }
+      if (step <= 0) return
+      const grid = Math.floor(moment / step)
+      if (grid < pLastGrid) clearParticleTrails()
+      if (grid === pLastGrid) return
+      pLastGrid = grid
+      for (let i = 0; i < n; i++) {
+        const o = (i * TRACE_LEN + pHead) * 3
+        pHist[o] = px[i]; pHist[o + 1] = py[i]; pHist[o + 2] = vNow[i]
+      }
+      pGrid[pHead] = grid
+      pHead = (pHead + 1) % TRACE_LEN
+      // One sample short of a full trail: the live position is its head.
+      pCount = Math.min(pCount + 1, TRACE_LEN - 1)
+      // Drop samples that have aged off the end.
+      while (pCount > 0 && moment / step - pGrid[(pHead - pCount + TRACE_LEN) % TRACE_LEN] > TRACE_SEGS) pCount--
+    }
 
     const morph: Morph = { p1: 0, p2: 0, pp1: 0, pp2: 0, lp1: 0, lp2: 0 }
     // Root and tip of one chord at valence v: [rootX, rootY, tipX, tipY].
@@ -320,7 +434,8 @@ export function ChordViz(props: ChordVizProps) {
     let animFrameId = 0
     function animate() {
       animFrameId = requestAnimationFrame(animate)
-      const { traces, pickKey, playhead, slotOf, groupOf, colors, focus, view, geometry, style, trailSeconds } = live.current
+      const { traces, pickKey, playhead, slotOf, groupOf, colors, focus, view, geometry, style, trailSeconds, particles, particleReset } = live.current
+      const inParticles = geometry === 'particle'
 
       // A new set of digits: chords start over from nothing; otherwise each keeps its place and glides.
       if (pickKey !== lastPick || traces.n !== n) {
@@ -328,6 +443,11 @@ export function ChordViz(props: ChordVizProps) {
         n = Math.min(traces.n, MAX_CHORDS)
         shownSlot = Float32Array.from(slotOf.subarray(0, n))
         arrival = new Float32Array(n)
+        vNow = new Float32Array(n)
+        ;[px, py, pvx, pvy, pax, pay] = Array.from({ length: 6 }, () => new Float32Array(n))
+        pHist = new Float32Array(n * TRACE_LEN * 3)
+        if (inParticles) seedParticles(true)
+        else clearParticleTrails()
       }
 
       // ── Camera between views ──
@@ -352,9 +472,10 @@ export function ChordViz(props: ChordVizProps) {
       applyCam()
 
       // ── Geometry: the chord geometries morph into one another ──
-      morphT = Math.max(-2, Math.min(1, morphT + (geoTarget[geometry] - morphT) * 0.05))
+      if (!inParticles) chordGeo = geometry
+      morphT = Math.max(-2, Math.min(1, morphT + (geoTarget[chordGeo] - morphT) * 0.05))
       if (morphT >= 0) {
-        Object.assign(morph, getPhases(morphT, geometry === 'radial'), { pp1: 0, pp2: 0, lp1: 0, lp2: 0 })
+        Object.assign(morph, getPhases(morphT, chordGeo === 'radial'), { pp1: 0, pp2: 0, lp1: 0, lp2: 0 })
       } else if (morphT >= -1) {
         const le = ease(-morphT)
         Object.assign(morph, { p1: 0, p2: 0, pp1: 0, pp2: 0, lp1: le, lp2: le })
@@ -364,7 +485,7 @@ export function ChordViz(props: ChordVizProps) {
       }
       const depthA = ease(transT), depthTs = ease(transTts)
       outerRing.material.opacity = 0.8
-      midRing.material.opacity = morph.p1 * 0.35
+      midRing.material.opacity = morph.p1 * 0.35 * (1 - particleBlend)
       zAxis.material.opacity = Math.max(depthA, depthTs) * 0.45
       ghostRings.forEach((r, i) => { r.material.opacity = depthA * (0.12 - i * 0.03); r.visible = depthA > 0.02 })
       // ── Chords, cursors and trails ──
@@ -373,19 +494,41 @@ export function ChordViz(props: ChordVizProps) {
       // Trail samples are spread over the last `trailSeconds` of playback, in moments.
       const step = (trailSeconds * playhead.speed) / TRACE_SEGS
       const by = style.colorBy
+      for (let i = 0; i < n; i++) {
+        arrival[i] = Math.min(1, arrival[i] + 1 / 30)
+        vNow[i] = valenceAt(traces, i, moment) * arrival[i] * arrival[i]
+      }
+
+      // ── Particles: entering starts them at the cursors; leaving glides cursors back onto chords ──
+      if (inParticles && !wasParticle) seedParticles(false)
+      if (particleReset !== lastReset) {
+        lastReset = particleReset
+        if (inParticles) seedParticles(true)
+      }
+      wasParticle = inParticles
+      particleBlend = inParticles ? 1 : Math.max(0, particleBlend - 1 / PARTICLE_EXIT_FRAMES)
+      const pb = ease(particleBlend)
+      if (inParticles) {
+        stepParticles(groupOf, particles)
+        recordParticles(moment, step)
+      }
+
       let focusShown = false
       for (let i = 0; i < n; i++) {
         shownSlot[i] += (slotOf[i] - shownSlot[i]) * REORDER_EASE
-        arrival[i] = Math.min(1, arrival[i] + 1 / 30)
         const scale = arrival[i] * arrival[i]
         const group = colors[groupOf[i]] ?? BG
-        const v = valenceAt(traces, i, moment) * scale
+        const v = vNow[i]
         chordPoints(shownSlot[i], Math.max(n, 1), v, morph, pts)
-        const [rx, ry, dx, dy] = [pts[0] - CENTER, CENTER - pts[1], pts[2] - CENTER, CENTER - pts[3]]
-        colour(by.chord, v, group)
-        // Valence is zero at the root, so a valence-coloured chord fades in from the background; a
-        // group-coloured one is its group's colour all along.
-        writeChord(i, rx, ry, dx, dy, by.chord === 'valence' ? bg : rgb, rgb, style.chordWidth)
+        const [rx, ry] = [pts[0] - CENTER, CENTER - pts[1]]
+        let [dx, dy] = [pts[2] - CENTER, CENTER - pts[3]]
+        if (pb > 0) { dx += (px[i] - dx) * pb; dy += (py[i] - dy) * pb }
+        if (!inParticles) {
+          colour(by.chord, v, group)
+          // Valence is zero at the root, so a valence-coloured chord fades in from the background; a
+          // group-coloured one is its group's colour all along.
+          writeChord(i, rx, ry, dx, dy, by.chord === 'valence' ? bg : rgb, rgb, style.chordWidth)
+        }
         dot.pos.set([dx, dy, 0], i * 3)
         colour(by.cursor, v, group)
         dot.col.set(rgb, i * 3)
@@ -399,16 +542,32 @@ export function ChordViz(props: ChordVizProps) {
         // The trail: this chord's recent trace, oldest first, receding into the screen and fading out.
         // Sampled on a fixed grid of moments (plus now, at the head) and slid back between grid
         // points, so a trail scrolls rather than being resampled into a new shape every frame.
-        const grid = step > 0 ? Math.floor(moment / step) : 0
-        const frac = step > 0 ? moment / step - grid : 0
-        const hlen = step > 0 ? Math.min(TRACE_LEN, grid + 2) : 1
-        for (let k = 0; k < hlen; k++) {
-          const head = k === hlen - 1
-          age[k] = head ? 0 : hlen - 2 - k + frac
-          const hv = valenceAt(traces, i, head ? moment : (grid - (hlen - 2 - k)) * step) * scale
-          chordPoints(shownSlot[i], Math.max(n, 1), hv, morph, pts)
-          hist[k * 5] = pts[2] - CENTER; hist[k * 5 + 1] = CENTER - pts[3]
-          hist[k * 5 + 2] = pts[0] - CENTER; hist[k * 5 + 3] = CENTER - pts[1]; hist[k * 5 + 4] = hv
+        let hlen: number
+        if (inParticles) {
+          // A particle's recorded samples, oldest first, then where it is now. Particles have no
+          // root, so the fill (hidden here) collapses onto the trail.
+          hlen = pCount + 1
+          for (let k = 0; k < hlen; k++) {
+            const head = k === hlen - 1
+            const s = (pHead - pCount + k + TRACE_LEN) % TRACE_LEN
+            const o = (i * TRACE_LEN + s) * 3
+            age[k] = head ? 0 : moment / step - pGrid[s]
+            hist[k * 5] = hist[k * 5 + 2] = head ? dx : pHist[o]
+            hist[k * 5 + 1] = hist[k * 5 + 3] = head ? dy : pHist[o + 1]
+            hist[k * 5 + 4] = head ? v : pHist[o + 2]
+          }
+        } else {
+          const grid = step > 0 ? Math.floor(moment / step) : 0
+          const frac = step > 0 ? moment / step - grid : 0
+          hlen = step > 0 ? Math.min(TRACE_LEN, grid + 2) : 1
+          for (let k = 0; k < hlen; k++) {
+            const head = k === hlen - 1
+            age[k] = head ? 0 : hlen - 2 - k + frac
+            const hv = valenceAt(traces, i, head ? moment : (grid - (hlen - 2 - k)) * step) * scale
+            chordPoints(shownSlot[i], Math.max(n, 1), hv, morph, pts)
+            hist[k * 5] = pts[2] - CENTER; hist[k * 5 + 1] = CENTER - pts[3]
+            hist[k * 5 + 2] = pts[0] - CENTER; hist[k * 5 + 3] = CENTER - pts[1]; hist[k * 5 + 4] = hv
+          }
         }
         for (let j = 0; j < TRACE_SEGS; j++) {
           const base = (i * TRACE_SEGS + j) * 6
@@ -455,7 +614,8 @@ export function ChordViz(props: ChordVizProps) {
       }
       focusPoint.visible = focusShown
       traceLines.visible = showTrace
-      fillMesh.visible = showTrace
+      fillMesh.visible = showTrace && !inParticles
+      chordMesh.visible = !inParticles
       chordMat.opacity = style.opacity.chord
       dotMat.opacity = style.opacity.cursor
       traceMat.opacity = style.opacity.trace

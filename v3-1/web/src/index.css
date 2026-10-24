@@ -113,6 +113,8 @@ button.start:hover { background: var(--go-hover); border-color: var(--go-hover);
 .style-grid button { padding: 2px 4px; font-size: 0.75rem; }
 .style-grid button.on { background: var(--fg); color: var(--bg); }
 .style-grid input { width: 100%; min-width: 0; }
+.particle-settings { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.particle-settings p { margin: 0 0 2px; }
 .style-head { font-size: 0.75rem; color: var(--muted); text-align: center; }
 
 /* ── Transport and matrix ── */

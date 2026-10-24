@@ -20,7 +20,18 @@ import {
 } from './selection'
 import { buildTraces, READING_LABELS, type ReadingKey, type SignalSettings } from './signal'
 import { useData, type PoolData } from './useData'
-import { DEFAULT_STYLE, ELEMENTS, GEO_MODES, MAX_CHORDS, VIEW_LABELS, type GeoMode, type ViewMode, type VizStyle } from './vizSettings'
+import {
+  DEFAULT_PARTICLES,
+  DEFAULT_STYLE,
+  ELEMENTS,
+  GEO_MODES,
+  MAX_CHORDS,
+  VIEW_LABELS,
+  type GeoMode,
+  type ParticleSettings,
+  type ViewMode,
+  type VizStyle,
+} from './vizSettings'
 
 /** Moments sampled across the trail's window when clustering over it. */
 const WINDOW_SAMPLES = 32
@@ -55,6 +66,8 @@ function Explorer({ data }: { data: PoolData }) {
   const [resolution, setResolution] = useState(1)
   const [neighbours, setNeighbours] = useState(15)
   const [clusterOver, setClusterOver] = useState<ClusterOver>('full')
+  /** Re-clusterings over the window per second (of wall time, while the playhead moves). */
+  const [clusterRate, setClusterRate] = useState(1)
   const [order, setOrder] = useState<ChordOrder>('grouped')
   // How each digit is read out as valence.
   const [signal, setSignal] = useState<SignalSettings>({ reading: 'hilbert', skipBlank: false, smoothing: 'blur', smoothingPixels: 1.5, mapping: 'ink' })
@@ -63,6 +76,8 @@ function Explorer({ data }: { data: PoolData }) {
   const [geometry, setGeometry] = useState<GeoMode>('diametric')
   const [style, setStyle] = useState<VizStyle>({ ...DEFAULT_STYLE, colorBy: { ...DEFAULT_STYLE.colorBy, chord: 'group' } })
   const [trailSeconds, setTrailSeconds] = useState(10)
+  const [particles, setParticles] = useState<ParticleSettings>(DEFAULT_PARTICLES)
+  const [particleReset, setParticleReset] = useState(0)
   const [focus, setFocus] = useState<number | null>(0)
   const [hover, setHover] = useState<number | null>(null)
   const playhead = usePlayhead()
@@ -80,7 +95,7 @@ function Explorer({ data }: { data: PoolData }) {
   const traces = useMemo(() => buildTraces(pixels, rows, signal), [pixels, rows, signal])
   useEffect(() => playhead.setLength(traces.length), [playhead, traces.length])
 
-  // Clustering over the trail's window: re-run every second the playhead has moved, each run
+  // Clustering over the trail's window: re-run `clusterRate` times a second while the playhead moves, each run
   // starting from the last one's clusters (or the full clustering's, at first) and keeping their ids.
   const windowed = groupBy === 'leiden' && clusterOver === 'window'
   const [windowGrouping, setWindowGrouping] = useState<{ rows: number[]; grouping: Grouping } | null>(null)
@@ -98,9 +113,9 @@ function Explorer({ data }: { data: PoolData }) {
       setWindowGrouping(lastWindow.current)
     }
     run()
-    const id = setInterval(run, 1000)
+    const id = setInterval(run, 1000 / clusterRate)
     return () => clearInterval(id)
-  }, [windowed, rows, rowLabels, traces, playhead, playhead.speed, trailSeconds, resolution, neighbours, seed, fullGrouping])
+  }, [windowed, clusterRate, rows, rowLabels, traces, playhead, playhead.speed, trailSeconds, resolution, neighbours, seed, fullGrouping])
   const grouping = windowed && windowGrouping?.rows === rows ? windowGrouping.grouping : fullGrouping
 
   const colors = useMemo(() => groupColors(grouping), [grouping])
@@ -115,6 +130,14 @@ function Explorer({ data }: { data: PoolData }) {
     setDigits(next)
   }
   const setSignalKey = <K extends keyof SignalSettings>(key: K, value: SignalSettings[K]) => setSignal((s) => ({ ...s, [key]: value }))
+  const setParticleKey = <K extends keyof ParticleSettings>(key: K, value: ParticleSettings[K]) => setParticles((p) => ({ ...p, [key]: value }))
+  const particleSlider = (key: 'cohesion' | 'separation' | 'centreForce' | 'radius' | 'damping', label: string, min: number, max: number, step: number, digits: number) => (
+    <label className="slider">
+      {label}
+      <input type="range" min={min} max={max} step={step} value={particles[key]} onChange={(e) => setParticleKey(key, Number(e.target.value))} />
+      <span className="num">{particles[key].toFixed(digits)}</span>
+    </label>
+  )
 
   return (
     <main>
@@ -173,6 +196,13 @@ function Explorer({ data }: { data: PoolData }) {
               </label>
               <span className="control-label">Cluster over</span>
               <Segmented options={['full', 'window'] as const} value={clusterOver} onChange={setClusterOver} />
+              {clusterOver === 'window' && (
+                <label className="slider" title="How often to re-cluster over the window while playing">
+                  re-cluster
+                  <input type="range" min={0.25} max={10} step={0.25} value={clusterRate} onChange={(e) => setClusterRate(Number(e.target.value))} />
+                  <span className="num">{clusterRate} /s</span>
+                </label>
+              )}
               <span className="muted num">
                 {grouping.groups.length} clusters · modularity {grouping.modularity?.toFixed(2)}
               </span>
@@ -224,6 +254,8 @@ function Explorer({ data }: { data: PoolData }) {
             geometry={geometry}
             style={style}
             trailSeconds={trailSeconds}
+            particles={particles}
+            particleReset={particleReset}
           />
           <div className="viz-controls">
             <Segmented options={['2d', '2d-ts', '3d'] as const} value={view} onChange={setView} labels={VIEW_LABELS} />
@@ -249,6 +281,22 @@ function Explorer({ data }: { data: PoolData }) {
           )}
           <h2>Groups: mean valence now</h2>
           <GroupLegend groups={grouping.groups} groupOf={grouping.groupOf} colors={colors} traces={traces} playhead={playhead} />
+          {geometry === 'particle' && (
+            <div className="particle-settings">
+              <h2>Particles</h2>
+              <p className="muted">Groups pull together; the centre pulls ink in and pushes paper out, by each digit's valence now.</p>
+              {particleSlider('cohesion', 'within groups', -1, 1, 0.05, 2)}
+              {particleSlider('separation', 'between groups', -1, 1, 0.05, 2)}
+              {particleSlider('centreForce', 'centre', 0, 6, 0.1, 1)}
+              {particleSlider('radius', 'reach', 10, 150, 1, 0)}
+              {particleSlider('damping', 'damping', 0.5, 0.99, 0.01, 2)}
+              <label className="check">
+                <input type="checkbox" checked={particles.reverseCentre} onChange={(e) => setParticleKey('reverseCentre', e.target.checked)} /> ink repels from
+                centre
+              </label>
+              <button onClick={() => setParticleReset((r) => r + 1)}>scatter</button>
+            </div>
+          )}
           <h2>Colour by</h2>
           <div className="style-grid">
             <span />
