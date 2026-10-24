@@ -16,12 +16,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Each version is built in parallel and served from its own subpath (/v1-0/, /v1-1/, /v1-2/, /v2-0/, /v3-0/).
+  # Each version is built in parallel and served from its own subpath (/v1-0/, /v1-1/, /v1-2/, /v2-0/, /v3-0/, /v3-1/).
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        version: [v1-0, v1-1, v1-2, v2-0, v3-0]
+        version: [v1-0, v1-1, v1-2, v2-0, v3-0, v3-1]
     steps:
       - uses: actions/checkout@v4
 
