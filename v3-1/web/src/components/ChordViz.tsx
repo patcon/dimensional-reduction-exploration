@@ -59,6 +59,8 @@ const P_S_BG = 20
 const PARTICLE_EXIT_FRAMES = 30
 /** How near a cursor, in pixels, a click or hover has to be to pick its digit. */
 const PICK_RADIUS = 14
+/** How near a chord, in pixels past its edge, a click or hover has to be to pick its digit (when no cursor is near). */
+const CHORD_PICK_SLOP = 3
 /** A press that moves further than this, in pixels, is a drag (orbiting), not a click. */
 const CLICK_SLOP = 5
 
@@ -163,9 +165,9 @@ export interface ChordVizProps {
   particles: ParticleSettings
   /** Changes when particles should be scattered afresh. */
   particleReset: unknown
-  /** A digit's cursor was clicked. */
+  /** A digit's cursor (or chord) was clicked. */
   onFocus: (participant: number) => void
-  /** The pointer is over a digit's cursor, or none. */
+  /** The pointer is over a digit's cursor (or chord), or none. */
   onHover: (participant: number | null) => void
 }
 
@@ -303,6 +305,8 @@ export function ChordViz(props: ChordVizProps) {
     let morphT = geoTarget[chordGeo]
     /** Valence now, per participant, scaled by how far it has grown in. */
     let vNow = new Float32Array(0)
+    /** Each chord's root (x, y), for picking; its tip is the cursor. */
+    const chordRoot = new Float32Array(MAX_CHORDS * 2)
 
     // ── Particles: positions and velocities, and trails recorded as they move ──
     let px = new Float32Array(0), py = new Float32Array(0), pvx = new Float32Array(0), pvy = new Float32Array(0)
@@ -535,6 +539,7 @@ export function ChordViz(props: ChordVizProps) {
         const v = vNow[i]
         chordPoints(shownSlot[i], Math.max(n, 1), v, morph, pts)
         const [rx, ry] = [pts[0] - CENTER, CENTER - pts[1]]
+        chordRoot[i * 2] = rx; chordRoot[i * 2 + 1] = ry
         let [dx, dy] = [pts[2] - CENTER, CENTER - pts[3]]
         if (pb > 0) { dx += (px[i] - dx) * pb; dy += (py[i] - dy) * pb }
         if (!inParticles) {
@@ -642,16 +647,32 @@ export function ChordViz(props: ChordVizProps) {
     }
     animFrameId = requestAnimationFrame(animate)
 
-    // ── Picking: the cursor nearest the pointer on screen, if it's close enough ──
+    // ── Picking: the cursor nearest the pointer on screen, if it's close enough; failing that, the
+    // nearest chord under it, while chords are drawn ──
     const projected = new THREE.Vector3()
+    function toScreen(x: number, y: number, z: number, rect: DOMRect) {
+      projected.set(x, y, z).project(camera)
+      return [((projected.x + 1) / 2) * rect.width, ((1 - projected.y) / 2) * rect.height]
+    }
     function pickAt(clientX: number, clientY: number): number | null {
       const rect = canvas.getBoundingClientRect()
       const x = clientX - rect.left, y = clientY - rect.top
       let best: number | null = null, bestD = PICK_RADIUS * PICK_RADIUS
       for (let i = 0; i < n; i++) {
-        projected.set(dot.pos[i * 3], dot.pos[i * 3 + 1], dot.pos[i * 3 + 2]).project(camera)
-        const dx = ((projected.x + 1) / 2) * rect.width - x, dy = ((1 - projected.y) / 2) * rect.height - y
-        const d = dx * dx + dy * dy
+        const [sx, sy] = toScreen(dot.pos[i * 3], dot.pos[i * 3 + 1], dot.pos[i * 3 + 2], rect)
+        const d = (sx - x) ** 2 + (sy - y) ** 2
+        if (d <= bestD) { best = i; bestD = d }
+      }
+      const { geometry, style } = live.current
+      if (best !== null || geometry === 'particle' || style.opacity.chord === 0) return best
+      bestD = (style.chordWidth / 2 + CHORD_PICK_SLOP) ** 2
+      for (let i = 0; i < n; i++) {
+        const [ax, ay] = toScreen(chordRoot[i * 2], chordRoot[i * 2 + 1], 0, rect)
+        const [bx, by] = toScreen(dot.pos[i * 3], dot.pos[i * 3 + 1], 0, rect)
+        // Distance to the segment from root to tip.
+        const ex = bx - ax, ey = by - ay, len2 = ex * ex + ey * ey
+        const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / len2)) : 0
+        const d = (ax + ex * t - x) ** 2 + (ay + ey * t - y) ** 2
         if (d <= bestD) { best = i; bestD = d }
       }
       return best
