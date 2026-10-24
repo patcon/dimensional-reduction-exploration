@@ -270,9 +270,15 @@ export function ChordViz(props: ChordVizProps) {
     // ── Camera ──
     let camRadius = 480, camTheta = 0, camPhi = 0, camTargetZ = 0
     const CAM_2D = { radius: 480, theta: 0, phi: 0 }
-    // Side on, far enough back to see a whole trail, looking at its middle; from the left, so time
-    // runs left to right with now at the right edge, like a strip chart.
-    const CAM_2D_TS = { radius: 820, theta: -Math.PI / 2, phi: 0, targetZ: -TRACE_DEPTH / 2 }
+    // Side on and from the left, so time runs left to right like a strip chart. Now sits right of centre, by
+    // `nowAcross` of the half-width, or at the right end of a whole trail centred where the screen is wide enough.
+    const CAM_2D_TS = { radius: 820, theta: -Math.PI / 2, phi: 0, nowAcross: 0.5 }
+    /** How far back from now the time series camera looks, for the screen's shape. */
+    const tsTargetZ = () => {
+      // The plane at the target spans 2·radius·tan(fov/2) in height; now's plane is the same one, side on.
+      const halfWidth = CAM_2D_TS.radius * Math.tan((baseFov * Math.PI) / 360) * camera.aspect
+      return -Math.min(TRACE_DEPTH / 2, CAM_2D_TS.nowAcross * halfWidth)
+    }
     // From the front left and above, so trails recede to the left, with time running left to right as
     // in the time series view.
     const CAM_3D = { radius: 560, theta: -Math.PI / 5, phi: Math.PI / 9 }
@@ -435,7 +441,7 @@ export function ChordViz(props: ChordVizProps) {
       camRadius += (CAM_2D_TS.radius - camRadius) * toTs
       camTheta += (CAM_2D_TS.theta - camTheta) * toTs
       camPhi += (CAM_2D_TS.phi - camPhi) * toTs
-      camTargetZ = CAM_2D_TS.targetZ * toTs
+      camTargetZ = tsTargetZ() * toTs
       shownPerspective += (clamp01(style.perspective) - shownPerspective) * TRANS_SPEED * 3
       setLens()
       applyCam()
