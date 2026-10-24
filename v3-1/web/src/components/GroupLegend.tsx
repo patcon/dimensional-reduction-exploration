@@ -1,25 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { rgbCss, type RGB } from '../palette'
 import type { Playhead } from '../playhead'
 import type { Group } from '../selection'
 import { accentOf, shadeDigit } from '../digitImage'
+import { shuffle } from '../rng'
 import { SIDE, valenceAt, type Traces } from '../signal'
 
 /** Sample digits shown beside each group. */
 const THUMBS = 4
 
-/** Up to THUMBS participants per group, by group name: those of `previous` still in it, then others at random. */
-function pickThumbs(groups: Group[], groupOf: Int32Array, previous: Map<string, number[]>) {
-  const members = groups.map(() => [] as number[])
-  groupOf.forEach((g, i) => members[g]?.push(i))
-  return new Map(
-    groups.map((g, gi) => {
-      const kept = (previous.get(g.name) ?? []).filter((i) => groupOf[i] === gi)
-      const others = members[gi].filter((i) => !kept.includes(i))
-      while (kept.length < THUMBS && others.length) kept.push(others.splice(Math.floor(Math.random() * others.length), 1)[0])
-      return [g.name, kept]
-    }),
-  )
+/**
+ * Up to THUMBS participants per group: its members that come first in `order`, a random order of
+ * every participant. A group's picks change only when one of them leaves or an earlier one joins, so
+ * they hold steady through churn; and they're a fair sample, so groups merging show both.
+ */
+function pickThumbs(groupCount: number, groupOf: Int32Array, order: number[]) {
+  const picks = Array.from({ length: groupCount }, () => [] as number[])
+  for (const i of order) if (picks[groupOf[i]]?.length < THUMBS) picks[groupOf[i]].push(i)
+  return picks
 }
 
 interface ThumbProps {
@@ -80,14 +78,9 @@ export function GroupLegend({
 }) {
   const barRefs = useRef<(HTMLDivElement | null)[]>([])
 
-  // Re-clustering over a window regroups every second or so: keep the last picks that are still in
-  // their group (by name, which a cluster keeps) and top up from its other members.
-  const [picked, setPicked] = useState(() => ({ groupOf, rows, picks: pickThumbs(groups, groupOf, new Map()) }))
-  let picks = picked.picks
-  if (picked.groupOf !== groupOf || picked.rows !== rows) {
-    picks = pickThumbs(groups, groupOf, picked.rows === rows ? picked.picks : new Map())
-    setPicked({ groupOf, rows, picks })
-  }
+  // Drawn afresh for each sample of digits, and kept as re-clustering regroups them.
+  const order = useMemo(() => shuffle(rows.map((_, i) => i), Math.random), [rows])
+  const picks = useMemo(() => pickThumbs(groups.length, groupOf, order), [groups.length, groupOf, order])
 
   useEffect(() => {
     const sums = new Float64Array(groups.length)
@@ -119,7 +112,7 @@ export function GroupLegend({
             <div className="group-mean-bar" ref={(el) => void (barRefs.current[gi] = el)} />
           </div>
           <span className="group-thumbs">
-            {picks.get(g.name)?.map((i) => (
+            {picks[gi]?.map((i) => (
               <Thumb
                 key={i}
                 pixels={pixels}
