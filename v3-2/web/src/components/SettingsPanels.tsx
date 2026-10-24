@@ -1,4 +1,5 @@
 import { RotateCcw, Shuffle, Sparkles } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { DIGIT_COLORS } from '../palette'
 import type { SettingsEditor } from '../presets'
 import { N_DIGITS, type Grouping } from '../selection'
@@ -11,6 +12,60 @@ import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group'
 
 const fixed = (places: number) => (v: number) => v.toFixed(places)
 
+/**
+ * Which digit labels take part, one toggle each, and a button to choose them all. `compact`, it's small and
+ * dark to sit over the visualiser, with "*" for all, or once all are chosen, "∅" to clear them for picking afresh.
+ */
+export function DigitPicker({ digits, onDigits, compact = false }: { digits: number[]; onDigits: (digits: number[]) => void; compact?: boolean }) {
+  // At least one label stays chosen.
+  const setDigits = (values: string[]) => values.length && onDigits(values.map(Number).sort((a, b) => a - b))
+  const all = () => onDigits(Array.from({ length: N_DIGITS }, (_, d) => d))
+  const allChosen = digits.length === N_DIGITS
+  return (
+    <div className={cn('flex flex-wrap items-center', compact ? 'gap-1' : 'gap-2')}>
+      <ToggleGroup
+        type="multiple"
+        value={digits.map(String)}
+        onValueChange={setDigits}
+        aria-label="Digit labels"
+        className={cn(compact && 'border-white/20 bg-black/50 shadow-none')}
+      >
+        {Array.from({ length: N_DIGITS }, (_, d) => (
+          <ToggleGroupItem
+            key={d}
+            value={String(d)}
+            className={cn(
+              'num data-[state=on]:shadow-[inset_0_-3px_0_var(--digit)]',
+              compact
+                ? 'h-7 min-w-[1.375rem] border-white/20 px-1 data-[state=off]:text-white/55 hover:bg-white/15 hover:text-white data-[state=on]:bg-white/90 data-[state=on]:text-black'
+                : 'min-w-7 px-1.5 data-[state=off]:text-muted-foreground',
+            )}
+            style={{ '--digit': DIGIT_COLORS[d] } as React.CSSProperties}
+          >
+            {d}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      {compact ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 min-w-6 bg-black/50 px-1.5 text-white/80 hover:bg-black/70 hover:text-white"
+          onClick={allChosen ? () => onDigits([]) : all}
+          aria-label={allChosen ? 'No digits' : 'All digits'}
+          title={allChosen ? 'No digits' : 'All digits'}
+        >
+          {allChosen ? '∅' : '*'}
+        </Button>
+      ) : (
+        <Button variant="outline" size="sm" onClick={all}>
+          all
+        </Button>
+      )}
+    </div>
+  )
+}
+
 /** Which digits take part, and how many of them. */
 export function SampleSection({ settings, set, available, shownCount, maxCount }: SettingsEditor & {
   /** Digits of the chosen labels in the pool. */
@@ -18,27 +73,9 @@ export function SampleSection({ settings, set, available, shownCount, maxCount }
   shownCount: number
   maxCount: number
 }) {
-  // At least one label stays chosen.
-  const setDigits = (values: string[]) => values.length && set('digits', values.map(Number).sort((a, b) => a - b))
   return (
     <Section title="Digits" description="Each digit is one participant; pick which labels take part, and how many of them.">
-      <div className="flex flex-wrap items-center gap-2">
-        <ToggleGroup type="multiple" value={settings.digits.map(String)} onValueChange={setDigits} aria-label="Digit labels">
-          {Array.from({ length: N_DIGITS }, (_, d) => (
-            <ToggleGroupItem
-              key={d}
-              value={String(d)}
-              className="num min-w-7 px-1.5 data-[state=off]:text-muted-foreground data-[state=on]:shadow-[inset_0_-3px_0_var(--digit)]"
-              style={{ '--digit': DIGIT_COLORS[d] } as React.CSSProperties}
-            >
-              {d}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-        <Button variant="outline" size="sm" onClick={() => set('digits', Array.from({ length: N_DIGITS }, (_, d) => d))}>
-          all
-        </Button>
-      </div>
+      <DigitPicker digits={settings.digits} onDigits={(v) => set('digits', v)} />
       <Slider label="sample" value={shownCount} min={2} max={maxCount} onChange={(v) => set('count', v)} format={(v) => `${v} of ${available}`} />
       <div>
         <Button variant="outline" size="sm" onClick={() => set('seed', settings.seed + 1)} title="Pick another sample of these digits">

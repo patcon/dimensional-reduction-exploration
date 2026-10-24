@@ -6,7 +6,7 @@ import { DigitImage, DigitPreview } from './components/DigitPreview'
 import { GroupLegend } from './components/GroupLegend'
 import { Matrix } from './components/Matrix'
 import { PresetsPanel } from './components/Presets'
-import { GroupingSection, ParticleSection, ReadingSection, SampleSection, StyleSection, ViewSection } from './components/SettingsPanels'
+import { DigitPicker, GroupingSection, ParticleSection, ReadingSection, SampleSection, StyleSection, ViewSection } from './components/SettingsPanels'
 import { PlaybackSection, TransportBar } from './components/Transport'
 import { ViewIcon } from './components/ViewIcons'
 import { Button } from './components/ui/button'
@@ -178,6 +178,10 @@ function Explorer({ data }: { data: PoolData }) {
           trailPixels={trailPixels}
           className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 size-21 rounded-sm border-white/90!"
         />
+        {/* The digits taking part, along the top as in the digits tab, clear of the corner digit. */}
+        <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-[calc(5.25rem+1.5rem)] left-3 pointer-events-none [&_button]:pointer-events-auto">
+          <DigitPicker digits={settings.digits} onDigits={(v) => set('digits', v)} compact />
+        </div>
         {/* Both buttons sit on the drawer's top edge, so they rise and fall with it. */}
         <span
           className="pointer-events-none absolute bottom-11 left-3 rounded-md bg-black/65 px-2 py-0.5 text-xs text-white transition-opacity duration-300 motion-reduce:transition-none"
