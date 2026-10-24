@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "check:leiden": "node scripts/check-leiden.ts",
+    "check:logic": "node scripts/check-logic.ts",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -1,24 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { rgbCss, type RGB } from '../palette'
 import type { Playhead } from '../playhead'
-import type { Group } from '../selection'
+import { sampleGroups, type Group } from '../selection'
 import { accentOf, shadeDigit } from '../digitImage'
 import { shuffle } from '../rng'
 import { SIDE, valenceAt, type Traces } from '../signal'
 
 /** Sample digits shown beside each group. */
 const THUMBS = 8
-
-/**
- * Up to THUMBS participants per group: its members that come first in `order`, a random order of
- * every participant. A group's picks change only when one of them leaves or an earlier one joins, so
- * they hold steady through churn; and they're a fair sample, so groups merging show both.
- */
-function pickThumbs(groupCount: number, groupOf: Int32Array, order: number[]) {
-  const picks = Array.from({ length: groupCount }, () => [] as number[])
-  for (const i of order) if (picks[groupOf[i]]?.length < THUMBS) picks[groupOf[i]].push(i)
-  return picks
-}
 
 interface ThumbProps {
   pixels: Uint8Array
@@ -80,7 +69,7 @@ export function GroupLegend({
 
   // Drawn afresh for each sample of digits, and kept as re-clustering regroups them.
   const order = useMemo(() => shuffle(rows.map((_, i) => i), Math.random), [rows])
-  const picks = useMemo(() => pickThumbs(groups.length, groupOf, order), [groups.length, groupOf, order])
+  const picks = useMemo(() => sampleGroups(groups.length, groupOf, order, THUMBS), [groups.length, groupOf, order])
 
   useEffect(() => {
     const sums = new Float64Array(groups.length)

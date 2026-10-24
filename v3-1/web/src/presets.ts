@@ -1,9 +1,9 @@
 /** Every setting on the page as one plain object, and named presets of it kept in the browser or in files. */
 
 import { useState } from 'react'
-import type { ChordOrder, ClusterOver, GroupBy } from './selection'
-import type { SignalSettings } from './signal'
-import { DEFAULT_PARTICLES, DEFAULT_STYLE, type GeoMode, type ParticleSettings, type ViewMode, type VizStyle } from './vizSettings'
+import type { ChordOrder, ClusterOver, GroupBy } from './selection.ts'
+import type { SignalSettings } from './signal.ts'
+import { DEFAULT_PARTICLES, DEFAULT_STYLE, type GeoMode, type ParticleSettings, type ViewMode, type VizStyle } from './vizSettings.ts'
 
 export interface Settings {
   digits: number[]

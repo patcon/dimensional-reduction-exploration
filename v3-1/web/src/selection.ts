@@ -163,3 +163,14 @@ export function chordSlots(grouping: Grouping, points: Float32Array, dim: number
   return slotOf
 }
 
+
+/**
+ * Up to `perGroup` participants per group: its members that come first in `order`, a random order of
+ * every participant. A group's picks change only when one of them leaves or an earlier one joins, so
+ * they hold steady through churn; and they're a fair sample, so groups merging show both.
+ */
+export function sampleGroups(groupCount: number, groupOf: Int32Array, order: number[], perGroup: number) {
+  const picks = Array.from({ length: groupCount }, () => [] as number[])
+  for (const i of order) if (picks[groupOf[i]]?.length < perGroup) picks[groupOf[i]].push(i)
+  return picks
+}
