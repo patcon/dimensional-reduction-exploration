@@ -278,6 +278,8 @@ export function ChordViz(props: ChordVizProps) {
     }
     const bg = BG.map((c) => c / 255)
     const hist = new Float64Array(TRACE_LEN * 5)
+    /** Each trail sample's age, in steps. */
+    const age = new Float64Array(TRACE_LEN)
 
     let animFrameId = 0
     function animate() {
@@ -358,9 +360,15 @@ export function ChordViz(props: ChordVizProps) {
 
         if (!showTrace) continue
         // The trail: this chord's recent trace, oldest first, receding into the screen and fading out.
-        const hlen = step > 0 ? Math.min(TRACE_LEN, Math.floor(moment / step) + 1) : 1
+        // Sampled on a fixed grid of moments (plus now, at the head) and slid back between grid
+        // points, so a trail scrolls rather than being resampled into a new shape every frame.
+        const grid = step > 0 ? Math.floor(moment / step) : 0
+        const frac = step > 0 ? moment / step - grid : 0
+        const hlen = step > 0 ? Math.min(TRACE_LEN, grid + 2) : 1
         for (let k = 0; k < hlen; k++) {
-          const hv = valenceAt(traces, i, moment - (hlen - 1 - k) * step) * scale
+          const head = k === hlen - 1
+          age[k] = head ? 0 : hlen - 2 - k + frac
+          const hv = valenceAt(traces, i, head ? moment : (grid - (hlen - 2 - k)) * step) * scale
           chordPoints(shownSlot[i], Math.max(n, 1), hv, morph, pts)
           hist[k * 5] = pts[2] - CENTER; hist[k * 5 + 1] = CENTER - pts[3]
           hist[k * 5 + 2] = pts[0] - CENTER; hist[k * 5 + 3] = CENTER - pts[1]; hist[k * 5 + 4] = hv
@@ -374,9 +382,9 @@ export function ChordViz(props: ChordVizProps) {
             continue
           }
           const a = j * 5, b = (j + 1) * 5
-          const zA = -(hlen - 1 - j) * TRACE_Z_STEP, zB = -(hlen - 2 - j) * TRACE_Z_STEP
+          const zA = -age[j] * TRACE_Z_STEP, zB = -age[j + 1] * TRACE_Z_STEP
           // Fades by age over the whole trail, so it thins into the background rather than ending abruptly.
-          const fadeA = (1 - (hlen - 1 - j) / TRACE_SEGS) ** 2, fadeB = (1 - (hlen - 2 - j) / TRACE_SEGS) ** 2
+          const fadeA = Math.max(0, 1 - age[j] / TRACE_SEGS) ** 2, fadeB = Math.max(0, 1 - age[j + 1] / TRACE_SEGS) ** 2
           // Thousands of segments a frame, so written in place rather than through arrays.
           const tp = trace.pos, tc = trace.col
           tp[base] = hist[a]; tp[base + 1] = hist[a + 1]; tp[base + 2] = zA
