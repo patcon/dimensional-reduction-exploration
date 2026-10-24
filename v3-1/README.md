@@ -25,7 +25,7 @@ pnpm run check:leiden        # the browser's kNN graph and Leiden against scanpy
 ## Controls
 
 - **Digits**: filter by label, set the sample size (2–200), reshuffle.
-- **Groups**: by digit, or Leiden clusters (resolution, neighbours). Clusters are named and
+- **Color by**: label (the digit), or Leiden clusters (resolution, neighbours). Clusters are named and
   coloured after their majority digit (3a, 3b, …).
 - **Chord order**: random, or grouped (group by group, then by first principal component).
 - **Reading**: pixel order (rows, snake, columns, spiral, Hilbert); skip pixels blank in every

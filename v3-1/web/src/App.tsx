@@ -82,7 +82,7 @@ function Explorer({ data }: { data: PoolData }) {
         <h1>Valence particles from MNIST</h1>
         <p>
           A valence visualisation, fed with stand-in data: each digit's pixels, read in order, are one participant's
-          valence over time (paper −1, ink +1). Pick digits and a sample size, group them by digit or Leiden cluster,
+          valence over time (paper −1, ink +1). Pick digits and a sample size, colour them by label or Leiden cluster,
           and play.
         </p>
       </header>
@@ -117,8 +117,8 @@ function Explorer({ data }: { data: PoolData }) {
         </div>
 
         <div className="toolbar">
-          <span className="control-label">Groups</span>
-          <Segmented options={['digit', 'leiden'] as const} value={groupBy} onChange={setGroupBy} labels={{ digit: 'by digit', leiden: 'Leiden' }} />
+          <span className="control-label">Color by</span>
+          <Segmented options={['digit', 'leiden'] as const} value={groupBy} onChange={setGroupBy} labels={{ digit: 'Label', leiden: 'Leiden' }} />
           {groupBy === 'leiden' && (
             <>
               <label className="slider">
