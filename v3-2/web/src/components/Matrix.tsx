@@ -9,7 +9,7 @@ const MATRIX_HEIGHT = 360
 /**
  * v1's matrix with a playhead: one row per digit taking part (in chord order, so a
  * grouped order shows each group as a band), one column per moment, in grey as it's played
- * (smoothed). The playhead sweeps across it, with the trail's reach shaded behind.
+ * (smoothed). The playhead sweeps across it, with the clustering window shaded behind.
  */
 export function Matrix({
   traces,
@@ -22,7 +22,7 @@ export function Matrix({
   onFocus,
   onHover,
   playhead,
-  trailPixels,
+  windowPixels,
 }: {
   traces: Traces
   slotOf: Int32Array
@@ -35,7 +35,7 @@ export function Matrix({
   onFocus: (participant: number) => void
   onHover: (participant: number | null) => void
   playhead: Playhead
-  trailPixels: number
+  windowPixels: number
 }) {
   const imageRef = useRef<HTMLCanvasElement>(null)
   const stripRef = useRef<HTMLCanvasElement>(null)
@@ -80,7 +80,7 @@ export function Matrix({
     }
   }, [traces, participantAt, groupOf, colors, n, length])
 
-  // The playhead, the trail behind it, group boundaries and the followed/hovered rows.
+  // The playhead, the window behind it, group boundaries and the followed/hovered rows.
   useEffect(() => {
     const canvas = overlayRef.current!
     const draw = () => {
@@ -92,8 +92,8 @@ export function Matrix({
       const accent = getComputedStyle(canvas).color
       ctx.fillStyle = accent
       ctx.globalAlpha = 0.18
-      // A range running to the end (as a wrapped trail's does) is shaded to the edge.
-      for (const [from, to] of playhead.trailRanges(trailPixels)) {
+      // A range running to the end (as a wrapped window's does) is shaded to the edge.
+      for (const [from, to] of playhead.windowRanges(windowPixels)) {
         const right = to >= length - 1 ? width : x(to)
         ctx.fillRect(x(from), 0, right - x(from), height)
       }
@@ -113,7 +113,7 @@ export function Matrix({
     }
     draw()
     return playhead.onFrame(draw)
-  }, [playhead, width, height, length, n, trailPixels, grouped, groupOf, participantAt, slotOf, rowHeight, focus, hover, dpr])
+  }, [playhead, width, height, length, n, windowPixels, grouped, groupOf, participantAt, slotOf, rowHeight, focus, hover, dpr])
 
   const participantFrom = (e: React.MouseEvent<HTMLDivElement>) => {
     const row = Math.floor((e.clientY - e.currentTarget.getBoundingClientRect().top) / rowHeight)

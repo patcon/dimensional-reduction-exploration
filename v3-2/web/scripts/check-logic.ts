@@ -1,5 +1,5 @@
 // Checks of the small pure pieces that are easy to get subtly wrong: valence lookups wrapping when
-// playback loops, the playhead's laps and trail window, presets filling in missing settings, and
+// playback loops, the playhead's laps and window, presets filling in missing settings, and
 // the group legend's sample of each group staying put through churn and representing merges.
 // Plain Node (no DOM types), so it's type-checked with the app: `pnpm check:logic`.
 import { Playhead } from '../src/playhead.ts'
@@ -23,21 +23,21 @@ check('wrapped before the start', valenceAt(traces, 0, -1, true), 3)
 check('wrapped, interpolated', close(valenceAt(traces, 0, -0.5, true)), 3.5)
 check('wrapped past the end', valenceAt(traces, 0, 5, true), 1)
 
-// ── Playhead: laps, and the trail's window ──
+// ── Playhead: laps, and the window ──
 const playhead = new Playhead()
 playhead.setLength(101)
 playhead.seek(5)
-check('first play-through: trail stops at the start', playhead.trailRanges(10), [[0, 5]])
+check('first play-through: window stops at the start', playhead.windowRanges(10), [[0, 5]])
 playhead.seek(99)
 playhead.setSpeed(10)
 playhead.setPlaying(true)
 playhead.tick(0.2)
 check('looping past the end counts a lap', [close(playhead.moment), playhead.laps, playhead.wraps], [1, 1, true])
 check('elapsed counts through the loop', close(playhead.elapsed), 101)
-check('once looped: trail wraps round to the end', playhead.trailRanges(10).map((r) => r.map(close)), [[0, 1], [91, 100]])
-check('a trail longer than the loop stops at now', playhead.trailRanges(500).map((r) => r.map(close)), [[0, 1], [1, 100]])
+check('once looped: window wraps round to the end', playhead.windowRanges(10).map((r) => r.map(close)), [[0, 1], [91, 100]])
+check('a window longer than the loop stops at now', playhead.windowRanges(500).map((r) => r.map(close)), [[0, 1], [1, 100]])
 playhead.setLoop(false)
-check('not looping: no wrap', playhead.trailRanges(10).map((r) => r.map(close)), [[0, 1]])
+check('not looping: no wrap', playhead.windowRanges(10).map((r) => r.map(close)), [[0, 1]])
 playhead.setLoop(true)
 playhead.restart()
 check('restart forgets laps', [playhead.moment, playhead.laps, playhead.wraps], [0, 0, false])

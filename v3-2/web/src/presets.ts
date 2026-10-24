@@ -14,11 +14,14 @@ export interface Settings {
   neighbours: number
   clusterOver: ClusterOver
   clusterRate: number
+  /** The window clustering over a window compares, and that the digit images and matrix shade, in pixels read. */
+  windowPixels: number
   order: ChordOrder
   signal: SignalSettings
   view: ViewMode
   geometry: GeoMode
   style: VizStyle
+  /** How far back trails reach, in seconds of playback; they keep their proportions, reaching further back for longer. */
   trailSeconds: number
   particles: ParticleSettings
   /** The followed digit, by its place in the sample. */
@@ -37,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   neighbours: 15,
   clusterOver: 'full',
   clusterRate: 1,
+  windowPixels: 140,
   order: 'grouped',
   signal: { reading: 'hilbert', skipBlank: false, smoothing: 'blur', smoothingPixels: 1.5, mapping: 'ink' },
   view: '3d',

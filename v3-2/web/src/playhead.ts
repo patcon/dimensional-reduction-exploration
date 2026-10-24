@@ -16,7 +16,7 @@ export class Playhead {
   laps = 0
   /**
    * A window of moments playback is pinned to, looping round inside it (whatever `loop` is), or null. Trails
-   * wrap round inside it too, and the trail's window holds still on it. `releasing`, playback carries on to the
+   * wrap round inside it too, and the clustering window holds still on it. `releasing`, playback carries on to the
    * window's end once more and breaks through it, unpinning.
    */
   pin: { from: number; to: number; releasing: boolean } | null = null
@@ -70,17 +70,17 @@ export class Playhead {
   }
 
   /**
-   * Pins playback to the trail's window as it is now (see `pin`), or holds on to the window it's releasing; or,
+   * Pins playback to the clustering window as it is now (see `pin`), or holds on to the window it's releasing; or,
    * with null, releases it. Too short a window won't pin.
    */
-  setPin(trailPixels: number | null) {
-    if (trailPixels === null) {
+  setPin(windowPixels: number | null) {
+    if (windowPixels === null) {
       if (!this.pin) return
       this.pin = { ...this.pin, releasing: true }
     } else if (this.pin) {
       this.pin = { ...this.pin, releasing: false }
     } else {
-      const from = Math.max(0, this.moment - trailPixels)
+      const from = Math.max(0, this.moment - windowPixels)
       if (this.moment - from < 2) return
       this.pinBase = this.elapsed - (this.moment - from)
       this.pinLaps = 0
@@ -99,12 +99,12 @@ export class Playhead {
   }
 
   /**
-   * The moments a trail `trailPixels` long covers now, as [from, to] ranges: one, or two once
-   * playback has looped and the trail reaches back past the start round to the end.
+   * The moments a window `windowPixels` long covers now, as [from, to] ranges: one, or two once
+   * playback has looped and the window reaches back past the start round to the end.
    */
-  trailRanges(trailPixels: number): [number, number][] {
+  windowRanges(windowPixels: number): [number, number][] {
     if (this.pin) return [[this.pin.from, this.pin.to]]
-    const from = this.moment - trailPixels
+    const from = this.moment - windowPixels
     if (from >= 0 || !this.wraps) return [[Math.max(0, from), this.moment]]
     return [[0, this.moment], [Math.max(this.moment, from + this.length - 1), this.length - 1]]
   }

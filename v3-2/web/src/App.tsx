@@ -23,7 +23,7 @@ import { useData, type PoolData } from './useData'
 import { usePresets } from './usePresets'
 import { MAX_CHORDS, VIEW_LABELS, type ViewMode } from './vizSettings'
 
-/** Moments sampled across the trail's window when clustering over it. */
+/** Moments sampled across the window when clustering over it. */
 const WINDOW_SAMPLES = 32
 /** vaul's own easing and duration, so what sits over the visualiser keeps clear of the drawer as it moves. */
 const DRAWER_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
@@ -60,7 +60,7 @@ function Explorer({ data }: { data: PoolData }) {
   // Every setting, as presets save and load them; the playhead follows its speed and looping.
   const { settings, setSettings, set, patch, reset } = useSettings()
   const editor = { settings, set, patch }
-  const { count, seed, groupBy, resolution, neighbours, clusterOver, clusterRate, order, signal, view, geometry, style, trailSeconds, particles, focus } = settings
+  const { count, seed, groupBy, resolution, neighbours, clusterOver, clusterRate, windowPixels, order, signal, view, geometry, style, trailSeconds, particles, focus } = settings
   const digits = useMemo(() => new Set(settings.digits), [settings.digits])
   const setFocus = (i: number | null) => set('focus', i)
   const presets = usePresets(settings, setSettings)
@@ -71,7 +71,6 @@ function Explorer({ data }: { data: PoolData }) {
   const playhead = usePlayhead()
   useEffect(() => playhead.setSpeed(settings.speed), [playhead, settings.speed])
   useEffect(() => playhead.setLoop(settings.loop), [playhead, settings.loop])
-  const trailPixels = trailSeconds * settings.speed
 
   const available = useMemo(() => labels.filter((l) => digits.has(l)).length, [labels, digits])
   const maxCount = Math.min(MAX_CHORDS, available)
@@ -87,7 +86,7 @@ function Explorer({ data }: { data: PoolData }) {
   useEffect(() => playhead.setLength(traces.length), [playhead, traces.length])
   useEffect(() => playhead.resetLaps(), [playhead, traces])
 
-  // Clustering over the trail's window: re-run `clusterRate` times a second while the playhead moves, each run
+  // Clustering over the window: re-run `clusterRate` times a second while the playhead moves, each run
   // starting from the last one's clusters (or the full clustering's, at first) and keeping their ids. Pinned, the
   // window holds still, so it's clustered once.
   const windowed = groupBy === 'leiden' && clusterOver === 'window'
@@ -113,12 +112,12 @@ function Explorer({ data }: { data: PoolData }) {
     const run = () => {
       if (playhead.moment === lastMoment) return
       lastMoment = playhead.moment
-      cluster(playhead.moment, trailPixels, playhead.wraps)
+      cluster(playhead.moment, windowPixels, playhead.wraps)
     }
     run()
     const id = setInterval(run, 1000 / clusterRate)
     return () => clearInterval(id)
-  }, [windowed, pin, clusterRate, rows, rowLabels, traces, playhead, trailPixels, resolution, neighbours, seed, fullGrouping])
+  }, [windowed, pin, clusterRate, rows, rowLabels, traces, playhead, windowPixels, resolution, neighbours, seed, fullGrouping])
   const grouping = windowed && windowGrouping?.rows === rows ? windowGrouping.grouping : fullGrouping
 
   const colors = useMemo(() => groupColors(grouping), [grouping])
@@ -194,17 +193,17 @@ function Explorer({ data }: { data: PoolData }) {
         style={{ bottom: drawerOpen ? openSnap : closedSnap, transition: `bottom ${DRAWER_SECONDS}s ${DRAWER_EASE}` }}
       >
         {/* The followed (or hovered) digit as it plays, as in the inspect tab, always in sight; with none, the
-            trail's window still shows where in the reading the playhead is. */}
+            window still shows where in the reading the playhead is. */}
         <div className="pointer-events-auto absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 flex flex-col items-end gap-1.5">
           <DigitImage
             pixels={pixels}
             poolRow={shown !== null ? rows[shown] : null}
             traces={traces}
             playhead={playhead}
-            trailPixels={trailPixels}
+            windowPixels={windowPixels}
             className="size-21 rounded-sm border-white/90!"
           />
-          {/* Pins playback to the trail's window, looping round inside it, so its groups hold still as it plays; unpinned,
+          {/* Pins playback to the window, looping round inside it, so its groups hold still as it plays; unpinned,
               playback carries on to the window's end and breaks through it. */}
           <Button
             variant="ghost"
@@ -213,10 +212,10 @@ function Explorer({ data }: { data: PoolData }) {
               'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white',
               pinned && 'bg-white/90 text-black hover:bg-white hover:text-black',
             )}
-            onClick={() => playhead.setPin(pinned ? null : trailPixels)}
+            onClick={() => playhead.setPin(pinned ? null : windowPixels)}
             aria-pressed={pinned}
-            aria-label={pinned ? 'Unpin from this window' : "Pin to the trail's window"}
-            title={pinned ? 'Unpin from this window' : "Pin to the trail's window"}
+            aria-label={pinned ? 'Unpin from this window' : 'Pin to the window'}
+            title={pinned ? 'Unpin from this window' : 'Pin to the window'}
           >
             <Focus />
           </Button>
@@ -304,7 +303,7 @@ function Explorer({ data }: { data: PoolData }) {
                         colors={colors}
                         traces={traces}
                         playhead={playhead}
-                        trailPixels={trailPixels}
+                        windowPixels={windowPixels}
                         pixels={pixels}
                         rows={rows}
                         hover={hover}
@@ -330,7 +329,7 @@ function Explorer({ data }: { data: PoolData }) {
                           groupColor={colors[grouping.groupOf[shown]]}
                           traces={traces}
                           playhead={playhead}
-                          trailPixels={trailPixels}
+                          windowPixels={windowPixels}
                           following={hover === null}
                         />
                       )}
@@ -347,7 +346,7 @@ function Explorer({ data }: { data: PoolData }) {
                         onFocus={setFocus}
                         onHover={setHover}
                         playhead={playhead}
-                        trailPixels={trailPixels}
+                        windowPixels={windowPixels}
                       />
                     </Section>
                   </TabsContent>

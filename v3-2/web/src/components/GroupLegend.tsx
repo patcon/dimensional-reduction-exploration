@@ -14,7 +14,7 @@ interface ThumbProps {
   poolRow: number
   traces: Traces
   playhead: Playhead
-  trailPixels: number
+  windowPixels: number
   /** Whether this digit is the one previewed. */
   hovered: boolean
   onClick: () => void
@@ -22,7 +22,7 @@ interface ThumbProps {
 }
 
 /** One digit, small, read as it plays (as the followed digit is); click to follow it. */
-function Thumb({ pixels, poolRow, traces, playhead, trailPixels, hovered, onClick, onHover }: ThumbProps) {
+function Thumb({ pixels, poolRow, traces, playhead, windowPixels, hovered, onClick, onHover }: ThumbProps) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const canvas = ref.current!
@@ -30,12 +30,12 @@ function Thumb({ pixels, poolRow, traces, playhead, trailPixels, hovered, onClic
     const img = ctx.createImageData(SIDE, SIDE)
     const accent = accentOf(canvas)
     const draw = () => {
-      shadeDigit(img, pixels, poolRow, traces, playhead, trailPixels, accent)
+      shadeDigit(img, pixels, poolRow, traces, playhead, windowPixels, accent)
       ctx.putImageData(img, 0, 0)
     }
     draw()
     return playhead.onFrame(draw)
-  }, [pixels, poolRow, traces, playhead, trailPixels])
+  }, [pixels, poolRow, traces, playhead, windowPixels])
   return (
     <canvas
       ref={ref}
@@ -64,7 +64,7 @@ export function GroupLegend({
   colors,
   traces,
   playhead,
-  trailPixels,
+  windowPixels,
   pixels,
   rows,
   hover,
@@ -76,7 +76,7 @@ export function GroupLegend({
   colors: RGB[]
   traces: Traces
   playhead: Playhead
-  trailPixels: number
+  windowPixels: number
   pixels: Uint8Array
   /** Each participant's row in the pool. */
   rows: number[]
@@ -138,7 +138,7 @@ export function GroupLegend({
                   poolRow={rows[i]}
                   traces={traces}
                   playhead={playhead}
-                  trailPixels={trailPixels}
+                  windowPixels={windowPixels}
                   hovered={i === hover}
                   onClick={() => onFocus(i)}
                   // Back to the row's digit on leaving, as the pointer is still over the row.

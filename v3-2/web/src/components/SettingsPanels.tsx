@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import { DIGIT_COLORS } from '../palette'
 import type { SettingsEditor } from '../presets'
 import { N_DIGITS, type Grouping } from '../selection'
-import { READING_LABELS, type ReadingKey } from '../signal'
+import { N_PIXELS, READING_LABELS, type ReadingKey } from '../signal'
 import { ELEMENTS, GEO_MODES, VIEW_LABELS, type ViewMode } from '../vizSettings'
 import { Field, Section, Segmented, Slider, Toggle } from './controls'
 import { Button } from './ui/button'
@@ -121,7 +121,7 @@ export function ReadingSection({ settings, patch }: SettingsEditor) {
 
 /** How digits are grouped (by label or Leiden cluster), and the order their chords sit in. */
 export function GroupingSection({ settings, set, grouping }: SettingsEditor & { grouping: Grouping }) {
-  const { groupBy, resolution, neighbours, clusterOver, clusterRate, order } = settings
+  const { groupBy, resolution, neighbours, clusterOver, clusterRate, windowPixels, order } = settings
   return (
     <Section title="Grouping">
       <Field label="group by">
@@ -132,7 +132,7 @@ export function GroupingSection({ settings, set, grouping }: SettingsEditor & { 
           <Slider label="resolution" value={resolution} min={0.1} max={3} step={0.1} onChange={(v) => set('resolution', v)} format={fixed(1)} />
           <Slider label="neighbours" value={neighbours} min={3} max={30} onChange={(v) => set('neighbours', v)} />
           <Field label="cluster over">
-            <Segmented options={['full', 'window'] as const} value={clusterOver} onChange={(v) => set('clusterOver', v)} labels={{ full: 'full digit', window: "trail's window" }} />
+            <Segmented options={['full', 'window'] as const} value={clusterOver} onChange={(v) => set('clusterOver', v)} labels={{ full: 'full digit', window: 'window' }} />
           </Field>
           {clusterOver === 'window' && (
             <Slider
@@ -151,6 +151,16 @@ export function GroupingSection({ settings, set, grouping }: SettingsEditor & { 
           </p>
         </>
       )}
+      <Slider
+        label="window"
+        title="The stretch of each digit's reading, back from the playhead, that clustering over a window compares and the digit images shade"
+        value={windowPixels}
+        min={8}
+        max={N_PIXELS}
+        step={4}
+        onChange={(v) => set('windowPixels', v)}
+        format={(v) => `${v} px`}
+      />
       <Field label="chord order">
         <Segmented options={['random', 'grouped'] as const} value={order} onChange={(v) => set('order', v)} />
       </Field>

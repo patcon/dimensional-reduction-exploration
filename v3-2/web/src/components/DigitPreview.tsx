@@ -6,7 +6,7 @@ import { accentOf, shadeDigit } from '../digitImage'
 import { SIDE, valenceAt, type Traces } from '../signal'
 
 /**
- * A digit, read as it plays: the trail's window is tinted, everything outside it is dimmed and the pixel being
+ * A digit, read as it plays: the clustering window is tinted, everything outside it is dimmed and the pixel being
  * read is marked. Clicking a pixel, or dragging across them, moves the playhead to where it's read.
  */
 export function DigitImage({
@@ -14,15 +14,15 @@ export function DigitImage({
   poolRow,
   traces,
   playhead,
-  trailPixels,
+  windowPixels,
   className,
 }: {
   pixels: Uint8Array
-  /** The digit, or null for none: just the trail's window, on a blank square. */
+  /** The digit, or null for none: just the clustering window, on a blank square. */
   poolRow: number | null
   traces: Traces
   playhead: Playhead
-  trailPixels: number
+  windowPixels: number
   className?: string
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -48,12 +48,12 @@ export function DigitImage({
     const img = ctx.createImageData(SIDE, SIDE)
     const accent = accentOf(canvas)
     const draw = () => {
-      shadeDigit(img, pixels, poolRow, traces, playhead, trailPixels, accent)
+      shadeDigit(img, pixels, poolRow, traces, playhead, windowPixels, accent)
       ctx.putImageData(img, 0, 0)
     }
     draw()
     return playhead.onFrame(draw)
-  }, [pixels, poolRow, traces, playhead, trailPixels])
+  }, [pixels, poolRow, traces, playhead, windowPixels])
 
   return (
     <canvas
@@ -87,7 +87,7 @@ export function DigitPreview({
   groupColor,
   traces,
   playhead,
-  trailPixels,
+  windowPixels,
   following,
 }: {
   pixels: Uint8Array
@@ -98,7 +98,7 @@ export function DigitPreview({
   groupColor: RGB
   traces: Traces
   playhead: Playhead
-  trailPixels: number
+  windowPixels: number
   /** Whether this is the followed digit (rather than one hovered for a moment). */
   following: boolean
 }) {
@@ -117,7 +117,7 @@ export function DigitPreview({
 
   return (
     <div className="digit-preview">
-      <DigitImage pixels={pixels} poolRow={poolRow} traces={traces} playhead={playhead} trailPixels={trailPixels} />
+      <DigitImage pixels={pixels} poolRow={poolRow} traces={traces} playhead={playhead} windowPixels={windowPixels} />
       <div className="digit-info">
         <div>
           <strong>{following ? 'Following' : 'Hovering'}</strong> a <strong>{label}</strong>

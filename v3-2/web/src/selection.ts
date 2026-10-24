@@ -36,7 +36,7 @@ export function windowFeatures(traces: Traces, moment: number, span: number, sam
 }
 
 export type GroupBy = 'digit' | 'leiden'
-/** What Leiden clusters on: each whole digit (its principal components), or the trail's window of each trace. */
+/** What Leiden clusters on: each whole digit (its principal components), or a window of each trace. */
 export type ClusterOver = 'full' | 'window'
 
 export interface LeidenSettings {

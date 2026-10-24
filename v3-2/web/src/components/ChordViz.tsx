@@ -27,9 +27,11 @@ const R_MID = 90
 /** Samples along each trail, oldest to newest. */
 const TRACE_LEN = 160
 const TRACE_SEGS = TRACE_LEN - 1
-/** How far back (into the screen) a whole trail reaches. */
-const TRACE_DEPTH = 900
-const TRACE_Z_STEP = TRACE_DEPTH / TRACE_SEGS
+/**
+ * How far back (into the screen) a trail reaches per moment. Fixed, so trails keep their proportions: a longer
+ * trail reaches further into the distance before it fades, rather than squashing to fit.
+ */
+const TRACE_Z_PER_MOMENT = 6.4
 const FILL_VERTS_PER_SEG = 6
 // A fill segment's two triangles, as offsets into the trail history (5 values per sample: cursor
 // x, y, root x, y, valence): root then cursor at the earlier sample, roots fading to the background.
@@ -162,7 +164,7 @@ export interface ChordVizProps {
   view: ViewMode
   geometry: GeoMode
   style: VizStyle
-  /** How far back trails reach, in seconds of playback. */
+  /** How far back trails reach, in seconds of playback; further back, not squashed, for longer. */
   trailSeconds: number
   particles: ParticleSettings
   /** Changes when particles should be scattered afresh. */
@@ -294,11 +296,11 @@ export function ChordViz(props: ChordVizProps) {
     // Side on and from the left, so time runs left to right like a strip chart. Now sits right of centre, by
     // `nowAcross` of the half-width, or at the right end of a whole trail centred where the screen is wide enough.
     const CAM_2D_TS = { radius: 820, theta: -Math.PI / 2, phi: 0, nowAcross: 0.5 }
-    /** How far back from now the time series camera looks, for the screen's shape. */
-    const tsTargetZ = () => {
+    /** How far back from now the time series camera looks, for the screen's shape and a trail `trailDepth` deep. */
+    const tsTargetZ = (trailDepth: number) => {
       // The plane at the target spans 2·radius·tan(fov/2) in height; now's plane is the same one, side on.
       const halfWidth = CAM_2D_TS.radius * Math.tan((baseFov * Math.PI) / 360) * camera.aspect
-      return -Math.min(TRACE_DEPTH / 2, CAM_2D_TS.nowAcross * halfWidth)
+      return -Math.min(trailDepth / 2, CAM_2D_TS.nowAcross * halfWidth)
     }
     // From the front left and above, so trails recede to the left, with time running left to right as
     // in the time series view.
@@ -317,7 +319,8 @@ export function ChordViz(props: ChordVizProps) {
       // Near grows with the square of the distance, keeping the depth buffer's precision at the scene
       // as it was (it goes as distance² / near); far just has to reach past the scene.
       camera.near = 0.1 * dolly * dolly
-      camera.far = 10000 * dolly
+      // Far enough for the longest, fastest trails.
+      camera.far = 1e6 * dolly
       camera.updateProjectionMatrix()
     }
     // Opens on whatever view is chosen, without animating there from 2d.
@@ -426,6 +429,8 @@ export function ChordViz(props: ChordVizProps) {
       animFrameId = requestAnimationFrame(animate)
       const { traces, pickKey, playhead, slotOf, groupOf, colors, focus, view, geometry, style, trailSeconds, particles, particleReset, cameraReset } = live.current
       const inParticles = geometry === 'particle'
+      // How many moments trails cover, and so how deep they reach.
+      const trailMoments = trailSeconds * playhead.speed
 
       // A new set of digits: chords start over from nothing; otherwise each keeps its place and glides.
       if (pickKey !== lastPick || traces.n !== n) {
@@ -460,7 +465,7 @@ export function ChordViz(props: ChordVizProps) {
       camRadius += (CAM_2D_TS.radius - camRadius) * toTs
       camTheta += (CAM_2D_TS.theta - camTheta) * toTs
       camPhi += (CAM_2D_TS.phi - camPhi) * toTs
-      camTargetZ = tsTargetZ() * toTs
+      camTargetZ = tsTargetZ(trailMoments * TRACE_Z_PER_MOMENT) * toTs
       shownPerspective += (clamp01(style.perspective) - shownPerspective) * TRANS_SPEED * 3
       const covered = Math.max(0, Math.min(viewHeight, Math.round(live.current.coveredBottom?.() ?? 0)))
       if (covered !== shownCovered) {
@@ -497,7 +502,8 @@ export function ChordViz(props: ChordVizProps) {
       const elapsed = playhead.loop || playhead.pin ? playhead.elapsed : moment
       const showTrace = depth > 0.01
       // Trail samples are spread over the last `trailSeconds` of playback, in moments.
-      const step = (trailSeconds * playhead.speed) / TRACE_SEGS
+      const step = trailMoments / TRACE_SEGS
+      const zStep = step * TRACE_Z_PER_MOMENT
       const by = style.colorBy
       for (let i = 0; i < n; i++) {
         arrival[i] = Math.min(1, arrival[i] + 1 / 30)
@@ -585,7 +591,7 @@ export function ChordViz(props: ChordVizProps) {
             continue
           }
           const a = j * 5, b = (j + 1) * 5
-          const zA = -age[j] * TRACE_Z_STEP, zB = -age[j + 1] * TRACE_Z_STEP
+          const zA = -age[j] * zStep, zB = -age[j + 1] * zStep
           // Fades by age over the whole trail, so it thins into the background rather than ending abruptly.
           const fadeA = Math.max(0, 1 - age[j] / TRACE_SEGS) ** 2, fadeB = Math.max(0, 1 - age[j + 1] / TRACE_SEGS) ** 2
           // Thousands of segments a frame, so written in place rather than through arrays.
