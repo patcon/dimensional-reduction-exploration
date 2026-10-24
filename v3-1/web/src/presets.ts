@@ -1,5 +1,6 @@
 /** Every setting on the page as one plain object, and named presets of it kept in the browser or in files. */
 
+import { useState } from 'react'
 import type { ChordOrder, ClusterOver, GroupBy } from './selection'
 import type { SignalSettings } from './signal'
 import { DEFAULT_PARTICLES, DEFAULT_STYLE, type GeoMode, type ParticleSettings, type ViewMode, type VizStyle } from './vizSettings'
@@ -60,6 +61,20 @@ export function completeSettings(partial: Partial<Settings>): Settings {
     particles: { ...d.particles, ...partial.particles },
   }
 }
+
+/** Settings that are objects of their own, changed a field at a time. */
+type Nested = 'signal' | 'style' | 'particles'
+
+/** The page's settings, with ways to change one, or some fields of a nested one. */
+export function useSettings() {
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
+  const set = <K extends keyof Settings>(key: K, value: Settings[K]) => setSettings((s) => ({ ...s, [key]: value }))
+  const patch = <K extends Nested>(key: K, fields: Partial<Settings[K]>) => setSettings((s) => ({ ...s, [key]: { ...s[key], ...fields } }))
+  return { settings, setSettings, set, patch }
+}
+
+/** What a panel of controls gets: the settings and ways to change them. */
+export type SettingsEditor = Pick<ReturnType<typeof useSettings>, 'settings' | 'set' | 'patch'>
 
 export type Presets = Record<string, Settings>
 

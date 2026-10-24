@@ -1,41 +1,30 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChordViz } from './components/ChordViz'
-import { Segmented, Slider } from './components/controls'
+import { Segmented } from './components/controls'
 import { DigitPreview } from './components/DigitPreview'
 import { GroupLegend } from './components/GroupLegend'
 import { Matrix } from './components/Matrix'
 import { Presets } from './components/Presets'
+import { GroupingRow, ParticlePanel, ReadingRow, SampleRow, StylePanel } from './components/SettingsPanels'
 import { Transport } from './components/Transport'
-import { DIGIT_COLORS, groupColors } from './palette'
+import { groupColors } from './palette'
 import { usePlayhead } from './playhead'
-import { DEFAULT_SETTINGS, type Settings } from './presets'
-import {
-  chordSlots,
-  groupParticipants,
-  N_DIGITS,
-  pcsOf,
-  pickRows,
-  windowFeatures,
-  type Grouping,
-} from './selection'
-import { buildTraces, READING_LABELS, type ReadingKey } from './signal'
+import { useSettings } from './presets'
+import { chordSlots, groupParticipants, pcsOf, pickRows, windowFeatures, type Grouping } from './selection'
+import { buildTraces } from './signal'
 import { useData, type PoolData } from './useData'
-import { ELEMENTS, GEO_MODES, MAX_CHORDS, VIEW_LABELS } from './vizSettings'
+import { GEO_MODES, MAX_CHORDS, VIEW_LABELS } from './vizSettings'
 
 /** Moments sampled across the trail's window when clustering over it. */
 const WINDOW_SAMPLES = 32
-
-/** Settings that are objects of their own, changed a field at a time. */
-type Nested = 'signal' | 'style' | 'particles'
 
 function Explorer({ data }: { data: PoolData }) {
   const { meta, pixels, pcs } = data
   const labels = meta.rows.label
 
   // Every setting, as presets save and load them; the playhead follows its speed and looping.
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
-  const set = <K extends keyof Settings>(key: K, value: Settings[K]) => setSettings((s) => ({ ...s, [key]: value }))
-  const patch = <K extends Nested>(key: K, fields: Partial<Settings[K]>) => setSettings((s) => ({ ...s, [key]: { ...s[key], ...fields } }))
+  const { settings, setSettings, set, patch } = useSettings()
+  const editor = { settings, set, patch }
   const { count, seed, groupBy, resolution, neighbours, clusterOver, clusterRate, order, signal, view, geometry, style, trailSeconds, particles, focus } = settings
   const digits = useMemo(() => new Set(settings.digits), [settings.digits])
   const setFocus = (i: number) => set('focus', i)
@@ -89,14 +78,6 @@ function Explorer({ data }: { data: PoolData }) {
 
   const followed = focus !== null && focus < rows.length ? focus : rows.length ? 0 : null
   const shown = hover ?? followed
-  const toggleDigit = (d: number) => {
-    const next = new Set(digits)
-    if (next.has(d) && next.size > 1) next.delete(d)
-    else next.add(d)
-    set('digits', [...next].sort((a, b) => a - b))
-  }
-  const fixed = (places: number) => (v: number) => v.toFixed(places)
-
   return (
     <main>
       <header className="page-header">
@@ -111,81 +92,9 @@ function Explorer({ data }: { data: PoolData }) {
       <div className="controls">
         <Presets settings={settings} onLoad={setSettings} />
 
-        <div className="toolbar">
-          <span className="control-label">Digits</span>
-          <span className="segmented digits">
-            {Array.from({ length: N_DIGITS }, (_, d) => (
-              <button
-                key={d}
-                className={digits.has(d) ? 'on' : ''}
-                style={{ '--digit': DIGIT_COLORS[d] } as React.CSSProperties}
-                onClick={() => toggleDigit(d)}
-                aria-pressed={digits.has(d)}
-              >
-                {d}
-              </button>
-            ))}
-          </span>
-          <button onClick={() => set('digits', Array.from({ length: N_DIGITS }, (_, d) => d))}>all</button>
-          <Slider label="sample" value={shownCount} min={2} max={maxCount} onChange={(v) => set('count', v)} format={(v) => `${v} of ${available}`} />
-          <button onClick={() => set('seed', seed + 1)} title="Pick another sample of these digits">
-            ⟳ Reshuffle
-          </button>
-        </div>
-
-        <div className="toolbar">
-          <span className="control-label">Color by</span>
-          <Segmented options={['digit', 'leiden'] as const} value={groupBy} onChange={(v) => set('groupBy', v)} labels={{ digit: 'Label', leiden: 'Leiden' }} />
-          {groupBy === 'leiden' && (
-            <>
-              <Slider label="resolution" value={resolution} min={0.1} max={3} step={0.1} onChange={(v) => set('resolution', v)} format={fixed(1)} />
-              <Slider label="neighbours" value={neighbours} min={3} max={30} onChange={(v) => set('neighbours', v)} />
-              <span className="control-label">Cluster over</span>
-              <Segmented options={['full', 'window'] as const} value={clusterOver} onChange={(v) => set('clusterOver', v)} />
-              {clusterOver === 'window' && (
-                <Slider
-                  label="re-cluster"
-                  title="How often to re-cluster over the window while playing"
-                  value={clusterRate}
-                  min={0.25}
-                  max={10}
-                  step={0.25}
-                  onChange={(v) => set('clusterRate', v)}
-                  format={(v) => `${v} /s`}
-                />
-              )}
-              <span className="muted num">
-                {grouping.groups.length} clusters · modularity {grouping.modularity?.toFixed(2)}
-              </span>
-            </>
-          )}
-          <span className="control-label">Chord order</span>
-          <Segmented options={['random', 'grouped'] as const} value={order} onChange={(v) => set('order', v)} />
-        </div>
-
-        <div className="toolbar">
-          <span className="control-label">Reading</span>
-          <Segmented options={Object.keys(READING_LABELS) as ReadingKey[]} value={signal.reading} onChange={(v) => patch('signal', { reading: v })} labels={READING_LABELS} />
-          <label className="check">
-            <input type="checkbox" checked={signal.skipBlank} onChange={(e) => patch('signal', { skipBlank: e.target.checked })} /> skip blank pixels
-          </label>
-          <Segmented options={['blur', 'lag'] as const} value={signal.smoothing} onChange={(v) => patch('signal', { smoothing: v })} />
-          <Slider
-            label="smoothing"
-            value={signal.smoothingPixels}
-            min={0}
-            max={8}
-            step={0.25}
-            onChange={(v) => patch('signal', { smoothingPixels: v })}
-            format={(v) => `${v} px`}
-          />
-          <Segmented
-            options={['ink', 'ink-only'] as const}
-            value={signal.mapping}
-            onChange={(v) => patch('signal', { mapping: v })}
-            labels={{ ink: 'paper −1, ink +1', 'ink-only': 'paper 0, ink +1' }}
-          />
-        </div>
+        <SampleRow {...editor} available={available} shownCount={shownCount} maxCount={maxCount} />
+        <GroupingRow {...editor} grouping={grouping} />
+        <ReadingRow {...editor} />
       </div>
 
       <div className="stage">
@@ -244,64 +153,8 @@ function Explorer({ data }: { data: PoolData }) {
             onFocus={setFocus}
             onHover={setHover}
           />
-          {geometry === 'particle' && (
-            <div className="particle-settings">
-              <h2>Particles</h2>
-              <p className="muted">Groups pull together; the centre pulls ink in and pushes paper out, by each digit's valence now.</p>
-              <Slider label="within groups" value={particles.cohesion} min={-1} max={1} step={0.05} onChange={(v) => patch('particles', { cohesion: v })} format={fixed(2)} />
-              <Slider label="between groups" value={particles.separation} min={-1} max={1} step={0.05} onChange={(v) => patch('particles', { separation: v })} format={fixed(2)} />
-              <Slider label="centre" value={particles.centreForce} min={0} max={6} step={0.1} onChange={(v) => patch('particles', { centreForce: v })} format={fixed(1)} />
-              <Slider label="spread" value={particles.spread} min={0.2} max={1.5} step={0.05} onChange={(v) => patch('particles', { spread: v })} format={fixed(2)} />
-              <Slider label="reach" value={particles.radius} min={10} max={150} onChange={(v) => patch('particles', { radius: v })} format={fixed(0)} />
-              <Slider label="damping" value={particles.damping} min={0.5} max={0.99} step={0.01} onChange={(v) => patch('particles', { damping: v })} format={fixed(2)} />
-              <label className="check">
-                <input type="checkbox" checked={particles.reverseCentre} onChange={(e) => patch('particles', { reverseCentre: e.target.checked })} /> ink repels
-                from centre
-              </label>
-              <button onClick={() => setParticleReset((r) => r + 1)}>scatter</button>
-            </div>
-          )}
-          <h2>Colour by</h2>
-          <div className="style-grid">
-            <span />
-            {ELEMENTS.map((el) => (
-              <span key={el} className="style-head">
-                {el}
-              </span>
-            ))}
-            {(['valence', 'group'] as const).map((by) => (
-              <Fragment key={by}>
-                <span className="style-head">
-                  {by}
-                </span>
-                {ELEMENTS.map((el) => (
-                  <button
-                    key={`${by}-${el}`}
-                    className={style.colorBy[el] === by ? 'on' : ''}
-                    onClick={() => patch('style', { colorBy: { ...style.colorBy, [el]: by } })}
-                  >
-                    {by}
-                  </button>
-                ))}
-              </Fragment>
-            ))}
-            <span className="style-head">opacity</span>
-            {ELEMENTS.map((el) => (
-              <input
-                key={`op-${el}`}
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={style.opacity[el]}
-                aria-label={`${el} opacity`}
-                onChange={(e) => patch('style', { opacity: { ...style.opacity, [el]: Number(e.target.value) } })}
-              />
-            ))}
-          </div>
-          <Slider label="cursor size" value={style.cursorSize} min={2} max={30} onChange={(v) => patch('style', { cursorSize: v })} />
-          <Slider label="chord width" value={style.chordWidth} min={0.5} max={10} step={0.5} onChange={(v) => patch('style', { chordWidth: v })} format={(v) => `${v} px`} />
-          <Slider label="trace width" value={style.traceWidth} min={0.5} max={10} step={0.5} onChange={(v) => patch('style', { traceWidth: v })} />
+          {geometry === 'particle' && <ParticlePanel {...editor} onScatter={() => setParticleReset((r) => r + 1)} />}
+          <StylePanel {...editor} />
         </aside>
       </div>
 
