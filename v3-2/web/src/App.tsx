@@ -1,5 +1,6 @@
-import { Bookmark, Eye, Gauge, Hash, ScanSearch, Shapes } from 'lucide-react'
+import { Bookmark, Eye, Gauge, Hash, Pin, ScanSearch, Shapes } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { cn } from '@/lib/utils'
 import { ChordViz } from './components/ChordViz'
 import { Section } from './components/controls'
 import { DigitImage, DigitPreview } from './components/DigitPreview'
@@ -87,26 +88,35 @@ function Explorer({ data }: { data: PoolData }) {
   useEffect(() => playhead.resetLaps(), [playhead, traces])
 
   // Clustering over the trail's window: re-run `clusterRate` times a second while the playhead moves, each run
-  // starting from the last one's clusters (or the full clustering's, at first) and keeping their ids.
+  // starting from the last one's clusters (or the full clustering's, at first) and keeping their ids. Pinned, the
+  // window holds still, so it's clustered once.
   const windowed = groupBy === 'leiden' && clusterOver === 'window'
+  const pin = playhead.pin
   const [windowGrouping, setWindowGrouping] = useState<{ rows: number[]; grouping: Grouping } | null>(null)
   const lastWindow = useRef<{ rows: number[]; grouping: Grouping } | null>(null)
   useEffect(() => {
     if (!windowed) return
-    let lastMoment = NaN
-    const run = () => {
-      if (playhead.moment === lastMoment) return
-      lastMoment = playhead.moment
+    const cluster = (moment: number, span: number, wrap: boolean) => {
       const previous = lastWindow.current?.rows === rows ? lastWindow.current.grouping : fullGrouping
-      const features = windowFeatures(traces, playhead.moment, trailPixels, WINDOW_SAMPLES, playhead.wraps)
+      const features = windowFeatures(traces, moment, span, WINDOW_SAMPLES, wrap)
       const grouping = groupParticipants(rowLabels, features, WINDOW_SAMPLES, 'leiden', { resolution, neighbours, seed }, previous)
       lastWindow.current = { rows, grouping }
       setWindowGrouping(lastWindow.current)
     }
+    if (pin) {
+      cluster(pin.to, pin.to - pin.from, false)
+      return
+    }
+    let lastMoment = NaN
+    const run = () => {
+      if (playhead.moment === lastMoment) return
+      lastMoment = playhead.moment
+      cluster(playhead.moment, trailPixels, playhead.wraps)
+    }
     run()
     const id = setInterval(run, 1000 / clusterRate)
     return () => clearInterval(id)
-  }, [windowed, clusterRate, rows, rowLabels, traces, playhead, trailPixels, resolution, neighbours, seed, fullGrouping])
+  }, [windowed, pin, clusterRate, rows, rowLabels, traces, playhead, trailPixels, resolution, neighbours, seed, fullGrouping])
   const grouping = windowed && windowGrouping?.rows === rows ? windowGrouping.grouping : fullGrouping
 
   const colors = useMemo(() => groupColors(grouping), [grouping])
@@ -183,14 +193,31 @@ function Explorer({ data }: { data: PoolData }) {
       >
         {/* The followed (or hovered) digit as it plays, as in the inspect tab, always in sight; with none, the
             trail's window still shows where in the reading the playhead is. */}
-        <DigitImage
-          pixels={pixels}
-          poolRow={shown !== null ? rows[shown] : null}
-          traces={traces}
-          playhead={playhead}
-          trailPixels={trailPixels}
-          className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 size-21 rounded-sm border-white/90! pointer-events-auto"
-        />
+        <div className="pointer-events-auto absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 flex flex-col items-end gap-1.5">
+          <DigitImage
+            pixels={pixels}
+            poolRow={shown !== null ? rows[shown] : null}
+            traces={traces}
+            playhead={playhead}
+            trailPixels={trailPixels}
+            className="size-21 rounded-sm border-white/90!"
+          />
+          {/* Pins playback to the trail's window, looping round inside it, so its groups hold still as it plays. */}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className={cn(
+              'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white',
+              pin && 'bg-white/90 text-black hover:bg-white hover:text-black',
+            )}
+            onClick={() => playhead.setPin(pin ? null : trailPixels)}
+            aria-pressed={pin !== null}
+            aria-label={pin ? 'Unpin from this window' : "Pin to the trail's window"}
+            title={pin ? 'Unpin from this window' : "Pin to the trail's window"}
+          >
+            <Pin />
+          </Button>
+        </div>
         {/* The digits taking part, along the top as in the digits tab, clear of the corner digit. */}
         <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-[calc(5.25rem+1.5rem)] left-3 pointer-events-none [&_button]:pointer-events-auto">
           <DigitPicker digits={settings.digits} onDigits={(v) => set('digits', v)} compact />

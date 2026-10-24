@@ -14,6 +14,14 @@ export class Playhead {
   loop = true
   /** Times playback has looped back to the start, so `elapsed` keeps counting through the loop. */
   laps = 0
+  /**
+   * A window of moments playback is pinned to, looping round inside it (whatever `loop` is), or null. Trails
+   * wrap round inside it too, and the trail's window holds still on it.
+   */
+  pin: { from: number; to: number } | null = null
+  /** While pinned: loops round the window so far, and what `elapsed` was at its start, to count on from. */
+  private pinLaps = 0
+  private pinBase = 0
   private frameListeners = new Set<() => void>()
   private stateListeners = new Set<() => void>()
   private version = 0
@@ -37,12 +45,39 @@ export class Playhead {
 
   /** Moments played through, counting each lap whole: unlike `moment`, it doesn't jump back when playback loops. */
   get elapsed() {
+    if (this.pin) return this.pinBase + (this.moment - this.pin.from) + this.pinLaps * (this.pin.to - this.pin.from)
     return this.moment + this.laps * (this.length - 1)
   }
 
-  /** Whether trails reach back round from the start to the end: looping, once playback has actually looped. */
+  /**
+   * Whether trails reach back round: from the start to the end, looping, once playback has actually looped; or
+   * from the pinned window's start to its end.
+   */
   get wraps() {
-    return this.loop && this.laps > 0
+    return this.pin !== null || (this.loop && this.laps > 0)
+  }
+
+  /** Where moment `t` (as a trail reaches back to it) falls: wrapped round the pinned window, or round the whole as `wraps` says. */
+  wrapMoment(t: number) {
+    const [from, to] = this.pin ? [this.pin.from, this.pin.to] : this.wraps ? [0, this.length - 1] : [-Infinity, Infinity]
+    if (t >= from && t <= to) return t
+    if (!Number.isFinite(from)) return t
+    const span = to - from
+    return from + ((((t - from) % span) + span) % span)
+  }
+
+  /** Pins playback to the trail's window as it is now (see `pin`), or unpins it; too short a window won't pin. */
+  setPin(trailPixels: number | null) {
+    if (trailPixels === null) this.pin = null
+    else {
+      const from = Math.max(0, this.moment - trailPixels)
+      if (this.moment - from < 2) return
+      this.pinBase = this.elapsed - (this.moment - from)
+      this.pinLaps = 0
+      this.pin = { from, to: this.moment }
+    }
+    this.changed()
+    this.frame()
   }
 
   /**
@@ -50,6 +85,7 @@ export class Playhead {
    * playback has looped and the trail reaches back past the start round to the end.
    */
   trailRanges(trailPixels: number): [number, number][] {
+    if (this.pin) return [[this.pin.from, this.pin.to]]
     const from = this.moment - trailPixels
     if (from >= 0 || !this.wraps) return [[Math.max(0, from), this.moment]]
     return [[0, this.moment], [Math.max(this.moment, from + this.length - 1), this.length - 1]]
@@ -78,14 +114,19 @@ export class Playhead {
     this.frame()
   }
 
+  /** Moves to `moment`; outside the pinned window, unpinning. */
   seek(moment: number) {
     this.moment = Math.max(0, Math.min(this.length - 1, moment))
+    if (this.pin && (this.moment < this.pin.from || this.moment > this.pin.to)) {
+      this.pin = null
+      this.changed()
+    }
     this.frame()
   }
 
   setPlaying(playing: boolean) {
     // Playing from the very end starts over.
-    if (playing && this.moment >= this.length - 1) this.moment = 0
+    if (playing && !this.pin && this.moment >= this.length - 1) this.moment = 0
     this.playing = playing
     this.changed()
   }
@@ -103,7 +144,13 @@ export class Playhead {
   tick(seconds: number) {
     if (!this.playing) return
     this.moment += this.speed * seconds
-    if (this.moment >= this.length - 1) {
+    if (this.pin) {
+      const { from, to } = this.pin
+      if (this.moment > to) {
+        this.pinLaps += Math.floor((this.moment - from) / (to - from))
+        this.moment = from + ((this.moment - from) % (to - from))
+      }
+    } else if (this.moment >= this.length - 1) {
       if (this.loop) {
         this.moment %= this.length - 1
         this.laps++

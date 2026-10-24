@@ -492,9 +492,9 @@ export function ChordViz(props: ChordVizProps) {
       // ── Chords, cursors and trails ──
       const moment = playhead.moment
       // Looping, trails run on through the loop (and, once it has looped, reach back round from the
-      // start to the end); trail grids count moments played through, so they don't jump back when the
-      // playhead does.
-      const elapsed = playhead.loop ? playhead.elapsed : moment
+      // start to the end; pinned, round the pinned window); trail grids count moments played through, so they
+      // don't jump back when the playhead does.
+      const elapsed = playhead.loop || playhead.pin ? playhead.elapsed : moment
       const showTrace = depth > 0.01
       // Trail samples are spread over the last `trailSeconds` of playback, in moments.
       const step = (trailSeconds * playhead.speed) / TRACE_SEGS
@@ -570,7 +570,7 @@ export function ChordViz(props: ChordVizProps) {
           for (let k = 0; k < hlen; k++) {
             const head = k === hlen - 1
             age[k] = head ? 0 : hlen - 2 - k + frac
-            const hv = valenceAt(traces, i, head ? moment : (grid - (hlen - 2 - k)) * step, playhead.wraps) * scale
+            const hv = valenceAt(traces, i, head ? moment : playhead.wrapMoment((grid - (hlen - 2 - k)) * step)) * scale
             chordPoints(shownSlot[i], Math.max(n, 1), hv, morph, pts)
             hist[k * 5] = pts[2] - CENTER; hist[k * 5 + 1] = CENTER - pts[3]
             hist[k * 5 + 2] = pts[0] - CENTER; hist[k * 5 + 3] = CENTER - pts[1]; hist[k * 5 + 4] = hv
