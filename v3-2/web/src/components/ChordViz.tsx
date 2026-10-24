@@ -161,8 +161,8 @@ export interface ChordVizProps {
   particleReset: unknown
   /** Changes when the camera should ease back from wherever it was dragged or zoomed to. */
   cameraReset: unknown
-  /** A digit's cursor (or chord) was clicked. */
-  onFocus: (participant: number) => void
+  /** A digit's cursor (or chord) was clicked, or nothing was (null), to follow no digit. */
+  onFocus: (participant: number | null) => void
   /** The pointer is over a digit's cursor (or chord), or none. */
   onHover: (participant: number | null) => void
 }
@@ -315,10 +315,7 @@ export function ChordViz(props: ChordVizProps) {
       baseRadius: () => camRadius,
       // The plane the camera looks at spans 2·distance·tan(fov/2) in height; the dolly cancels out.
       panScale: (): number => (2 * (camRadius + orbit.dRadius) * Math.tan((baseFov * Math.PI) / 360)) / viewHeight,
-      onTap: (x, y) => {
-        const i = pickAt(x, y)
-        if (i !== null) live.current.onFocus(i)
-      },
+      onTap: (x, y) => live.current.onFocus(pickAt(x, y)),
       onOrbiting: setIsOrbiting,
     })
 
@@ -634,8 +631,7 @@ export function ChordViz(props: ChordVizProps) {
     function onCanvasLeave() { setHovered(null) }
     function onClick(e: MouseEvent) {
       if (!isClick(e.clientX, e.clientY)) return
-      const i = pickAt(e.clientX, e.clientY)
-      if (i !== null) live.current.onFocus(i)
+      live.current.onFocus(pickAt(e.clientX, e.clientY))
     }
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('mousemove', onCanvasMove)

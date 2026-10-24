@@ -61,7 +61,7 @@ function Explorer({ data }: { data: PoolData }) {
   const editor = { settings, set, patch }
   const { count, seed, groupBy, resolution, neighbours, clusterOver, clusterRate, order, signal, view, geometry, style, trailSeconds, particles, focus } = settings
   const digits = useMemo(() => new Set(settings.digits), [settings.digits])
-  const setFocus = (i: number) => set('focus', i)
+  const setFocus = (i: number | null) => set('focus', i)
   const presets = usePresets(settings, setSettings)
 
   const [particleReset, setParticleReset] = useState(0)
@@ -112,7 +112,8 @@ function Explorer({ data }: { data: PoolData }) {
   const colors = useMemo(() => groupColors(grouping), [grouping])
   const slotOf = useMemo(() => chordSlots(grouping, points, meta.nPcs, order), [grouping, points, meta.nPcs, order])
 
-  const followed = focus !== null && focus < rows.length ? focus : rows.length ? 0 : null
+  // None, once a tap lands on no digit; the first, if the one followed has gone from the sample.
+  const followed = focus === null ? null : focus < rows.length ? focus : rows.length ? 0 : null
   const shown = hover ?? followed
 
   // The drawer is always there, at one of two heights: closed, only the playback bar on its top edge shows; open,
