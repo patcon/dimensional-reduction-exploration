@@ -57,6 +57,10 @@ const P_S_BWIDTH = 400
 const P_S_BG = 20
 /** Frames a cursor takes to glide from its particle back onto its chord. */
 const PARTICLE_EXIT_FRAMES = 30
+/** How near a cursor, in pixels, a click or hover has to be to pick its digit. */
+const PICK_RADIUS = 14
+/** A press that moves further than this, in pixels, is a drag (orbiting), not a click. */
+const CLICK_SLOP = 5
 
 const COLORS = { pos: [80, 255, 140] as RGB, neg: [255, 80, 60] as RGB, neutral: BG }
 
@@ -159,6 +163,10 @@ export interface ChordVizProps {
   particles: ParticleSettings
   /** Changes when particles should be scattered afresh. */
   particleReset: unknown
+  /** A digit's cursor was clicked. */
+  onFocus: (participant: number) => void
+  /** The pointer is over a digit's cursor, or none. */
+  onHover: (participant: number | null) => void
 }
 
 export function ChordViz(props: ChordVizProps) {
@@ -630,6 +638,38 @@ export function ChordViz(props: ChordVizProps) {
     }
     animFrameId = requestAnimationFrame(animate)
 
+    // ── Picking: the cursor nearest the pointer on screen, if it's close enough ──
+    const projected = new THREE.Vector3()
+    function pickAt(clientX: number, clientY: number): number | null {
+      const rect = canvas.getBoundingClientRect()
+      const x = clientX - rect.left, y = clientY - rect.top
+      let best: number | null = null, bestD = PICK_RADIUS * PICK_RADIUS
+      for (let i = 0; i < n; i++) {
+        projected.set(dot.pos[i * 3], dot.pos[i * 3 + 1], dot.pos[i * 3 + 2]).project(camera)
+        const dx = ((projected.x + 1) / 2) * rect.width - x, dy = ((1 - projected.y) / 2) * rect.height - y
+        const d = dx * dx + dy * dy
+        if (d <= bestD) { best = i; bestD = d }
+      }
+      return best
+    }
+    let hovered: number | null = null
+    function setHovered(i: number | null) {
+      if (i === hovered) return
+      hovered = i
+      canvas.style.cursor = i === null ? '' : 'pointer'
+      live.current.onHover(i)
+    }
+    let pressAt = { x: 0, y: 0 }
+    const isClick = (x: number, y: number) => Math.hypot(x - pressAt.x, y - pressAt.y) <= CLICK_SLOP
+    function onPointerDown(e: PointerEvent) { pressAt = { x: e.clientX, y: e.clientY } }
+    function onCanvasMove(e: MouseEvent) { setHovered(dragging ? null : pickAt(e.clientX, e.clientY)) }
+    function onCanvasLeave() { setHovered(null) }
+    function onClick(e: MouseEvent) {
+      if (!isClick(e.clientX, e.clientY)) return
+      const i = pickAt(e.clientX, e.clientY)
+      if (i !== null) live.current.onFocus(i)
+    }
+
     // ── Orbit (3d only): drag to turn, wheel or pinch to zoom ──
     let dragging = false, dragLast = { x: 0, y: 0 }, dtBase = 0, dpBase = 0
     const canOrbit = () => live.current.view === '3d' && transT > 0.7
@@ -652,14 +692,18 @@ export function ChordViz(props: ChordVizProps) {
       e.preventDefault()
     }
     let lastTouchDist = 0, touchBase = { dt: 0, dp: 0 }, touchStart = { x: 0, y: 0 }
+    /** Whether this touch is still one finger that could be a tap. */
+    let tapping = false
     function onTouchStart(e: TouchEvent) {
       if (!canOrbit()) return
       if (e.touches.length === 1) {
         dragging = true
         touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        tapping = true
         touchBase = { dt: orbitDTheta, dp: orbitDPhi }
       } else if (e.touches.length === 2) {
         dragging = false
+        tapping = false
         lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
       }
       e.preventDefault()
@@ -677,7 +721,20 @@ export function ChordViz(props: ChordVizProps) {
       }
       e.preventDefault()
     }
-    function onTouchEnd() { dragging = false }
+    function onTouchEnd(e: TouchEvent) {
+      dragging = false
+      // Orbiting cancels the tap's click, so a tap that didn't move picks here instead.
+      const t = e.changedTouches[0]
+      if (tapping && canOrbit() && e.touches.length === 0 && t && Math.hypot(t.clientX - touchStart.x, t.clientY - touchStart.y) <= CLICK_SLOP) {
+        const i = pickAt(t.clientX, t.clientY)
+        if (i !== null) live.current.onFocus(i)
+      }
+      if (e.touches.length === 0) tapping = false
+    }
+    canvas.addEventListener('pointerdown', onPointerDown)
+    canvas.addEventListener('mousemove', onCanvasMove)
+    canvas.addEventListener('mouseleave', onCanvasLeave)
+    canvas.addEventListener('click', onClick)
     canvas.addEventListener('mousedown', onMouseDown)
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
@@ -702,6 +759,10 @@ export function ChordViz(props: ChordVizProps) {
     return () => {
       cancelAnimationFrame(animFrameId)
       resize.disconnect()
+      canvas.removeEventListener('pointerdown', onPointerDown)
+      canvas.removeEventListener('mousemove', onCanvasMove)
+      canvas.removeEventListener('mouseleave', onCanvasLeave)
+      canvas.removeEventListener('click', onClick)
       canvas.removeEventListener('mousedown', onMouseDown)
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)

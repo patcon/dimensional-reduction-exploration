@@ -256,12 +256,14 @@ function Explorer({ data }: { data: PoolData }) {
             trailSeconds={trailSeconds}
             particles={particles}
             particleReset={particleReset}
+            onFocus={setFocus}
+            onHover={setHover}
           />
           <div className="viz-controls">
             <Segmented options={['2d', '2d-ts', '3d'] as const} value={view} onChange={setView} labels={VIEW_LABELS} />
             <Segmented options={GEO_MODES} value={geometry} onChange={setGeometry} />
           </div>
-          {view === '3d' && <div className="viz-hint">drag to orbit · scroll to zoom</div>}
+          <div className="viz-hint">{view === '3d' ? 'click a digit to follow it · drag to orbit · scroll to zoom' : 'click a digit to follow it'}</div>
         </div>
 
         <aside className="sidebar">
