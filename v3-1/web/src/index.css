@@ -92,7 +92,7 @@ button.start:hover { background: var(--go-hover); border-color: var(--go-hover);
 .sidebar { flex: 0 1 300px; min-width: 260px; font-size: 0.85rem; }
 .sidebar h2:first-of-type { margin-top: 12px; }
 .digit-preview { display: flex; gap: 12px; align-items: flex-start; min-height: 128px; color: var(--accent); }
-.digit-preview canvas { width: 126px; height: 126px; image-rendering: pixelated; border: 1px solid var(--border); background: #000; flex-shrink: 0; }
+.digit-preview canvas { width: 126px; height: 126px; image-rendering: pixelated; border: 1px solid var(--border); background: #000; flex-shrink: 0; cursor: crosshair; touch-action: none; }
 .digit-info { display: flex; flex-direction: column; gap: 6px; color: var(--fg); flex: 1; }
 .valence-meter { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; color: var(--muted); }
 .valence-track {

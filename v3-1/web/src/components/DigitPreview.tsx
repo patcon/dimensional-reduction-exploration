@@ -7,7 +7,8 @@ import { SIDE, valenceAt, type Traces } from '../signal'
 /**
  * The followed digit, read as it plays: the trail's window is tinted, everything outside it is
  * dimmed and the pixel being read is marked; beside it, the
- * valence it's reacting with right now.
+ * valence it's reacting with right now. Clicking a pixel, or dragging across them, moves the playhead to
+ * where it's read.
  */
 export function DigitPreview({
   pixels,
@@ -41,6 +42,21 @@ export function DigitPreview({
   const ref = useRef<HTMLCanvasElement>(null)
   const meterRef = useRef<HTMLDivElement>(null)
   const readoutRef = useRef<HTMLSpanElement>(null)
+  /** While pressed: whether playback was going, to carry on once released (as the scrubber does). */
+  const scrubbing = useRef<{ wasPlaying: boolean } | null>(null)
+
+  const release = () => {
+    if (scrubbing.current?.wasPlaying) playhead.setPlaying(true)
+    scrubbing.current = null
+  }
+  /** Moves the playhead to the pixel under the pointer, unless it's one left out of the reading. */
+  const seekTo = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = e.currentTarget
+    const col = Math.min(SIDE - 1, Math.max(0, Math.floor((e.nativeEvent.offsetX / canvas.clientWidth) * SIDE)))
+    const row = Math.min(SIDE - 1, Math.max(0, Math.floor((e.nativeEvent.offsetY / canvas.clientHeight) * SIDE)))
+    const moment = traces.momentOf[row * SIDE + col]
+    if (moment >= 0) playhead.seek(moment)
+  }
 
   useEffect(() => {
     const canvas = ref.current!
@@ -60,7 +76,23 @@ export function DigitPreview({
 
   return (
     <div className="digit-preview">
-      <canvas ref={ref} width={SIDE} height={SIDE} />
+      <canvas
+        ref={ref}
+        width={SIDE}
+        height={SIDE}
+        title="Click or drag to move the playhead to where a pixel is read"
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId)
+          scrubbing.current = { wasPlaying: playhead.playing }
+          playhead.setPlaying(false)
+          seekTo(e)
+        }}
+        onPointerMove={(e) => {
+          if (scrubbing.current) seekTo(e)
+        }}
+        onPointerUp={release}
+        onPointerCancel={release}
+      />
       <div className="digit-info">
         <div>
           <strong>{following ? 'Following' : 'Hovering'}</strong> a <strong>{label}</strong>
