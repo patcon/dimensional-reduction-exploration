@@ -5,11 +5,18 @@ const MIN_ZOOM = 0.25
 const MAX_ZOOM = 2.5
 /** Radians turned per pixel dragged. */
 const TURN = 0.009
-/** Offsets this small are none, once a reset has eased them back. */
-const SETTLED = 1e-3
 
 /** What dragging does: turn the camera around what it looks at, or slide the view sideways. */
 export type DragMode = 'orbit' | 'pan'
+
+/** The camera's offsets from where the view puts it. */
+export interface Offsets {
+  dTheta: number
+  dPhi: number
+  dRadius: number
+  dPanX: number
+  dPanY: number
+}
 
 export interface OrbitOptions {
   /** What dragging does now, if anything. */
@@ -44,8 +51,6 @@ export class Orbit {
   private lastTouchDist = 0
   /** Whether this touch is still one finger that could be a tap. */
   private tapping = false
-  /** Whether the offsets are easing back to none; any drag or zoom stops it. */
-  private resetting = false
 
   constructor(canvas: HTMLCanvasElement, opts: OrbitOptions) {
     this.canvas = canvas
@@ -59,23 +64,19 @@ export class Orbit {
     canvas.addEventListener('touchend', this.onTouchEnd)
   }
 
-  /** Starts easing the offsets back to none, a step each `ease`. */
-  reset() {
-    this.resetting = true
+  /** The offsets now, with turns round the scene taken as the shortest way back. */
+  offsets(): Offsets {
+    const dTheta = this.dTheta - 2 * Math.PI * Math.round(this.dTheta / (2 * Math.PI))
+    return { dTheta, dPhi: this.dPhi, dRadius: this.dRadius, dPanX: this.dPanX, dPanY: this.dPanY }
   }
 
-  /** While resetting, eases the offsets back towards none by `rate` of the way. */
-  ease(rate: number) {
-    if (!this.resetting) return
-    this.dRadius -= this.dRadius * rate
-    this.dTheta -= this.dTheta * rate
-    this.dPhi -= this.dPhi * rate
-    this.dPanX -= this.dPanX * rate
-    this.dPanY -= this.dPanY * rate
-    if (Math.max(Math.abs(this.dTheta), Math.abs(this.dPhi)) < SETTLED && Math.max(Math.abs(this.dRadius), Math.abs(this.dPanX), Math.abs(this.dPanY)) < SETTLED * 100) {
-      this.dRadius = this.dTheta = this.dPhi = this.dPanX = this.dPanY = 0
-      this.resetting = false
-    }
+  /** Sets the offsets to `o`, scaled by `k`: easing them back to none, say. */
+  setOffsets(o: Offsets, k: number) {
+    this.dTheta = o.dTheta * k
+    this.dPhi = o.dPhi * k
+    this.dRadius = o.dRadius * k
+    this.dPanX = o.dPanX * k
+    this.dPanY = o.dPanY * k
   }
 
   dispose() {
@@ -91,7 +92,6 @@ export class Orbit {
   private startDrag(mode: DragMode, x: number, y: number) {
     this.mode = mode
     this.dragging = true
-    this.resetting = false
     this.dragLast = { x, y }
     this.base = { dTheta: this.dTheta, dPhi: this.dPhi, dPanX: this.dPanX, dPanY: this.dPanY }
   }
@@ -124,7 +124,6 @@ export class Orbit {
       this.dPanY -= (clientY - rect.top - rect.height / 2) * s * k
     }
     this.dRadius = after - base
-    this.resetting = false
   }
 
   private onMouseDown = (e: MouseEvent) => {

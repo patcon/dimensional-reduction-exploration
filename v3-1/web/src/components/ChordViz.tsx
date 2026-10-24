@@ -6,7 +6,7 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import type { RGB } from '../palette'
 import type { Playhead } from '../playhead'
 import { valenceAt, type Traces } from '../signal'
-import { CLICK_SLOP, Orbit } from '../viz/orbit'
+import { CLICK_SLOP, Orbit, type Offsets } from '../viz/orbit'
 import { Particles } from '../viz/particles'
 import { pickDigit } from '../viz/picking'
 import { DEFAULT_STYLE, MAX_CHORDS, type GeoMode, type ParticleSettings, type ViewMode, type VizStyle } from '../vizSettings'
@@ -45,6 +45,8 @@ const CHORD_TAPER = 60
 /** A chord's ribbon: root, then the two corners where the taper ends, then the two at the tip. */
 const CHORD_VERTS = 9
 const TRANS_SPEED = 0.04
+/** Frames the camera takes to sweep from one view to another, or back to a view's own place. */
+const VIEW_FRAMES = 40
 /** The camera's vertical field of view, in degrees, at full perspective on a panel at least as wide as it is tall. */
 const FOV = 53.13
 /** Its field of view at no perspective: narrow enough to look orthographic. */
@@ -274,7 +276,8 @@ export function ChordViz(props: ChordVizProps) {
     // From the front left and above, so trails recede to the left, with time running left to right as
     // in the time series view.
     const CAM_3D = { radius: 560, theta: -Math.PI / 5, phi: Math.PI / 9 }
-    let transT = 0, transTts = 0
+    /** How far the camera is towards the 3d view and the time series view (from 2d), eased. */
+    let to3d = 0, toTs = 0
     // Perspective is a dolly zoom: the field of view narrows from `baseFov` (the panel's, at full
     // perspective) while the camera backs off by `dolly`, so the plane it looks at stays the same size.
     let baseFov = FOV, shownPerspective = live.current.style.perspective, dolly = 1
@@ -291,13 +294,17 @@ export function ChordViz(props: ChordVizProps) {
       camera.updateProjectionMatrix()
     }
     // Opens on whatever view is chosen, without animating there from 2d.
-    if (live.current.view === '3d') transT = 1
-    if (live.current.view === '2d-ts') transTts = 1
+    if (live.current.view === '3d') to3d = 1
+    if (live.current.view === '2d-ts') toTs = 1
+    // A move to another view, or back to this one's own place, is one eased sweep: `u` runs 0 to 1 over
+    // VIEW_FRAMES, from where the camera was (`from3d`, `fromTs`, and dragged and zoomed `offsets`).
+    let sweep = { u: 1, from3d: to3d, fromTs: toTs, offsets: null as Offsets | null, fade: 1 }
+    let sweepView = live.current.view
 
-    // Drag to turn (in 3d, once it's mostly there) or to pan (in 2d), and wheel or pinch to zoom.
+    // Drag to turn (in 3d) or to pan (in 2d), and wheel or pinch to zoom; not mid-sweep.
     const orbit = new Orbit(canvas, {
-      dragMode: () => (live.current.view !== '3d' ? 'pan' : transT > 0.7 ? 'orbit' : null),
-      canZoom: () => true,
+      dragMode: () => (sweep.u < 1 ? null : live.current.view === '3d' ? 'orbit' : 'pan'),
+      canZoom: () => sweep.u >= 1,
       // Orbit's radii are before the dolly, so its zoom limits and speed scale with it.
       baseRadius: () => camRadius,
       // The plane the camera looks at spans 2·distance·tan(fov/2) in height; the dolly cancels out.
@@ -319,7 +326,6 @@ export function ChordViz(props: ChordVizProps) {
       camera.position.add(panBy.set(orbit.dPanX, orbit.dPanY, 0).applyQuaternion(camera.quaternion))
     }
     const panBy = new THREE.Vector3()
-    let lastView = live.current.view
     let lastCameraReset = live.current.cameraReset
 
     // ── Per-participant animation: chords grow in, and glide to new slots ──
@@ -408,24 +414,28 @@ export function ChordViz(props: ChordVizProps) {
       }
 
       // ── Camera between views ──
-      transT = clamp01(transT + ((view === '3d' ? 1 : 0) - transT) * TRANS_SPEED * 3)
-      // A new view, or its button clicked again, eases the camera back to where the view puts it.
-      if (view !== lastView || cameraReset !== lastCameraReset) orbit.reset()
-      lastView = view
-      lastCameraReset = cameraReset
-      orbit.ease(TRANS_SPEED * 3)
-      transTts = clamp01(transTts + ((view === '2d-ts' ? 1 : 0) - transTts) * TRANS_SPEED * 3)
-      const et3 = ease(transT)
-      camRadius = CAM_2D.radius + (CAM_3D.radius - CAM_2D.radius) * et3
-      camTheta = CAM_2D.theta + (CAM_3D.theta - CAM_2D.theta) * et3
-      camPhi = CAM_2D.phi + (CAM_3D.phi - CAM_2D.phi) * et3
-      if (transTts > 0) {
-        const et = ease(transTts)
-        camRadius += (CAM_2D_TS.radius - camRadius) * et
-        camTheta += (CAM_2D_TS.theta - camTheta) * et
-        camPhi += (CAM_2D_TS.phi - camPhi) * et
+      // A new view, or its button clicked again, starts a sweep from wherever the camera is. Moving to
+      // another view, drags and zooms fade out sooner than the view changes, so the camera swings
+      // through about where the old view puts it rather than cutting straight across.
+      if (view !== sweepView || cameraReset !== lastCameraReset) {
+        sweep = { u: 0, from3d: to3d, fromTs: toTs, offsets: orbit.offsets(), fade: view !== sweepView ? 2 : 1 }
+        sweepView = view
+        lastCameraReset = cameraReset
       }
-      camTargetZ = CAM_2D_TS.targetZ * ease(transTts)
+      if (sweep.u < 1) {
+        sweep.u = Math.min(1, sweep.u + 1 / VIEW_FRAMES)
+        const s = ease(sweep.u)
+        to3d = sweep.from3d + ((view === '3d' ? 1 : 0) - sweep.from3d) * s
+        toTs = sweep.fromTs + ((view === '2d-ts' ? 1 : 0) - sweep.fromTs) * s
+        if (sweep.offsets) orbit.setOffsets(sweep.offsets, (1 - s) ** sweep.fade)
+      }
+      camRadius = CAM_2D.radius + (CAM_3D.radius - CAM_2D.radius) * to3d
+      camTheta = CAM_2D.theta + (CAM_3D.theta - CAM_2D.theta) * to3d
+      camPhi = CAM_2D.phi + (CAM_3D.phi - CAM_2D.phi) * to3d
+      camRadius += (CAM_2D_TS.radius - camRadius) * toTs
+      camTheta += (CAM_2D_TS.theta - camTheta) * toTs
+      camPhi += (CAM_2D_TS.phi - camPhi) * toTs
+      camTargetZ = CAM_2D_TS.targetZ * toTs
       shownPerspective += (clamp01(style.perspective) - shownPerspective) * TRANS_SPEED * 3
       setLens()
       applyCam()
@@ -442,7 +452,7 @@ export function ChordViz(props: ChordVizProps) {
         const le = ease(2 + morphT)
         Object.assign(morph, { p1: 0, p2: 0, pp1: 1, pp2: 1, lp1: le, lp2: le })
       }
-      const depthA = ease(transT), depthTs = ease(transTts)
+      const depthA = to3d, depthTs = toTs
       outerRing.material.opacity = 0.8
       midRing.material.opacity = morph.p1 * 0.35 * (1 - particleBlend)
       zAxis.material.opacity = Math.max(depthA, depthTs) * 0.45
