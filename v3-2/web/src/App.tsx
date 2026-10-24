@@ -1,4 +1,4 @@
-import { Bookmark, Eye, Gauge, Hash, Pin, ScanSearch, Shapes } from 'lucide-react'
+import { Bookmark, Eye, Focus, Gauge, Hash, ScanSearch, Shapes } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ChordViz } from './components/ChordViz'
@@ -215,7 +215,7 @@ function Explorer({ data }: { data: PoolData }) {
             aria-label={pin ? 'Unpin from this window' : "Pin to the trail's window"}
             title={pin ? 'Unpin from this window' : "Pin to the trail's window"}
           >
-            <Pin />
+            <Focus />
           </Button>
         </div>
         {/* The digits taking part, along the top as in the digits tab, clear of the corner digit. */}
