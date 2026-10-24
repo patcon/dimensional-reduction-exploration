@@ -15,12 +15,14 @@ interface ThumbProps {
   traces: Traces
   playhead: Playhead
   trailPixels: number
+  /** Whether this digit is the one previewed. */
+  hovered: boolean
   onClick: () => void
   onHover: (on: boolean) => void
 }
 
 /** One digit, small, read as it plays (as the followed digit is); click to follow it. */
-function Thumb({ pixels, poolRow, traces, playhead, trailPixels, onClick, onHover }: ThumbProps) {
+function Thumb({ pixels, poolRow, traces, playhead, trailPixels, hovered, onClick, onHover }: ThumbProps) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const canvas = ref.current!
@@ -34,12 +36,27 @@ function Thumb({ pixels, poolRow, traces, playhead, trailPixels, onClick, onHove
     draw()
     return playhead.onFrame(draw)
   }, [pixels, poolRow, traces, playhead, trailPixels])
-  return <canvas ref={ref} width={SIDE} height={SIDE} onClick={onClick} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} />
+  return (
+    <canvas
+      ref={ref}
+      width={SIDE}
+      height={SIDE}
+      className={hovered ? 'on' : ''}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
+    />
+  )
 }
 
 /**
  * Each group, its size, its mean valence right now (a bar from the middle: left disagrees, right
- * agrees) and a few of its digits, picked at random and kept while they stay in the group.
+ * agrees) and a few of its digits, picked at random and kept while they stay in the group. Hovering a
+ * row previews its first digit, and hovering a digit previews that one; clicking follows it. The
+ * previewed digit's row is tinted.
  */
 export function GroupLegend({
   groups,
@@ -50,6 +67,7 @@ export function GroupLegend({
   trailPixels,
   pixels,
   rows,
+  hover,
   onFocus,
   onHover,
 }: {
@@ -62,6 +80,8 @@ export function GroupLegend({
   pixels: Uint8Array
   /** Each participant's row in the pool. */
   rows: number[]
+  /** The previewed digit, if any. */
+  hover: number | null
   onFocus: (participant: number) => void
   onHover: (participant: number | null) => void
 }) {
@@ -91,31 +111,44 @@ export function GroupLegend({
 
   return (
     <ul className="group-legend">
-      {groups.map((g, gi) => (
-        <li key={gi} title={g.labelCounts.map((c, d) => (c ? `${c}×${d}` : '')).filter(Boolean).join(' ')}>
-          <span className="swatch" style={{ background: rgbCss(colors[gi]) }} />
-          <span className="group-name">{g.name}</span>
-          <span className="num muted">{g.size}</span>
-          <div className="group-mean">
-            <div className="group-mean-zero" />
-            <div className="group-mean-bar" ref={(el) => void (barRefs.current[gi] = el)} />
-          </div>
-          <span className="group-thumbs">
-            {picks[gi]?.map((i) => (
-              <Thumb
-                key={i}
-                pixels={pixels}
-                poolRow={rows[i]}
-                traces={traces}
-                playhead={playhead}
-                trailPixels={trailPixels}
-                onClick={() => onFocus(i)}
-                onHover={(on) => onHover(on ? i : null)}
-              />
-            ))}
-          </span>
-        </li>
-      ))}
+      {groups.map((g, gi) => {
+        const sample = picks[gi]?.[0]
+        return (
+          <li
+            key={gi}
+            // The previewed digit's group, however it came to be previewed.
+            className={hover !== null && groupOf[hover] === gi ? 'on' : ''}
+            title={g.labelCounts.map((c, d) => (c ? `${c}×${d}` : '')).filter(Boolean).join(' ')}
+            onMouseEnter={() => sample !== undefined && onHover(sample)}
+            onMouseLeave={() => onHover(null)}
+            onClick={() => sample !== undefined && onFocus(sample)}
+          >
+            <span className="swatch" style={{ background: rgbCss(colors[gi]) }} />
+            <span className="group-name">{g.name}</span>
+            <span className="num muted">{g.size}</span>
+            <div className="group-mean">
+              <div className="group-mean-zero" />
+              <div className="group-mean-bar" ref={(el) => void (barRefs.current[gi] = el)} />
+            </div>
+            <span className="group-thumbs">
+              {picks[gi]?.map((i) => (
+                <Thumb
+                  key={i}
+                  pixels={pixels}
+                  poolRow={rows[i]}
+                  traces={traces}
+                  playhead={playhead}
+                  trailPixels={trailPixels}
+                  hovered={i === hover}
+                  onClick={() => onFocus(i)}
+                  // Back to the row's digit on leaving, as the pointer is still over the row.
+                  onHover={(on) => onHover(on ? i : (sample ?? null))}
+                />
+              ))}
+            </span>
+          </li>
+        )
+      })}
     </ul>
   )
 }

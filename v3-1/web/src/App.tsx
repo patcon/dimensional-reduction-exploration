@@ -152,6 +152,7 @@ function Explorer({ data }: { data: PoolData }) {
             trailPixels={trailPixels}
             pixels={pixels}
             rows={rows}
+            hover={hover}
             onFocus={setFocus}
             onHover={setHover}
           />
