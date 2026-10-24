@@ -125,7 +125,11 @@ button.start:hover { background: var(--go-hover); border-color: var(--go-hover);
 /* ── Transport and matrix ── */
 .matrix-section { margin-top: 20px; }
 .matrix-section p { margin: 0 0 8px; font-size: 0.85rem; }
-.transport { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+/* Pinned to the bottom of the window, so playback is always in reach; it settles above the matrix when scrolled to. */
+.transport {
+  display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px;
+  position: sticky; bottom: 0; z-index: 5; padding: 8px 0; background: var(--bg); border-top: 1px solid var(--border);
+}
 .readout { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.8rem; }
 .scrubber { width: calc(100% - 12px); margin: 0 0 0 12px; accent-color: var(--accent); }
 .matrix { display: flex; gap: 4px; align-items: flex-start; }

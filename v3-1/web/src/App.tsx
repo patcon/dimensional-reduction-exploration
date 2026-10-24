@@ -166,30 +166,31 @@ function Explorer({ data }: { data: PoolData }) {
         <p className="muted">
           One row per digit, in chord order, one column per pixel. Click a row to follow that digit.
         </p>
-        <Transport
-          playhead={playhead}
-          traces={traces}
-          speed={settings.speed}
-          onSpeed={(v) => set('speed', v)}
-          loop={settings.loop}
-          onLoop={(v) => set('loop', v)}
-          trailSeconds={trailSeconds}
-          onTrailSeconds={(v) => set('trailSeconds', v)}
-        />
-        <Matrix
-          traces={traces}
-          slotOf={slotOf}
-          groupOf={grouping.groupOf}
-          colors={colors}
-          grouped={order === 'grouped'}
-          focus={followed}
-          hover={hover}
-          onFocus={setFocus}
-          onHover={setHover}
-          playhead={playhead}
-          trailPixels={trailPixels}
-        />
       </section>
+      {/* Out in the page, not in the matrix's section, so it can stay pinned to the bottom of the window. */}
+      <Transport
+        playhead={playhead}
+        traces={traces}
+        speed={settings.speed}
+        onSpeed={(v) => set('speed', v)}
+        loop={settings.loop}
+        onLoop={(v) => set('loop', v)}
+        trailSeconds={trailSeconds}
+        onTrailSeconds={(v) => set('trailSeconds', v)}
+      />
+      <Matrix
+        traces={traces}
+        slotOf={slotOf}
+        groupOf={grouping.groupOf}
+        colors={colors}
+        grouped={order === 'grouped'}
+        focus={followed}
+        hover={hover}
+        onFocus={setFocus}
+        onHover={setHover}
+        playhead={playhead}
+        trailPixels={trailPixels}
+      />
     </main>
   )
 }
