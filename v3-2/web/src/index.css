@@ -126,7 +126,8 @@
 
 /* ── The followed digit ── (canvases take the highlight from their CSS colour) */
 .digit-preview { display: flex; gap: 12px; align-items: flex-start; min-height: 128px; color: var(--highlight); font-size: 0.875rem; }
-.digit-preview canvas { width: 126px; height: 126px; image-rendering: pixelated; border: 1px solid var(--border); background: #000; flex-shrink: 0; cursor: crosshair; touch-action: none; }
+.digit-image { image-rendering: pixelated; border: 1px solid var(--border); background: #000; flex-shrink: 0; cursor: crosshair; touch-action: none; color: var(--highlight); }
+.digit-preview .digit-image { width: 126px; height: 126px; }
 .digit-info { display: flex; flex-direction: column; gap: 6px; color: var(--foreground); flex: 1; }
 .valence-meter { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; color: var(--muted-foreground); }
 .valence-track {

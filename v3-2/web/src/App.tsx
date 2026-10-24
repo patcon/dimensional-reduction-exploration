@@ -2,7 +2,7 @@ import { Bookmark, Eye, Gauge, Hash, ScanSearch, Shapes } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChordViz } from './components/ChordViz'
 import { Section } from './components/controls'
-import { DigitPreview } from './components/DigitPreview'
+import { DigitImage, DigitPreview } from './components/DigitPreview'
 import { GroupLegend } from './components/GroupLegend'
 import { Matrix } from './components/Matrix'
 import { PresetsPanel } from './components/Presets'
@@ -167,6 +167,17 @@ function Explorer({ data }: { data: PoolData }) {
           onFocus={setFocus}
           onHover={setHover}
         />
+        {/* The followed (or hovered) digit as it plays, as in the inspect tab, always in sight. */}
+        {shown !== null && (
+          <DigitImage
+            pixels={pixels}
+            poolRow={rows[shown]}
+            traces={traces}
+            playhead={playhead}
+            trailPixels={trailPixels}
+            className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 size-21 rounded-sm"
+          />
+        )}
         {/* Both buttons sit on the drawer's top edge, so they rise and fall with it. */}
         <span
           className="pointer-events-none absolute bottom-11 left-3 rounded-md bg-black/65 px-2 py-0.5 text-xs text-white transition-opacity duration-300 motion-reduce:transition-none"

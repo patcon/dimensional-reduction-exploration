@@ -1,42 +1,30 @@
 import { useEffect, useRef } from 'react'
+import { cn } from '@/lib/utils'
 import { rgbCss, type RGB } from '../palette'
 import type { Playhead } from '../playhead'
 import { accentOf, shadeDigit } from '../digitImage'
 import { SIDE, valenceAt, type Traces } from '../signal'
 
 /**
- * The followed digit, read as it plays: the trail's window is tinted, everything outside it is
- * dimmed and the pixel being read is marked; beside it, the
- * valence it's reacting with right now. Clicking a pixel, or dragging across them, moves the playhead to
- * where it's read.
+ * A digit, read as it plays: the trail's window is tinted, everything outside it is dimmed and the pixel being
+ * read is marked. Clicking a pixel, or dragging across them, moves the playhead to where it's read.
  */
-export function DigitPreview({
+export function DigitImage({
   pixels,
   poolRow,
-  participant,
-  label,
-  groupName,
-  groupColor,
   traces,
   playhead,
   trailPixels,
-  following,
+  className,
 }: {
   pixels: Uint8Array
   poolRow: number
-  participant: number
-  label: number
-  groupName: string
-  groupColor: RGB
   traces: Traces
   playhead: Playhead
   trailPixels: number
-  /** Whether this is the followed digit (rather than one hovered for a moment). */
-  following: boolean
+  className?: string
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
-  const meterRef = useRef<HTMLDivElement>(null)
-  const readoutRef = useRef<HTMLSpanElement>(null)
   /** While pressed: whether playback was going, to carry on once released (as the scrubber does). */
   const scrubbing = useRef<{ wasPlaying: boolean } | null>(null)
 
@@ -61,33 +49,74 @@ export function DigitPreview({
     const draw = () => {
       shadeDigit(img, pixels, poolRow, traces, playhead, trailPixels, accent)
       ctx.putImageData(img, 0, 0)
+    }
+    draw()
+    return playhead.onFrame(draw)
+  }, [pixels, poolRow, traces, playhead, trailPixels])
+
+  return (
+    <canvas
+      ref={ref}
+      className={cn('digit-image', className)}
+      width={SIDE}
+      height={SIDE}
+      title="Click or drag to move the playhead to where a pixel is read"
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId)
+        scrubbing.current = { wasPlaying: playhead.playing }
+        playhead.setPlaying(false)
+        seekTo(e)
+      }}
+      onPointerMove={(e) => {
+        if (scrubbing.current) seekTo(e)
+      }}
+      onPointerUp={release}
+      onPointerCancel={release}
+    />
+  )
+}
+
+/** The followed digit as it plays (see DigitImage) and, beside it, the valence it's reacting with right now. */
+export function DigitPreview({
+  pixels,
+  poolRow,
+  participant,
+  label,
+  groupName,
+  groupColor,
+  traces,
+  playhead,
+  trailPixels,
+  following,
+}: {
+  pixels: Uint8Array
+  poolRow: number
+  participant: number
+  label: number
+  groupName: string
+  groupColor: RGB
+  traces: Traces
+  playhead: Playhead
+  trailPixels: number
+  /** Whether this is the followed digit (rather than one hovered for a moment). */
+  following: boolean
+}) {
+  const meterRef = useRef<HTMLDivElement>(null)
+  const readoutRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    const draw = () => {
       const valence = valenceAt(traces, participant, playhead.moment)
       meterRef.current!.style.left = `${((valence + 1) / 2) * 100}%`
       readoutRef.current!.textContent = `${valence >= 0 ? '+' : '−'}${Math.abs(valence).toFixed(2)}`
     }
     draw()
     return playhead.onFrame(draw)
-  }, [pixels, poolRow, participant, traces, playhead, trailPixels])
+  }, [participant, traces, playhead])
 
   return (
     <div className="digit-preview">
-      <canvas
-        ref={ref}
-        width={SIDE}
-        height={SIDE}
-        title="Click or drag to move the playhead to where a pixel is read"
-        onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId)
-          scrubbing.current = { wasPlaying: playhead.playing }
-          playhead.setPlaying(false)
-          seekTo(e)
-        }}
-        onPointerMove={(e) => {
-          if (scrubbing.current) seekTo(e)
-        }}
-        onPointerUp={release}
-        onPointerCancel={release}
-      />
+      <DigitImage pixels={pixels} poolRow={poolRow} traces={traces} playhead={playhead} trailPixels={trailPixels} />
       <div className="digit-info">
         <div>
           <strong>{following ? 'Following' : 'Hovering'}</strong> a <strong>{label}</strong>
