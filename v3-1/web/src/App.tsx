@@ -30,6 +30,7 @@ function Explorer({ data }: { data: PoolData }) {
   const setFocus = (i: number) => set('focus', i)
 
   const [particleReset, setParticleReset] = useState(0)
+  const [cameraReset, setCameraReset] = useState(0)
   const [hover, setHover] = useState<number | null>(null)
   const playhead = usePlayhead()
   useEffect(() => playhead.setSpeed(settings.speed), [playhead, settings.speed])
@@ -113,14 +114,15 @@ function Explorer({ data }: { data: PoolData }) {
             trailSeconds={trailSeconds}
             particles={particles}
             particleReset={particleReset}
+            cameraReset={cameraReset}
             onFocus={setFocus}
             onHover={setHover}
           />
           <div className="viz-controls">
-            <Segmented options={['2d', '2d-ts', '3d'] as const} value={view} onChange={(v) => set('view', v)} labels={VIEW_LABELS} />
+            <Segmented options={['2d', '2d-ts', '3d'] as const} value={view} onChange={(v) => (v === view ? setCameraReset((r) => r + 1) : set('view', v))} labels={VIEW_LABELS} />
             <Segmented options={GEO_MODES} value={geometry} onChange={(v) => set('geometry', v)} />
           </div>
-          <div className="viz-hint">{view === '3d' ? 'click a digit to follow it · drag to orbit · scroll to zoom' : 'click a digit to follow it'}</div>
+          <div className="viz-hint">click a digit to follow it · drag to {view === '3d' ? 'orbit' : 'pan'} · scroll to zoom · click the view again to reset</div>
         </div>
 
         <aside className="sidebar">

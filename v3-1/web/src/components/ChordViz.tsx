@@ -157,6 +157,8 @@ export interface ChordVizProps {
   particles: ParticleSettings
   /** Changes when particles should be scattered afresh. */
   particleReset: unknown
+  /** Changes when the camera should ease back from wherever it was dragged or zoomed to. */
+  cameraReset: unknown
   /** A digit's cursor (or chord) was clicked. */
   onFocus: (participant: number) => void
   /** The pointer is over a digit's cursor (or chord), or none. */
@@ -292,12 +294,14 @@ export function ChordViz(props: ChordVizProps) {
     if (live.current.view === '3d') transT = 1
     if (live.current.view === '2d-ts') transTts = 1
 
-    // Drag to turn, wheel or pinch to zoom: 3d only.
+    // Drag to turn (in 3d, once it's mostly there) or to pan (in 2d), and wheel or pinch to zoom.
     const orbit = new Orbit(canvas, {
-      canOrbit: () => live.current.view === '3d' && transT > 0.7,
-      canZoom: () => live.current.view === '3d',
+      dragMode: () => (live.current.view !== '3d' ? 'pan' : transT > 0.7 ? 'orbit' : null),
+      canZoom: () => true,
       // Orbit's radii are before the dolly, so its zoom limits and speed scale with it.
       baseRadius: () => camRadius,
+      // The plane the camera looks at spans 2·distance·tan(fov/2) in height; the dolly cancels out.
+      panScale: (): number => (2 * (camRadius + orbit.dRadius) * Math.tan((baseFov * Math.PI) / 360)) / viewHeight,
       onTap: (x, y) => {
         const i = pickAt(x, y)
         if (i !== null) live.current.onFocus(i)
@@ -311,8 +315,12 @@ export function ChordViz(props: ChordVizProps) {
       const effR = (camRadius + orbit.dRadius) * dolly
       camera.position.set(effR * Math.sin(theta) * Math.cos(phi), effR * Math.sin(phi), camTargetZ + effR * Math.cos(theta) * Math.cos(phi))
       camera.lookAt(0, 0, camTargetZ)
-      camera.up.set(0, 1, 0)
+      // Panning slides the camera across the screen, keeping its direction.
+      camera.position.add(panBy.set(orbit.dPanX, orbit.dPanY, 0).applyQuaternion(camera.quaternion))
     }
+    const panBy = new THREE.Vector3()
+    let lastView = live.current.view
+    let lastCameraReset = live.current.cameraReset
 
     // ── Per-participant animation: chords grow in, and glide to new slots ──
     let n = 0
@@ -385,7 +393,7 @@ export function ChordViz(props: ChordVizProps) {
     let animFrameId = 0
     function animate() {
       animFrameId = requestAnimationFrame(animate)
-      const { traces, pickKey, playhead, slotOf, groupOf, colors, focus, view, geometry, style, trailSeconds, particles, particleReset } = live.current
+      const { traces, pickKey, playhead, slotOf, groupOf, colors, focus, view, geometry, style, trailSeconds, particles, particleReset, cameraReset } = live.current
       const inParticles = geometry === 'particle'
 
       // A new set of digits: chords start over from nothing; otherwise each keeps its place and glides.
@@ -401,7 +409,11 @@ export function ChordViz(props: ChordVizProps) {
 
       // ── Camera between views ──
       transT = clamp01(transT + ((view === '3d' ? 1 : 0) - transT) * TRANS_SPEED * 3)
-      if (view !== '3d') orbit.relax(TRANS_SPEED * 3)
+      // A new view, or its button clicked again, eases the camera back to where the view puts it.
+      if (view !== lastView || cameraReset !== lastCameraReset) orbit.reset()
+      lastView = view
+      lastCameraReset = cameraReset
+      orbit.ease(TRANS_SPEED * 3)
       transTts = clamp01(transTts + ((view === '2d-ts' ? 1 : 0) - transTts) * TRANS_SPEED * 3)
       const et3 = ease(transT)
       camRadius = CAM_2D.radius + (CAM_3D.radius - CAM_2D.radius) * et3
@@ -641,7 +653,7 @@ export function ChordViz(props: ChordVizProps) {
   }, [])
 
   return (
-    <div ref={wrapRef} className="viz-canvas" style={{ cursor: isOrbiting ? 'grabbing' : props.view === '3d' ? 'grab' : 'default' }}>
+    <div ref={wrapRef} className="viz-canvas" style={{ cursor: isOrbiting ? 'grabbing' : 'grab' }}>
       <canvas ref={canvasRef} />
     </div>
   )
