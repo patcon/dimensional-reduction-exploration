@@ -63,9 +63,10 @@ pnpm run check:leiden        # the browser's kNN graph and Leiden against scanpy
   lowest numbers not in use.
 - The particle physics is the prototype's (pairwise forces within a reach, a hard core up close,
   a boundary past the ring), with its group-by-group force matrix replaced by one force within
-  groups and one between them, as the number of Leiden clusters varies. It steps every frame,
-  paused or not. Particle trails can't be read off the trace, so they're recorded as particles
-  move, on the same grid of moments as chord trails, and start over on a scrub backwards.
+  groups and one between them, as the number of Leiden clusters varies. It steps every frame while
+  playing, and holds still while paused. Particle trails can't be read off the trace, so they're
+  recorded as particles move, on the same grid of moments as chord trails, and start over on a
+  scrub backwards.
 - `src/signal.ts` turns each digit into a trace. `src/components/ChordViz.tsx` is the
   cross-section's three.js code, adapted to read traces; its geometries and morphs are unchanged.
   It renders as the original prototype did on three r128 (no colour management, 2px chords),

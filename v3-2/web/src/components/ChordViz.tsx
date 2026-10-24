@@ -483,7 +483,8 @@ export function ChordViz(props: ChordVizProps) {
       wasParticle = inParticles
       particleBlend = inParticles ? 1 : Math.max(0, particleBlend - 1 / PARTICLE_EXIT_FRAMES)
       const pb = ease(particleBlend)
-      if (inParticles) {
+      // Frozen while paused (scrubbing included), so a paused frame holds still.
+      if (inParticles && playhead.playing) {
         sim.advance(groupOf, vNow, particles)
         sim.record(elapsed, step, vNow)
       }
