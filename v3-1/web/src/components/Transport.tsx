@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { Playhead } from '../playhead'
 import { SIDE, type Traces } from '../signal'
+import { Slider } from './controls'
 
 // Speed slider: logarithmic, 0.25–60 pixels per second.
 const SPEED_MIN = 0.25
@@ -14,11 +15,19 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.fl
 export function Transport({
   playhead,
   traces,
+  speed,
+  onSpeed,
+  loop,
+  onLoop,
   trailSeconds,
   onTrailSeconds,
 }: {
   playhead: Playhead
   traces: Traces
+  speed: number
+  onSpeed: (speed: number) => void
+  loop: boolean
+  onLoop: (loop: boolean) => void
   trailSeconds: number
   onTrailSeconds: (seconds: number) => void
 }) {
@@ -53,25 +62,10 @@ export function Transport({
           </span>
         </button>
         <button onClick={() => playhead.seek(0)}>⏮ Start</button>
-        <label className="slider">
-          speed
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.001}
-            value={fromSpeed(playhead.speed)}
-            onChange={(e) => playhead.setSpeed(toSpeed(Number(e.target.value)))}
-          />
-          <span className="num">{playhead.speed} px/s</span>
-        </label>
-        <label className="slider">
-          trail
-          <input type="range" min={5} max={300} step={5} value={trailSeconds} onChange={(e) => onTrailSeconds(Number(e.target.value))} />
-          <span className="num">{trailSeconds} s</span>
-        </label>
+        <Slider label="speed" value={fromSpeed(speed)} min={0} max={1} step={0.001} onChange={(u) => onSpeed(toSpeed(u))} format={() => `${speed} px/s`} />
+        <Slider label="trail" value={trailSeconds} min={5} max={300} step={5} onChange={onTrailSeconds} format={(v) => `${v} s`} />
         <label className="check">
-          <input type="checkbox" checked={playhead.loop} onChange={(e) => playhead.setLoop(e.target.checked)} /> loop
+          <input type="checkbox" checked={loop} onChange={(e) => onLoop(e.target.checked)} /> loop
         </label>
         <span className="readout" ref={readoutRef} />
       </div>

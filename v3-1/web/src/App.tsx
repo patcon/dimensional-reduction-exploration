@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { ChordViz } from './components/ChordViz'
+import { Segmented, Slider } from './components/controls'
 import { DigitPreview } from './components/DigitPreview'
 import { GroupLegend } from './components/GroupLegend'
 import { Matrix } from './components/Matrix'
@@ -17,99 +18,34 @@ import {
   windowFeatures,
   type Grouping,
 } from './selection'
-import { buildTraces, READING_LABELS, type ReadingKey, type SignalSettings } from './signal'
+import { buildTraces, READING_LABELS, type ReadingKey } from './signal'
 import { useData, type PoolData } from './useData'
-import { ELEMENTS, GEO_MODES, MAX_CHORDS, VIEW_LABELS, type ParticleSettings } from './vizSettings'
+import { ELEMENTS, GEO_MODES, MAX_CHORDS, VIEW_LABELS } from './vizSettings'
 
 /** Moments sampled across the trail's window when clustering over it. */
 const WINDOW_SAMPLES = 32
 
-function Segmented<T extends string>({ options, value, onChange, labels }: {
-  options: readonly T[]
-  value: T
-  onChange: (value: T) => void
-  labels?: Partial<Record<T, string>>
-}) {
-  return (
-    <span className="segmented">
-      {options.map((o) => (
-        <button key={o} className={o === value ? 'on' : ''} onClick={() => onChange(o)}>
-          {labels?.[o] ?? o}
-        </button>
-      ))}
-    </span>
-  )
-}
+/** Settings that are objects of their own, changed a field at a time. */
+type Nested = 'signal' | 'style' | 'particles'
 
 function Explorer({ data }: { data: PoolData }) {
   const { meta, pixels, pcs } = data
   const labels = meta.rows.label
 
-  // Who takes part.
-  const [digits, setDigits] = useState<Set<number>>(() => new Set(DEFAULT_SETTINGS.digits))
-  const [count, setCount] = useState(DEFAULT_SETTINGS.count)
-  const [seed, setSeed] = useState(DEFAULT_SETTINGS.seed)
-  // How they're grouped and laid out.
-  const [groupBy, setGroupBy] = useState(DEFAULT_SETTINGS.groupBy)
-  const [resolution, setResolution] = useState(DEFAULT_SETTINGS.resolution)
-  const [neighbours, setNeighbours] = useState(DEFAULT_SETTINGS.neighbours)
-  const [clusterOver, setClusterOver] = useState(DEFAULT_SETTINGS.clusterOver)
-  /** Re-clusterings over the window per second (of wall time, while the playhead moves). */
-  const [clusterRate, setClusterRate] = useState(DEFAULT_SETTINGS.clusterRate)
-  const [order, setOrder] = useState(DEFAULT_SETTINGS.order)
-  // How each digit is read out as valence.
-  const [signal, setSignal] = useState(DEFAULT_SETTINGS.signal)
-  // How it's drawn.
-  const [view, setView] = useState(DEFAULT_SETTINGS.view)
-  const [geometry, setGeometry] = useState(DEFAULT_SETTINGS.geometry)
-  const [style, setStyle] = useState(DEFAULT_SETTINGS.style)
-  const [trailSeconds, setTrailSeconds] = useState(DEFAULT_SETTINGS.trailSeconds)
-  const [particles, setParticles] = useState(DEFAULT_SETTINGS.particles)
+  // Every setting, as presets save and load them; the playhead follows its speed and looping.
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
+  const set = <K extends keyof Settings>(key: K, value: Settings[K]) => setSettings((s) => ({ ...s, [key]: value }))
+  const patch = <K extends Nested>(key: K, fields: Partial<Settings[K]>) => setSettings((s) => ({ ...s, [key]: { ...s[key], ...fields } }))
+  const { count, seed, groupBy, resolution, neighbours, clusterOver, clusterRate, order, signal, view, geometry, style, trailSeconds, particles, focus } = settings
+  const digits = useMemo(() => new Set(settings.digits), [settings.digits])
+  const setFocus = (i: number) => set('focus', i)
+
   const [particleReset, setParticleReset] = useState(0)
-  const [focus, setFocus] = useState(DEFAULT_SETTINGS.focus)
   const [hover, setHover] = useState<number | null>(null)
   const playhead = usePlayhead()
-
-  const settings: Settings = {
-    digits: [...digits].sort((a, b) => a - b),
-    count,
-    seed,
-    groupBy,
-    resolution,
-    neighbours,
-    clusterOver,
-    clusterRate,
-    order,
-    signal,
-    view,
-    geometry,
-    style,
-    trailSeconds,
-    particles,
-    focus,
-    speed: playhead.speed,
-    loop: playhead.loop,
-  }
-  const applySettings = (s: Settings) => {
-    setDigits(new Set(s.digits))
-    setCount(s.count)
-    setSeed(s.seed)
-    setGroupBy(s.groupBy)
-    setResolution(s.resolution)
-    setNeighbours(s.neighbours)
-    setClusterOver(s.clusterOver)
-    setClusterRate(s.clusterRate)
-    setOrder(s.order)
-    setSignal(s.signal)
-    setView(s.view)
-    setGeometry(s.geometry)
-    setStyle(s.style)
-    setTrailSeconds(s.trailSeconds)
-    setParticles(s.particles)
-    setFocus(s.focus)
-    playhead.setSpeed(s.speed)
-    playhead.setLoop(s.loop)
-  }
+  useEffect(() => playhead.setSpeed(settings.speed), [playhead, settings.speed])
+  useEffect(() => playhead.setLoop(settings.loop), [playhead, settings.loop])
+  const trailPixels = trailSeconds * settings.speed
 
   const available = useMemo(() => labels.filter((l) => digits.has(l)).length, [labels, digits])
   const maxCount = Math.min(MAX_CHORDS, available)
@@ -136,7 +72,7 @@ function Explorer({ data }: { data: PoolData }) {
       if (playhead.moment === lastMoment) return
       lastMoment = playhead.moment
       const previous = lastWindow.current?.rows === rows ? lastWindow.current.grouping : fullGrouping
-      const features = windowFeatures(traces, playhead.moment, trailSeconds * playhead.speed, WINDOW_SAMPLES, playhead.loop)
+      const features = windowFeatures(traces, playhead.moment, trailPixels, WINDOW_SAMPLES, settings.loop)
       const grouping = groupParticipants(rowLabels, features, WINDOW_SAMPLES, 'leiden', { resolution, neighbours, seed }, previous)
       lastWindow.current = { rows, grouping }
       setWindowGrouping(lastWindow.current)
@@ -144,7 +80,7 @@ function Explorer({ data }: { data: PoolData }) {
     run()
     const id = setInterval(run, 1000 / clusterRate)
     return () => clearInterval(id)
-  }, [windowed, clusterRate, rows, rowLabels, traces, playhead, playhead.speed, playhead.loop, trailSeconds, resolution, neighbours, seed, fullGrouping])
+  }, [windowed, clusterRate, rows, rowLabels, traces, playhead, trailPixels, settings.loop, resolution, neighbours, seed, fullGrouping])
   const grouping = windowed && windowGrouping?.rows === rows ? windowGrouping.grouping : fullGrouping
 
   const colors = useMemo(() => groupColors(grouping), [grouping])
@@ -156,17 +92,9 @@ function Explorer({ data }: { data: PoolData }) {
     const next = new Set(digits)
     if (next.has(d) && next.size > 1) next.delete(d)
     else next.add(d)
-    setDigits(next)
+    set('digits', [...next].sort((a, b) => a - b))
   }
-  const setSignalKey = <K extends keyof SignalSettings>(key: K, value: SignalSettings[K]) => setSignal((s) => ({ ...s, [key]: value }))
-  const setParticleKey = <K extends keyof ParticleSettings>(key: K, value: ParticleSettings[K]) => setParticles((p) => ({ ...p, [key]: value }))
-  const particleSlider = (key: 'cohesion' | 'separation' | 'centreForce' | 'spread' | 'radius' | 'damping', label: string, min: number, max: number, step: number, digits: number) => (
-    <label className="slider">
-      {label}
-      <input type="range" min={min} max={max} step={step} value={particles[key]} onChange={(e) => setParticleKey(key, Number(e.target.value))} />
-      <span className="num">{particles[key].toFixed(digits)}</span>
-    </label>
-  )
+  const fixed = (places: number) => (v: number) => v.toFixed(places)
 
   return (
     <main>
@@ -180,7 +108,7 @@ function Explorer({ data }: { data: PoolData }) {
       </header>
 
       <div className="controls">
-        <Presets settings={settings} onLoad={applySettings} />
+        <Presets settings={settings} onLoad={setSettings} />
 
         <div className="toolbar">
           <span className="control-label">Digits</span>
@@ -197,42 +125,33 @@ function Explorer({ data }: { data: PoolData }) {
               </button>
             ))}
           </span>
-          <button onClick={() => setDigits(new Set(Array.from({ length: N_DIGITS }, (_, d) => d)))}>all</button>
-          <label className="slider">
-            sample
-            <input type="range" min={2} max={maxCount} value={shownCount} onChange={(e) => setCount(Number(e.target.value))} />
-            <span className="num">
-              {shownCount} of {available}
-            </span>
-          </label>
-          <button onClick={() => setSeed((s) => s + 1)} title="Pick another sample of these digits">
+          <button onClick={() => set('digits', Array.from({ length: N_DIGITS }, (_, d) => d))}>all</button>
+          <Slider label="sample" value={shownCount} min={2} max={maxCount} onChange={(v) => set('count', v)} format={(v) => `${v} of ${available}`} />
+          <button onClick={() => set('seed', seed + 1)} title="Pick another sample of these digits">
             ⟳ Reshuffle
           </button>
         </div>
 
         <div className="toolbar">
           <span className="control-label">Color by</span>
-          <Segmented options={['digit', 'leiden'] as const} value={groupBy} onChange={setGroupBy} labels={{ digit: 'Label', leiden: 'Leiden' }} />
+          <Segmented options={['digit', 'leiden'] as const} value={groupBy} onChange={(v) => set('groupBy', v)} labels={{ digit: 'Label', leiden: 'Leiden' }} />
           {groupBy === 'leiden' && (
             <>
-              <label className="slider">
-                resolution
-                <input type="range" min={0.1} max={3} step={0.1} value={resolution} onChange={(e) => setResolution(Number(e.target.value))} />
-                <span className="num">{resolution.toFixed(1)}</span>
-              </label>
-              <label className="slider">
-                neighbours
-                <input type="range" min={3} max={30} step={1} value={neighbours} onChange={(e) => setNeighbours(Number(e.target.value))} />
-                <span className="num">{neighbours}</span>
-              </label>
+              <Slider label="resolution" value={resolution} min={0.1} max={3} step={0.1} onChange={(v) => set('resolution', v)} format={fixed(1)} />
+              <Slider label="neighbours" value={neighbours} min={3} max={30} onChange={(v) => set('neighbours', v)} />
               <span className="control-label">Cluster over</span>
-              <Segmented options={['full', 'window'] as const} value={clusterOver} onChange={setClusterOver} />
+              <Segmented options={['full', 'window'] as const} value={clusterOver} onChange={(v) => set('clusterOver', v)} />
               {clusterOver === 'window' && (
-                <label className="slider" title="How often to re-cluster over the window while playing">
-                  re-cluster
-                  <input type="range" min={0.25} max={10} step={0.25} value={clusterRate} onChange={(e) => setClusterRate(Number(e.target.value))} />
-                  <span className="num">{clusterRate} /s</span>
-                </label>
+                <Slider
+                  label="re-cluster"
+                  title="How often to re-cluster over the window while playing"
+                  value={clusterRate}
+                  min={0.25}
+                  max={10}
+                  step={0.25}
+                  onChange={(v) => set('clusterRate', v)}
+                  format={(v) => `${v} /s`}
+                />
               )}
               <span className="muted num">
                 {grouping.groups.length} clusters · modularity {grouping.modularity?.toFixed(2)}
@@ -240,32 +159,29 @@ function Explorer({ data }: { data: PoolData }) {
             </>
           )}
           <span className="control-label">Chord order</span>
-          <Segmented options={['random', 'grouped'] as const} value={order} onChange={setOrder} />
+          <Segmented options={['random', 'grouped'] as const} value={order} onChange={(v) => set('order', v)} />
         </div>
 
         <div className="toolbar">
           <span className="control-label">Reading</span>
-          <Segmented options={Object.keys(READING_LABELS) as ReadingKey[]} value={signal.reading} onChange={(v) => setSignalKey('reading', v)} labels={READING_LABELS} />
+          <Segmented options={Object.keys(READING_LABELS) as ReadingKey[]} value={signal.reading} onChange={(v) => patch('signal', { reading: v })} labels={READING_LABELS} />
           <label className="check">
-            <input type="checkbox" checked={signal.skipBlank} onChange={(e) => setSignalKey('skipBlank', e.target.checked)} /> skip blank pixels
+            <input type="checkbox" checked={signal.skipBlank} onChange={(e) => patch('signal', { skipBlank: e.target.checked })} /> skip blank pixels
           </label>
-          <Segmented options={['blur', 'lag'] as const} value={signal.smoothing} onChange={(v) => setSignalKey('smoothing', v)} />
-          <label className="slider">
-            smoothing
-            <input
-              type="range"
-              min={0}
-              max={8}
-              step={0.25}
-              value={signal.smoothingPixels}
-              onChange={(e) => setSignalKey('smoothingPixels', Number(e.target.value))}
-            />
-            <span className="num">{signal.smoothingPixels} px</span>
-          </label>
+          <Segmented options={['blur', 'lag'] as const} value={signal.smoothing} onChange={(v) => patch('signal', { smoothing: v })} />
+          <Slider
+            label="smoothing"
+            value={signal.smoothingPixels}
+            min={0}
+            max={8}
+            step={0.25}
+            onChange={(v) => patch('signal', { smoothingPixels: v })}
+            format={(v) => `${v} px`}
+          />
           <Segmented
             options={['ink', 'ink-only'] as const}
             value={signal.mapping}
-            onChange={(v) => setSignalKey('mapping', v)}
+            onChange={(v) => patch('signal', { mapping: v })}
             labels={{ ink: 'paper −1, ink +1', 'ink-only': 'paper 0, ink +1' }}
           />
         </div>
@@ -291,8 +207,8 @@ function Explorer({ data }: { data: PoolData }) {
             onHover={setHover}
           />
           <div className="viz-controls">
-            <Segmented options={['2d', '2d-ts', '3d'] as const} value={view} onChange={setView} labels={VIEW_LABELS} />
-            <Segmented options={GEO_MODES} value={geometry} onChange={setGeometry} />
+            <Segmented options={['2d', '2d-ts', '3d'] as const} value={view} onChange={(v) => set('view', v)} labels={VIEW_LABELS} />
+            <Segmented options={GEO_MODES} value={geometry} onChange={(v) => set('geometry', v)} />
           </div>
           <div className="viz-hint">{view === '3d' ? 'click a digit to follow it · drag to orbit · scroll to zoom' : 'click a digit to follow it'}</div>
         </div>
@@ -308,10 +224,10 @@ function Explorer({ data }: { data: PoolData }) {
               groupColor={colors[grouping.groupOf[shown]]}
               traces={traces}
               playhead={playhead}
-              trailPixels={trailSeconds * playhead.speed}
+              trailPixels={trailPixels}
               following={hover === null}
               focusRing={style.focusRing}
-              onFocusRing={(on) => setStyle((s) => ({ ...s, focusRing: on }))}
+              onFocusRing={(on) => patch('style', { focusRing: on })}
             />
           )}
           <h2>Groups: mean valence now</h2>
@@ -321,7 +237,7 @@ function Explorer({ data }: { data: PoolData }) {
             colors={colors}
             traces={traces}
             playhead={playhead}
-            trailPixels={trailSeconds * playhead.speed}
+            trailPixels={trailPixels}
             pixels={pixels}
             rows={rows}
             onFocus={setFocus}
@@ -331,15 +247,15 @@ function Explorer({ data }: { data: PoolData }) {
             <div className="particle-settings">
               <h2>Particles</h2>
               <p className="muted">Groups pull together; the centre pulls ink in and pushes paper out, by each digit's valence now.</p>
-              {particleSlider('cohesion', 'within groups', -1, 1, 0.05, 2)}
-              {particleSlider('separation', 'between groups', -1, 1, 0.05, 2)}
-              {particleSlider('centreForce', 'centre', 0, 6, 0.1, 1)}
-              {particleSlider('spread', 'spread', 0.2, 1.5, 0.05, 2)}
-              {particleSlider('radius', 'reach', 10, 150, 1, 0)}
-              {particleSlider('damping', 'damping', 0.5, 0.99, 0.01, 2)}
+              <Slider label="within groups" value={particles.cohesion} min={-1} max={1} step={0.05} onChange={(v) => patch('particles', { cohesion: v })} format={fixed(2)} />
+              <Slider label="between groups" value={particles.separation} min={-1} max={1} step={0.05} onChange={(v) => patch('particles', { separation: v })} format={fixed(2)} />
+              <Slider label="centre" value={particles.centreForce} min={0} max={6} step={0.1} onChange={(v) => patch('particles', { centreForce: v })} format={fixed(1)} />
+              <Slider label="spread" value={particles.spread} min={0.2} max={1.5} step={0.05} onChange={(v) => patch('particles', { spread: v })} format={fixed(2)} />
+              <Slider label="reach" value={particles.radius} min={10} max={150} onChange={(v) => patch('particles', { radius: v })} format={fixed(0)} />
+              <Slider label="damping" value={particles.damping} min={0.5} max={0.99} step={0.01} onChange={(v) => patch('particles', { damping: v })} format={fixed(2)} />
               <label className="check">
-                <input type="checkbox" checked={particles.reverseCentre} onChange={(e) => setParticleKey('reverseCentre', e.target.checked)} /> ink repels from
-                centre
+                <input type="checkbox" checked={particles.reverseCentre} onChange={(e) => patch('particles', { reverseCentre: e.target.checked })} /> ink repels
+                from centre
               </label>
               <button onClick={() => setParticleReset((r) => r + 1)}>scatter</button>
             </div>
@@ -361,7 +277,7 @@ function Explorer({ data }: { data: PoolData }) {
                   <button
                     key={`${by}-${el}`}
                     className={style.colorBy[el] === by ? 'on' : ''}
-                    onClick={() => setStyle((s) => ({ ...s, colorBy: { ...s.colorBy, [el]: by } }))}
+                    onClick={() => patch('style', { colorBy: { ...style.colorBy, [el]: by } })}
                   >
                     {by}
                   </button>
@@ -378,46 +294,13 @@ function Explorer({ data }: { data: PoolData }) {
                 step={0.05}
                 value={style.opacity[el]}
                 aria-label={`${el} opacity`}
-                onChange={(e) => setStyle((s) => ({ ...s, opacity: { ...s.opacity, [el]: Number(e.target.value) } }))}
+                onChange={(e) => patch('style', { opacity: { ...style.opacity, [el]: Number(e.target.value) } })}
               />
             ))}
           </div>
-          <label className="slider">
-            cursor size
-            <input
-              type="range"
-              min={2}
-              max={30}
-              step={1}
-              value={style.cursorSize}
-              onChange={(e) => setStyle((s) => ({ ...s, cursorSize: Number(e.target.value) }))}
-            />
-            <span className="num">{style.cursorSize}</span>
-          </label>
-          <label className="slider">
-            chord width
-            <input
-              type="range"
-              min={0.5}
-              max={10}
-              step={0.5}
-              value={style.chordWidth}
-              onChange={(e) => setStyle((s) => ({ ...s, chordWidth: Number(e.target.value) }))}
-            />
-            <span className="num">{style.chordWidth} px</span>
-          </label>
-          <label className="slider">
-            trace width
-            <input
-              type="range"
-              min={0.5}
-              max={10}
-              step={0.5}
-              value={style.traceWidth}
-              onChange={(e) => setStyle((s) => ({ ...s, traceWidth: Number(e.target.value) }))}
-            />
-            <span className="num">{style.traceWidth}</span>
-          </label>
+          <Slider label="cursor size" value={style.cursorSize} min={2} max={30} onChange={(v) => patch('style', { cursorSize: v })} />
+          <Slider label="chord width" value={style.chordWidth} min={0.5} max={10} step={0.5} onChange={(v) => patch('style', { chordWidth: v })} format={(v) => `${v} px`} />
+          <Slider label="trace width" value={style.traceWidth} min={0.5} max={10} step={0.5} onChange={(v) => patch('style', { traceWidth: v })} />
         </aside>
       </div>
 
@@ -426,7 +309,16 @@ function Explorer({ data }: { data: PoolData }) {
         <p className="muted">
           One row per digit, in chord order, one column per pixel. Click a row to follow that digit.
         </p>
-        <Transport playhead={playhead} traces={traces} trailSeconds={trailSeconds} onTrailSeconds={setTrailSeconds} />
+        <Transport
+          playhead={playhead}
+          traces={traces}
+          speed={settings.speed}
+          onSpeed={(v) => set('speed', v)}
+          loop={settings.loop}
+          onLoop={(v) => set('loop', v)}
+          trailSeconds={trailSeconds}
+          onTrailSeconds={(v) => set('trailSeconds', v)}
+        />
         <Matrix
           traces={traces}
           slotOf={slotOf}
@@ -438,7 +330,7 @@ function Explorer({ data }: { data: PoolData }) {
           onFocus={setFocus}
           onHover={setHover}
           playhead={playhead}
-          trailPixels={trailSeconds * playhead.speed}
+          trailPixels={trailPixels}
         />
       </section>
     </main>
