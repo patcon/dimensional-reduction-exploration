@@ -16,12 +16,15 @@ export class Playhead {
   laps = 0
   /**
    * A window of moments playback is pinned to, looping round inside it (whatever `loop` is), or null. Trails
-   * wrap round inside it too, and the trail's window holds still on it.
+   * wrap round inside it too, and the trail's window holds still on it. `releasing`, playback carries on to the
+   * window's end once more and breaks through it, unpinning.
    */
-  pin: { from: number; to: number } | null = null
+  pin: { from: number; to: number; releasing: boolean } | null = null
   /** While pinned: loops round the window so far, and what `elapsed` was at its start, to count on from. */
   private pinLaps = 0
   private pinBase = 0
+  /** Added to `elapsed` once unpinned, so it carries on from where the pinned count left it. */
+  private elapsedOffset = 0
   private frameListeners = new Set<() => void>()
   private stateListeners = new Set<() => void>()
   private version = 0
@@ -46,7 +49,7 @@ export class Playhead {
   /** Moments played through, counting each lap whole: unlike `moment`, it doesn't jump back when playback loops. */
   get elapsed() {
     if (this.pin) return this.pinBase + (this.moment - this.pin.from) + this.pinLaps * (this.pin.to - this.pin.from)
-    return this.moment + this.laps * (this.length - 1)
+    return this.moment + this.laps * (this.length - 1) + this.elapsedOffset
   }
 
   /**
@@ -66,18 +69,33 @@ export class Playhead {
     return from + ((((t - from) % span) + span) % span)
   }
 
-  /** Pins playback to the trail's window as it is now (see `pin`), or unpins it; too short a window won't pin. */
+  /**
+   * Pins playback to the trail's window as it is now (see `pin`), or holds on to the window it's releasing; or,
+   * with null, releases it. Too short a window won't pin.
+   */
   setPin(trailPixels: number | null) {
-    if (trailPixels === null) this.pin = null
-    else {
+    if (trailPixels === null) {
+      if (!this.pin) return
+      this.pin = { ...this.pin, releasing: true }
+    } else if (this.pin) {
+      this.pin = { ...this.pin, releasing: false }
+    } else {
       const from = Math.max(0, this.moment - trailPixels)
       if (this.moment - from < 2) return
       this.pinBase = this.elapsed - (this.moment - from)
       this.pinLaps = 0
-      this.pin = { from, to: this.moment }
+      this.pin = { from, to: this.moment, releasing: false }
     }
     this.changed()
     this.frame()
+  }
+
+  /** Unpins at once, with `elapsed` carrying on from where it was. */
+  private unpin() {
+    const elapsed = this.elapsed
+    this.pin = null
+    this.elapsedOffset += elapsed - this.elapsed
+    this.changed()
   }
 
   /**
@@ -117,10 +135,7 @@ export class Playhead {
   /** Moves to `moment`; outside the pinned window, unpinning. */
   seek(moment: number) {
     this.moment = Math.max(0, Math.min(this.length - 1, moment))
-    if (this.pin && (this.moment < this.pin.from || this.moment > this.pin.to)) {
-      this.pin = null
-      this.changed()
-    }
+    if (this.pin && (this.moment < this.pin.from || this.moment > this.pin.to)) this.unpin()
     this.frame()
   }
 
@@ -146,7 +161,8 @@ export class Playhead {
     this.moment += this.speed * seconds
     if (this.pin) {
       const { from, to } = this.pin
-      if (this.moment > to) {
+      if (this.moment > to && this.pin.releasing) this.unpin()
+      else if (this.moment > to) {
         this.pinLaps += Math.floor((this.moment - from) / (to - from))
         this.moment = from + ((this.moment - from) % (to - from))
       }

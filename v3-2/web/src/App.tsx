@@ -92,6 +92,8 @@ function Explorer({ data }: { data: PoolData }) {
   // window holds still, so it's clustered once.
   const windowed = groupBy === 'leiden' && clusterOver === 'window'
   const pin = playhead.pin
+  /** Pinned, and not on the way out (see Playhead.pin). */
+  const pinned = pin !== null && !pin.releasing
   const [windowGrouping, setWindowGrouping] = useState<{ rows: number[]; grouping: Grouping } | null>(null)
   const lastWindow = useRef<{ rows: number[]; grouping: Grouping } | null>(null)
   useEffect(() => {
@@ -202,18 +204,19 @@ function Explorer({ data }: { data: PoolData }) {
             trailPixels={trailPixels}
             className="size-21 rounded-sm border-white/90!"
           />
-          {/* Pins playback to the trail's window, looping round inside it, so its groups hold still as it plays. */}
+          {/* Pins playback to the trail's window, looping round inside it, so its groups hold still as it plays; unpinned,
+              playback carries on to the window's end and breaks through it. */}
           <Button
             variant="ghost"
             size="icon-sm"
             className={cn(
               'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white',
-              pin && 'bg-white/90 text-black hover:bg-white hover:text-black',
+              pinned && 'bg-white/90 text-black hover:bg-white hover:text-black',
             )}
-            onClick={() => playhead.setPin(pin ? null : trailPixels)}
-            aria-pressed={pin !== null}
-            aria-label={pin ? 'Unpin from this window' : "Pin to the trail's window"}
-            title={pin ? 'Unpin from this window' : "Pin to the trail's window"}
+            onClick={() => playhead.setPin(pinned ? null : trailPixels)}
+            aria-pressed={pinned}
+            aria-label={pinned ? 'Unpin from this window' : "Pin to the trail's window"}
+            title={pinned ? 'Unpin from this window' : "Pin to the trail's window"}
           >
             <Focus />
           </Button>
