@@ -168,17 +168,16 @@ function Explorer({ data }: { data: PoolData }) {
           onFocus={setFocus}
           onHover={setHover}
         />
-        {/* The followed (or hovered) digit as it plays, as in the inspect tab, always in sight. */}
-        {shown !== null && (
-          <DigitImage
-            pixels={pixels}
-            poolRow={rows[shown]}
-            traces={traces}
-            playhead={playhead}
-            trailPixels={trailPixels}
-            className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 size-21 rounded-sm"
-          />
-        )}
+        {/* The followed (or hovered) digit as it plays, as in the inspect tab, always in sight; with none, the
+            trail's window still shows where in the reading the playhead is. */}
+        <DigitImage
+          pixels={pixels}
+          poolRow={shown !== null ? rows[shown] : null}
+          traces={traces}
+          playhead={playhead}
+          trailPixels={trailPixels}
+          className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 size-21 rounded-sm border-white/90!"
+        />
         {/* Both buttons sit on the drawer's top edge, so they rise and fall with it. */}
         <span
           className="pointer-events-none absolute bottom-11 left-3 rounded-md bg-black/65 px-2 py-0.5 text-xs text-white transition-opacity duration-300 motion-reduce:transition-none"

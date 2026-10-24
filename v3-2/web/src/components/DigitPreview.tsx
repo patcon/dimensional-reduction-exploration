@@ -18,7 +18,8 @@ export function DigitImage({
   className,
 }: {
   pixels: Uint8Array
-  poolRow: number
+  /** The digit, or null for none: just the trail's window, on a blank square. */
+  poolRow: number | null
   traces: Traces
   playhead: Playhead
   trailPixels: number
