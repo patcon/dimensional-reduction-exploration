@@ -339,6 +339,8 @@ export function ChordViz(props: ChordVizProps) {
       baseRadius: () => camRadius,
       // The plane the camera looks at spans 2·distance·tan(fov/2) in height; the dolly cancels out.
       panScale: (): number => (2 * (camRadius + orbit.dRadius) * Math.tan((baseFov * Math.PI) / 360)) / viewHeight,
+      // See shiftLens.
+      middleRaised: () => shownCovered / 2,
       onTap: (x, y) => live.current.onFocus(pickAt(x, y)),
       onOrbiting: setIsOrbiting,
       onHold,

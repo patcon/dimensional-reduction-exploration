@@ -29,6 +29,8 @@ export interface OrbitOptions {
   baseRadius: () => number
   /** World units per pixel dragged, when panning. */
   panScale: () => number
+  /** How far above the canvas's middle the view's middle is, in pixels (the lens shifted to clear something covering the canvas). */
+  middleRaised: () => number
   /** A one-finger tap that didn't move, at these client coordinates (dragging cancels its click). */
   onTap: (clientX: number, clientY: number) => void
   onOrbiting: (orbiting: boolean) => void
@@ -134,7 +136,7 @@ export class Orbit {
       // after / before, so panning makes up the rest.
       const rect = this.canvas.getBoundingClientRect(), s = this.opts.panScale(), k = 1 - after / before
       this.dPanX += (clientX - rect.left - rect.width / 2) * s * k
-      this.dPanY -= (clientY - rect.top - rect.height / 2) * s * k
+      this.dPanY -= (clientY - rect.top - (rect.height / 2 - this.opts.middleRaised())) * s * k
     }
     this.dRadius = after - base
   }
