@@ -1,6 +1,6 @@
-/** Every setting on the page as one plain object, and named presets of it kept in the browser or in files. */
+/** Every setting on the page as one plain object, remembered in the browser, and named presets of it kept there or in files. */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ChordOrder, ClusterOver, GroupBy } from './selection.ts'
 import type { SignalSettings } from './signal.ts'
 import { DEFAULT_PARTICLES, DEFAULT_STYLE, type GeoMode, type ParticleSettings, type ViewMode, type VizStyle } from './vizSettings.ts'
@@ -65,12 +65,32 @@ export function completeSettings(partial: Partial<Settings>): Settings {
 /** Settings that are objects of their own, changed a field at a time. */
 type Nested = 'signal' | 'style' | 'particles'
 
-/** The page's settings, with ways to change one, or some fields of a nested one. */
+const SETTINGS_KEY = 'valence-particles-mobile:settings'
+
+/** The settings this browser last had, or the defaults. */
+function loadSettings(): Settings {
+  try {
+    const stored = localStorage.getItem(SETTINGS_KEY)
+    return stored ? completeSettings(JSON.parse(stored) as Partial<Settings>) : DEFAULT_SETTINGS
+  } catch {
+    return DEFAULT_SETTINGS
+  }
+}
+
+/** The page's settings, remembered in the browser, with ways to change one, or some fields of a nested one, or reset them all. */
 export function useSettings() {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
+  const [settings, setSettings] = useState<Settings>(loadSettings)
+  useEffect(() => {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+    } catch {
+      // Storage is blocked or full: settings last only as long as the page.
+    }
+  }, [settings])
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => setSettings((s) => ({ ...s, [key]: value }))
   const patch = <K extends Nested>(key: K, fields: Partial<Settings[K]>) => setSettings((s) => ({ ...s, [key]: { ...s[key], ...fields } }))
-  return { settings, setSettings, set, patch }
+  const reset = () => setSettings(DEFAULT_SETTINGS)
+  return { settings, setSettings, set, patch, reset }
 }
 
 /** What a panel of controls gets: the settings and ways to change them. */

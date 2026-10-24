@@ -52,7 +52,7 @@ function Explorer({ data }: { data: PoolData }) {
   const labels = meta.rows.label
 
   // Every setting, as presets save and load them; the playhead follows its speed and looping.
-  const { settings, setSettings, set, patch } = useSettings()
+  const { settings, setSettings, set, patch, reset } = useSettings()
   const editor = { settings, set, patch }
   const { count, seed, groupBy, resolution, neighbours, clusterOver, clusterRate, order, signal, view, geometry, style, trailSeconds, particles, focus } = settings
   const digits = useMemo(() => new Set(settings.digits), [settings.digits])
@@ -277,7 +277,7 @@ function Explorer({ data }: { data: PoolData }) {
               the settings you've arrived at, or carry them between browsers as files.
             </SheetDescription>
           </SheetHeader>
-          <PresetsPanel store={presets} />
+          <PresetsPanel store={presets} onReset={reset} />
         </SheetContent>
       </Sheet>
     </>

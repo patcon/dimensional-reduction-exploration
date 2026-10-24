@@ -1,12 +1,12 @@
-import { Download, Save, Trash2, Upload } from 'lucide-react'
+import { Download, RotateCcw, Save, Trash2, Upload } from 'lucide-react'
 import { useRef } from 'react'
 import { cn } from '@/lib/utils'
 import type { PresetStore } from '../usePresets'
 import { Section } from './controls'
 import { Button } from './ui/button'
 
-/** Save the page's settings under a name and load them back, or carry them between browsers as files. */
-export function PresetsPanel({ store }: { store: PresetStore }) {
+/** Save the page's settings under a name and load them back, carry them between browsers as files, or reset them. */
+export function PresetsPanel({ store, onReset }: { store: PresetStore; onReset: () => void }) {
   const { presets, selected, dragging, load, save, remove, exportCurrent, importFile } = store
   const fileRef = useRef<HTMLInputElement>(null)
   const names = Object.keys(presets).sort((a, b) => a.localeCompare(b))
@@ -62,6 +62,13 @@ export function PresetsPanel({ store }: { store: PresetStore }) {
             if (file) void importFile(file)
           }}
         />
+      </Section>
+      <Section title="Current settings" description="This browser remembers them from one visit to the next.">
+        <div>
+          <Button variant="outline" size="sm" onClick={() => window.confirm('Reset every setting to its default?') && onReset()}>
+            <RotateCcw /> Reset to defaults
+          </Button>
+        </div>
       </Section>
     </div>
   )
