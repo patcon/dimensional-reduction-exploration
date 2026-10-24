@@ -313,7 +313,18 @@ function Explorer({ data }: { data: PoolData }) {
             />
           )}
           <h2>Groups: mean valence now</h2>
-          <GroupLegend groups={grouping.groups} groupOf={grouping.groupOf} colors={colors} traces={traces} playhead={playhead} />
+          <GroupLegend
+            groups={grouping.groups}
+            groupOf={grouping.groupOf}
+            colors={colors}
+            traces={traces}
+            playhead={playhead}
+            trailPixels={trailSeconds * playhead.speed}
+            pixels={pixels}
+            rows={rows}
+            onFocus={setFocus}
+            onHover={setHover}
+          />
           {geometry === 'particle' && (
             <div className="particle-settings">
               <h2>Particles</h2>

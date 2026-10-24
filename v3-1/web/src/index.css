@@ -104,11 +104,14 @@ button.start:hover { background: var(--go-hover); border-color: var(--go-hover);
 
 /* A fixed height, so groups coming and going with re-clustering don't shift the controls below. */
 .group-legend { list-style: none; padding: 0; margin: 0; display: grid; align-content: start; gap: 2px; height: 160px; overflow-y: auto; }
-.group-legend li { display: grid; grid-template-columns: 12px 2.5em 2.5em 1fr; align-items: center; gap: 6px; }
+.group-legend li { display: grid; grid-template-columns: 12px 2em 2em 1fr auto; align-items: center; gap: 6px; }
 .group-name { font-weight: 600; }
 .group-mean { position: relative; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
 .group-mean-zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--muted); }
 .group-mean-bar { position: absolute; top: 0; bottom: 0; }
+.group-thumbs { display: flex; gap: 2px; }
+.group-thumbs canvas { width: 16px; height: 16px; image-rendering: pixelated; background: #000; color: var(--accent); cursor: pointer; }
+.group-thumbs canvas:hover { outline: 1px solid var(--accent); }
 
 .style-grid { display: grid; grid-template-columns: auto repeat(4, 1fr); gap: 3px; align-items: center; }
 .style-grid button { padding: 2px 4px; font-size: 0.75rem; }
