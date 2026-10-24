@@ -18,6 +18,8 @@ export interface LeidenOptions {
   seed: number
   /** Randomness in the refinement step; igraph's default. */
   beta?: number
+  /** Clusters to start from (ids below n), e.g. the last run's; otherwise every node starts alone. */
+  initial?: ArrayLike<number>
 }
 
 /** A graph during aggregation: nodes may stand for many original nodes, so they carry their total strength. */
@@ -63,12 +65,12 @@ function renumber(membership: Int32Array) {
   return membership.map((c) => to.get(c)!)
 }
 
-export function leiden(g: Graph, { resolution, iterations, seed, beta = 0.01 }: LeidenOptions): Int32Array {
+export function leiden(g: Graph, { resolution, iterations, seed, beta = 0.01, initial }: LeidenOptions): Int32Array {
   const rand = makeRng(seed)
   const k = strengths(g)
   let twoM = 0
   for (const x of k) twoM += x
-  let membership = Int32Array.from({ length: g.n }, (_, i) => i)
+  let membership = initial ? Int32Array.from(initial) : Int32Array.from({ length: g.n }, (_, i) => i)
   if (twoM === 0) return membership
   // γ / 2m: the cost of putting two units of strength in one cluster.
   const gamma = resolution / twoM

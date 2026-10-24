@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { ChordViz } from './components/ChordViz'
 import { DigitPreview } from './components/DigitPreview'
 import { GroupLegend } from './components/GroupLegend'
@@ -6,10 +6,24 @@ import { Matrix } from './components/Matrix'
 import { Transport } from './components/Transport'
 import { DIGIT_COLORS, groupColors } from './palette'
 import { usePlayhead } from './playhead'
-import { chordSlots, groupParticipants, N_DIGITS, pcsOf, pickRows, type ChordOrder, type GroupBy } from './selection'
+import {
+  chordSlots,
+  groupParticipants,
+  N_DIGITS,
+  pcsOf,
+  pickRows,
+  windowFeatures,
+  type ChordOrder,
+  type ClusterOver,
+  type GroupBy,
+  type Grouping,
+} from './selection'
 import { buildTraces, READING_LABELS, type ReadingKey, type SignalSettings } from './signal'
 import { useData, type PoolData } from './useData'
 import { DEFAULT_STYLE, ELEMENTS, GEO_MODES, MAX_CHORDS, VIEW_LABELS, type GeoMode, type ViewMode, type VizStyle } from './vizSettings'
+
+/** Moments sampled across the trail's window when clustering over it. */
+const WINDOW_SAMPLES = 32
 
 function Segmented<T extends string>({ options, value, onChange, labels }: {
   options: readonly T[]
@@ -40,6 +54,7 @@ function Explorer({ data }: { data: PoolData }) {
   const [groupBy, setGroupBy] = useState<GroupBy>('digit')
   const [resolution, setResolution] = useState(1)
   const [neighbours, setNeighbours] = useState(15)
+  const [clusterOver, setClusterOver] = useState<ClusterOver>('full')
   const [order, setOrder] = useState<ChordOrder>('grouped')
   // How each digit is read out as valence.
   const [signal, setSignal] = useState<SignalSettings>({ reading: 'hilbert', skipBlank: false, smoothing: 'blur', smoothingPixels: 1.5, mapping: 'ink' })
@@ -57,14 +72,39 @@ function Explorer({ data }: { data: PoolData }) {
   const shownCount = Math.min(count, maxCount)
   const rows = useMemo(() => pickRows(labels, digits, shownCount, seed), [labels, digits, shownCount, seed])
   const points = useMemo(() => pcsOf(pcs, meta.nPcs, rows), [pcs, meta.nPcs, rows])
-  const grouping = useMemo(
-    () => groupParticipants(rows.map((r) => labels[r]), points, meta.nPcs, groupBy, { resolution, neighbours, seed }),
-    [rows, labels, points, meta.nPcs, groupBy, resolution, neighbours, seed],
+  const rowLabels = useMemo(() => rows.map((r) => labels[r]), [rows, labels])
+  const fullGrouping = useMemo(
+    () => groupParticipants(rowLabels, points, meta.nPcs, groupBy, { resolution, neighbours, seed }),
+    [rowLabels, points, meta.nPcs, groupBy, resolution, neighbours, seed],
   )
-  const colors = useMemo(() => groupColors(grouping), [grouping])
-  const slotOf = useMemo(() => chordSlots(grouping, points, meta.nPcs, order), [grouping, points, meta.nPcs, order])
   const traces = useMemo(() => buildTraces(pixels, rows, signal), [pixels, rows, signal])
   useEffect(() => playhead.setLength(traces.length), [playhead, traces.length])
+
+  // Clustering over the trail's window: re-run every second the playhead has moved, each run
+  // starting from the last one's clusters (or the full clustering's, at first) and keeping their ids.
+  const windowed = groupBy === 'leiden' && clusterOver === 'window'
+  const [windowGrouping, setWindowGrouping] = useState<{ rows: number[]; grouping: Grouping } | null>(null)
+  const lastWindow = useRef<{ rows: number[]; grouping: Grouping } | null>(null)
+  useEffect(() => {
+    if (!windowed) return
+    let lastMoment = NaN
+    const run = () => {
+      if (playhead.moment === lastMoment) return
+      lastMoment = playhead.moment
+      const previous = lastWindow.current?.rows === rows ? lastWindow.current.grouping : fullGrouping
+      const features = windowFeatures(traces, playhead.moment, trailSeconds * playhead.speed, WINDOW_SAMPLES)
+      const grouping = groupParticipants(rowLabels, features, WINDOW_SAMPLES, 'leiden', { resolution, neighbours, seed }, previous)
+      lastWindow.current = { rows, grouping }
+      setWindowGrouping(lastWindow.current)
+    }
+    run()
+    const id = setInterval(run, 1000)
+    return () => clearInterval(id)
+  }, [windowed, rows, rowLabels, traces, playhead, playhead.speed, trailSeconds, resolution, neighbours, seed, fullGrouping])
+  const grouping = windowed && windowGrouping?.rows === rows ? windowGrouping.grouping : fullGrouping
+
+  const colors = useMemo(() => groupColors(grouping), [grouping])
+  const slotOf = useMemo(() => chordSlots(grouping, points, meta.nPcs, order), [grouping, points, meta.nPcs, order])
 
   const followed = focus !== null && focus < rows.length ? focus : rows.length ? 0 : null
   const shown = hover ?? followed
@@ -131,6 +171,8 @@ function Explorer({ data }: { data: PoolData }) {
                 <input type="range" min={3} max={30} step={1} value={neighbours} onChange={(e) => setNeighbours(Number(e.target.value))} />
                 <span className="num">{neighbours}</span>
               </label>
+              <span className="control-label">Cluster over</span>
+              <Segmented options={['full', 'window'] as const} value={clusterOver} onChange={setClusterOver} />
               <span className="muted num">
                 {grouping.groups.length} clusters · modularity {grouping.modularity?.toFixed(2)}
               </span>

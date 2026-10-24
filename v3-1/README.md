@@ -25,8 +25,10 @@ pnpm run check:leiden        # the browser's kNN graph and Leiden against scanpy
 ## Controls
 
 - **Digits**: filter by label, set the sample size (2–200), reshuffle.
-- **Color by**: label (the digit), or Leiden clusters (resolution, neighbours). Clusters are named and
-  coloured after their majority digit (3a, 3b, …).
+- **Color by**: label (the digit), or Leiden clusters (resolution, neighbours), numbered 1, 2, …
+- **Cluster over** (Leiden): the full digit (its principal components), or the trail's window
+  of each trace, re-clustered every second the playhead moves. Clusters keep their number and
+  colour from one run to the next.
 - **Chord order**: random, or grouped (group by group, then by first principal component).
 - **Reading**: pixel order (rows, snake, columns, spiral, Hilbert); skip pixels blank in every
   sampled digit; smoothing (Gaussian blur, or a lagging moving average); paper −1 or 0.
@@ -46,6 +48,10 @@ pnpm run check:leiden        # the browser's kNN graph and Leiden against scanpy
   `src/leiden.ts` is Leiden on modularity, 2 iterations, as `sc.tl.leiden(flavor="igraph")`.
   `pnpm run check:leiden` finds the same edges as scanpy (weights within 4e-6), and modularity
   within 0.005 of igraph's or better, averaged over 5 seeds.
+- Clustering over the window compares each trace's valence at 32 moments across the trail. Each
+  run starts Leiden from the last run's clusters, then gives every new cluster the number of the
+  old one it shares most digits with (one to one, biggest overlaps first); the rest take the
+  lowest numbers not in use.
 - `src/signal.ts` turns each digit into a trace. `src/components/ChordViz.tsx` is the
   cross-section's three.js code, adapted to read traces; its geometries and morphs are unchanged.
   It renders as the original prototype did on three r128 (no colour management, 2px chords),

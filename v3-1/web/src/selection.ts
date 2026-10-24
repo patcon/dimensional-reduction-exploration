@@ -2,6 +2,7 @@
 import { knnGraph } from './knn.ts'
 import { leiden, modularity } from './leiden.ts'
 import { makeRng, shuffle } from './rng.ts'
+import { valenceAt, type Traces } from './signal.ts'
 
 export const N_DIGITS = 10
 
@@ -20,7 +21,22 @@ export function pcsOf(pcs: Float32Array, dim: number, rows: number[]) {
   return out
 }
 
+/**
+ * Each participant's valence over the window [moment − span, moment], sampled at `samples` evenly
+ * spaced moments: what clustering over a window compares, packed n × samples.
+ */
+export function windowFeatures(traces: Traces, moment: number, span: number, samples: number) {
+  const out = new Float32Array(traces.n * samples)
+  for (let s = 0; s < samples; s++) {
+    const t = moment - span + (span * s) / (samples - 1)
+    for (let i = 0; i < traces.n; i++) out[i * samples + s] = valenceAt(traces, i, t)
+  }
+  return out
+}
+
 export type GroupBy = 'digit' | 'leiden'
+/** What Leiden clusters on: each whole digit (its principal components), or the trail's window of each trace. */
+export type ClusterOver = 'full' | 'window'
 
 export interface LeidenSettings {
   resolution: number
@@ -29,8 +45,10 @@ export interface LeidenSettings {
 }
 
 export interface Group {
-  /** A short name: the digit, or the cluster's majority digit and a letter (e.g. 3a, 3b). */
+  /** A short name: the digit, or the cluster's number (its id + 1). */
   name: string
+  /** For Leiden: the cluster's id, kept from one run to the next where the cluster carries on. */
+  id?: number
   /** Participants in it. */
   size: number
   majorityLabel: number
@@ -56,13 +74,53 @@ function summarise(labels: number[], membership: ArrayLike<number>, count: numbe
   })
 }
 
-/** Groups participants (with these `labels` and principal components `points`, n × dim) by digit or by Leiden cluster. */
+/**
+ * Ids for `count` new clusters. With a `previous` grouping of the same participants, each cluster
+ * takes the id of the previous group it shares most participants with (one to one, biggest
+ * overlaps first), and the rest take the lowest ids free in both, so a cluster that just ended
+ * doesn't hand its colour straight to another. Without one, ids follow Leiden's order: largest first.
+ */
+function stableIds(membership: Int32Array, count: number, previous?: Grouping) {
+  if (!previous || previous.groupOf.length !== membership.length) return Int32Array.from({ length: count }, (_, c) => c)
+  const previousIds = previous.groups.map((g) => g.id!)
+  const span = Math.max(...previousIds) + 1
+  const overlap = new Map<number, number>()
+  membership.forEach((c, i) => {
+    const key = c * span + previousIds[previous.groupOf[i]]
+    overlap.set(key, (overlap.get(key) ?? 0) + 1)
+  })
+  const idOf = new Int32Array(count).fill(-1)
+  const used = new Set(previousIds)
+  const taken = new Set<number>()
+  for (const [key] of [...overlap].sort((a, b) => b[1] - a[1])) {
+    const c = Math.floor(key / span)
+    const id = key % span
+    if (idOf[c] >= 0 || taken.has(id)) continue
+    idOf[c] = id
+    taken.add(id)
+  }
+  let free = 0
+  for (let c = 0; c < count; c++) {
+    if (idOf[c] >= 0) continue
+    while (used.has(free)) free++
+    idOf[c] = free
+    used.add(free)
+  }
+  return idOf
+}
+
+/**
+ * Groups participants (with these `labels` and features `points`, n × dim: principal components,
+ * or a window of their traces) by digit or by Leiden cluster. For Leiden, a `previous` grouping of
+ * the same participants is where clustering starts from, and whose ids carry over.
+ */
 export function groupParticipants(
   labels: number[],
   points: Float32Array,
   dim: number,
   by: GroupBy,
   settings: LeidenSettings,
+  previous?: Grouping,
 ): Grouping {
   const n = labels.length
   if (by === 'digit') {
@@ -72,20 +130,18 @@ export function groupParticipants(
     const groups = summarise(labels, groupOf, present.length).map((g, i) => ({ ...g, name: String(present[i]) }))
     return { groups, groupOf }
   }
-  if (n < 3) return { groups: [{ name: 'all', ...summarise(labels, new Int32Array(n), 1)[0] }], groupOf: new Int32Array(n) }
+  if (n < 3) return { groups: [{ name: '1', id: 0, ...summarise(labels, new Int32Array(n), 1)[0] }], groupOf: new Int32Array(n) }
   const graph = knnGraph(points, n, dim, settings.neighbours)
-  const membership = leiden(graph, { resolution: settings.resolution, iterations: 2, seed: settings.seed })
-  const clusters = summarise(labels, membership, Math.max(...membership) + 1)
-  // Clusters of the same digit side by side, biggest first, each named after its digit.
-  const order = clusters.map((_, c) => c).sort((a, b) => clusters[a].majorityLabel - clusters[b].majorityLabel || clusters[b].size - clusters[a].size)
-  const rank = new Int32Array(order.length)
+  const initial = previous?.groupOf.length === n ? previous.groupOf : undefined
+  const membership = leiden(graph, { resolution: settings.resolution, iterations: 2, seed: settings.seed, initial })
+  const count = Math.max(...membership) + 1
+  const clusters = summarise(labels, membership, count)
+  const idOf = stableIds(membership, count, previous)
+  // In id order, so the legend and grouped chords keep their places from one run to the next.
+  const order = clusters.map((_, c) => c).sort((a, b) => idOf[a] - idOf[b])
+  const rank = new Int32Array(count)
   order.forEach((c, i) => (rank[c] = i))
-  const perDigit = new Array<number>(N_DIGITS).fill(0)
-  const groups = order.map((c) => {
-    const g = clusters[c]
-    const letter = String.fromCharCode(97 + (perDigit[g.majorityLabel]++ % 26))
-    return { ...g, name: `${g.majorityLabel}${letter}` }
-  })
+  const groups = order.map((c) => ({ ...clusters[c], id: idOf[c], name: String(idOf[c] + 1) }))
   return { groups, groupOf: membership.map((c) => rank[c]), modularity: modularity(graph, membership, settings.resolution) }
 }
 
