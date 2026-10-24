@@ -504,10 +504,10 @@ export function ChordViz(props: ChordVizProps) {
       ghostRings.forEach((r, i) => { r.material.opacity = depthA * (0.12 - i * 0.03); r.visible = depthA > 0.02 })
       // ── Chords, cursors and trails ──
       const moment = playhead.moment
-      // Looping, trails run on through the loop, reaching back round from the start to the end; trail
-      // grids count moments played through, so they don't jump back when the playhead does.
-      const loop = playhead.loop
-      const elapsed = loop ? playhead.elapsed : moment
+      // Looping, trails run on through the loop (and, once it has looped, reach back round from the
+      // start to the end); trail grids count moments played through, so they don't jump back when the
+      // playhead does.
+      const elapsed = playhead.loop ? playhead.elapsed : moment
       const showTrace = view === '2d-ts' || view === '3d'
       // Trail samples are spread over the last `trailSeconds` of playback, in moments.
       const step = (trailSeconds * playhead.speed) / TRACE_SEGS
@@ -578,11 +578,11 @@ export function ChordViz(props: ChordVizProps) {
         } else {
           const grid = step > 0 ? Math.floor(elapsed / step) : 0
           const frac = step > 0 ? elapsed / step - grid : 0
-          hlen = step > 0 ? (loop ? TRACE_LEN : Math.min(TRACE_LEN, grid + 2)) : 1
+          hlen = step > 0 ? (playhead.wraps ? TRACE_LEN : Math.min(TRACE_LEN, grid + 2)) : 1
           for (let k = 0; k < hlen; k++) {
             const head = k === hlen - 1
             age[k] = head ? 0 : hlen - 2 - k + frac
-            const hv = valenceAt(traces, i, head ? moment : (grid - (hlen - 2 - k)) * step, loop) * scale
+            const hv = valenceAt(traces, i, head ? moment : (grid - (hlen - 2 - k)) * step, playhead.wraps) * scale
             chordPoints(shownSlot[i], Math.max(n, 1), hv, morph, pts)
             hist[k * 5] = pts[2] - CENTER; hist[k * 5 + 1] = CENTER - pts[3]
             hist[k * 5 + 2] = pts[0] - CENTER; hist[k * 5 + 3] = CENTER - pts[1]; hist[k * 5 + 4] = hv

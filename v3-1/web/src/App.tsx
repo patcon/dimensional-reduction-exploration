@@ -59,6 +59,7 @@ function Explorer({ data }: { data: PoolData }) {
   )
   const traces = useMemo(() => buildTraces(pixels, rows, signal), [pixels, rows, signal])
   useEffect(() => playhead.setLength(traces.length), [playhead, traces.length])
+  useEffect(() => playhead.resetLaps(), [playhead, traces])
 
   // Clustering over the trail's window: re-run `clusterRate` times a second while the playhead moves, each run
   // starting from the last one's clusters (or the full clustering's, at first) and keeping their ids.
@@ -72,7 +73,7 @@ function Explorer({ data }: { data: PoolData }) {
       if (playhead.moment === lastMoment) return
       lastMoment = playhead.moment
       const previous = lastWindow.current?.rows === rows ? lastWindow.current.grouping : fullGrouping
-      const features = windowFeatures(traces, playhead.moment, trailPixels, WINDOW_SAMPLES, settings.loop)
+      const features = windowFeatures(traces, playhead.moment, trailPixels, WINDOW_SAMPLES, playhead.wraps)
       const grouping = groupParticipants(rowLabels, features, WINDOW_SAMPLES, 'leiden', { resolution, neighbours, seed }, previous)
       lastWindow.current = { rows, grouping }
       setWindowGrouping(lastWindow.current)
@@ -80,7 +81,7 @@ function Explorer({ data }: { data: PoolData }) {
     run()
     const id = setInterval(run, 1000 / clusterRate)
     return () => clearInterval(id)
-  }, [windowed, clusterRate, rows, rowLabels, traces, playhead, trailPixels, settings.loop, resolution, neighbours, seed, fullGrouping])
+  }, [windowed, clusterRate, rows, rowLabels, traces, playhead, trailPixels, resolution, neighbours, seed, fullGrouping])
   const grouping = windowed && windowGrouping?.rows === rows ? windowGrouping.grouping : fullGrouping
 
   const colors = useMemo(() => groupColors(grouping), [grouping])

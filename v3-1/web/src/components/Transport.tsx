@@ -61,7 +61,7 @@ export function Transport({
             <span className={playhead.playing ? '' : 'hidden'}>❚❚ Pause</span>
           </span>
         </button>
-        <button onClick={() => playhead.seek(0)}>⏮ Start</button>
+        <button onClick={() => playhead.restart()}>⏮ Start</button>
         <Slider label="speed" value={fromSpeed(speed)} min={0} max={1} step={0.001} onChange={(u) => onSpeed(toSpeed(u))} format={() => `${speed} px/s`} />
         <Slider label="trail" value={trailSeconds} min={5} max={300} step={5} onChange={onTrailSeconds} format={(v) => `${v} s`} />
         <label className="check">

@@ -56,7 +56,7 @@ export function DigitPreview({
     }
     draw()
     return playhead.onFrame(draw)
-  }, [pixels, poolRow, participant, traces, playhead, playhead.loop, trailPixels])
+  }, [pixels, poolRow, participant, traces, playhead, trailPixels])
 
   return (
     <div className="digit-preview">

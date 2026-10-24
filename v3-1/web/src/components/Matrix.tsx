@@ -95,8 +95,8 @@ export function Matrix({
       ctx.fillStyle = accent
       ctx.globalAlpha = 0.18
       ctx.fillRect(tail, 0, head - tail, height)
-      // Looping, a trail reaching back past the start carries on from the end.
-      if (playhead.loop && from < 0) {
+      // Once playback has looped, a trail reaching back past the start carries on from the end.
+      if (playhead.wraps && from < 0) {
         const wrapped = x(Math.max(playhead.moment, from + length - 1))
         ctx.fillRect(wrapped, 0, width - wrapped, height)
       }
@@ -116,7 +116,7 @@ export function Matrix({
     }
     draw()
     return playhead.onFrame(draw)
-  }, [playhead, playhead.loop, width, height, length, n, trailPixels, grouped, groupOf, participantAt, slotOf, rowHeight, focus, hover, dpr])
+  }, [playhead, width, height, length, n, trailPixels, grouped, groupOf, participantAt, slotOf, rowHeight, focus, hover, dpr])
 
   const participantFrom = (e: React.MouseEvent<HTMLDivElement>) => {
     const row = Math.floor((e.clientY - e.currentTarget.getBoundingClientRect().top) / rowHeight)

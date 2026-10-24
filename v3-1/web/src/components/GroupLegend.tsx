@@ -44,7 +44,7 @@ function Thumb({ pixels, poolRow, traces, playhead, trailPixels, onClick, onHove
     }
     draw()
     return playhead.onFrame(draw)
-  }, [pixels, poolRow, traces, playhead, playhead.loop, trailPixels])
+  }, [pixels, poolRow, traces, playhead, trailPixels])
   return <canvas ref={ref} width={SIDE} height={SIDE} onClick={onClick} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} />
 }
 

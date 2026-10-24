@@ -40,6 +40,23 @@ export class Playhead {
     return this.moment + this.laps * (this.length - 1)
   }
 
+  /** Whether trails reach back round from the start to the end: looping, once playback has actually looped. */
+  get wraps() {
+    return this.loop && this.laps > 0
+  }
+
+  /** Back to the start, as if never played: trails stop at the start again until the next loop. */
+  restart() {
+    this.resetLaps()
+    this.seek(0)
+  }
+
+  /** Forget past loops, as when the traces change: their end hasn't been played yet. */
+  resetLaps() {
+    this.laps = 0
+    this.frame()
+  }
+
   frame() {
     this.frameListeners.forEach((fn) => fn())
   }
