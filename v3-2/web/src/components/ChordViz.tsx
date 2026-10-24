@@ -57,6 +57,14 @@ const BG: RGB = [15, 15, 14]
 
 /** Frames a cursor takes to glide from its particle back onto its chord. */
 const PARTICLE_EXIT_FRAMES = 30
+/**
+ * While a finger is held, a random spot this many pixels around it is picked every JITTER_MS, as if tapping all
+ * round it, and whichever digit is there is hovered: so many digits nearby can be previewed, as a mouse could.
+ */
+const JITTER_RADIUS = 36
+const JITTER_MS = 110
+/** Spots tried per pick for a digit other than the one hovered, before keeping it. */
+const JITTER_TRIES = 6
 
 const COLORS = { pos: [80, 255, 140] as RGB, neg: [255, 80, 60] as RGB, neutral: BG }
 
@@ -170,6 +178,7 @@ export interface ChordVizProps {
 export function ChordViz(props: ChordVizProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const holdRingRef = useRef<HTMLDivElement>(null)
   const live = useRef(props)
   useEffect(() => {
     live.current = props
@@ -317,6 +326,7 @@ export function ChordViz(props: ChordVizProps) {
       panScale: (): number => (2 * (camRadius + orbit.dRadius) * Math.tan((baseFov * Math.PI) / 360)) / viewHeight,
       onTap: (x, y) => live.current.onFocus(pickAt(x, y)),
       onOrbiting: setIsOrbiting,
+      onHold,
     })
 
     function applyCam() {
@@ -624,6 +634,35 @@ export function ChordViz(props: ChordVizProps) {
       canvas.style.cursor = i === null ? '' : 'pointer'
       live.current.onHover(i)
     }
+    // Holding a finger down hovers digits picked at random around it (see JITTER_RADIUS), inside a ring drawn there.
+    let jitter: ReturnType<typeof setInterval> | undefined
+    let holdAt = { x: 0, y: 0 }
+    function onHold(at: { x: number; y: number } | null) {
+      const ring = holdRingRef.current!
+      if (!at) {
+        clearInterval(jitter)
+        jitter = undefined
+        ring.hidden = true
+        setHovered(null)
+        return
+      }
+      holdAt = at
+      const rect = wrap.getBoundingClientRect()
+      ring.style.transform = `translate(${at.x - rect.left}px, ${at.y - rect.top}px)`
+      ring.hidden = false
+      if (jitter === undefined) {
+        jitterPick()
+        jitter = setInterval(jitterPick, JITTER_MS)
+      }
+    }
+    function jitterPick() {
+      for (let t = 0; t < JITTER_TRIES; t++) {
+        const r = JITTER_RADIUS * Math.sqrt(Math.random()), a = Math.random() * 2 * Math.PI
+        const i = pickAt(holdAt.x + r * Math.cos(a), holdAt.y + r * Math.sin(a))
+        if (i !== null && i !== hovered) return setHovered(i)
+      }
+    }
+
     let pressAt = { x: 0, y: 0 }
     const isClick = (x: number, y: number) => Math.hypot(x - pressAt.x, y - pressAt.y) <= CLICK_SLOP
     function onPointerDown(e: PointerEvent) { pressAt = { x: e.clientX, y: e.clientY } }
@@ -659,6 +698,7 @@ export function ChordViz(props: ChordVizProps) {
       canvas.removeEventListener('mouseleave', onCanvasLeave)
       canvas.removeEventListener('click', onClick)
       orbit.dispose()
+      clearInterval(jitter)
       renderer.dispose()
       for (const g of [chord.geo, dot.geo, traceGeo, fill.geo, focusGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
       for (const m of [chordMat, dotMat, traceMat, fillMat, focusMat, ringDotsMat, ...guides.map((l) => l.material)]) m.dispose()
@@ -670,6 +710,12 @@ export function ChordViz(props: ChordVizProps) {
   return (
     <div ref={wrapRef} className="viz-canvas" style={{ cursor: isOrbiting ? 'grabbing' : 'grab' }}>
       <canvas ref={canvasRef} />
+      <div
+        ref={holdRingRef}
+        hidden
+        className="pointer-events-none absolute top-0 left-0 rounded-full border border-white/60 bg-white/5"
+        style={{ width: JITTER_RADIUS * 2, height: JITTER_RADIUS * 2, margin: -JITTER_RADIUS }}
+      />
     </div>
   )
 }

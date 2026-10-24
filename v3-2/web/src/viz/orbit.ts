@@ -5,6 +5,8 @@ const MIN_ZOOM = 0.25
 const MAX_ZOOM = 2.5
 /** Radians turned per pixel dragged. */
 const TURN = 0.009
+/** How long one finger rests (within CLICK_SLOP) before it's held, rather than tapping or dragging. */
+const HOLD_MS = 350
 
 /** What dragging does: turn the camera around what it looks at, or slide the view sideways. */
 export type DragMode = 'orbit' | 'pan'
@@ -30,11 +32,14 @@ export interface OrbitOptions {
   /** A one-finger tap that didn't move, at these client coordinates (dragging cancels its click). */
   onTap: (clientX: number, clientY: number) => void
   onOrbiting: (orbiting: boolean) => void
+  /** One finger held still, at these client coordinates; then where it moves to, and null once it lifts. */
+  onHold: (at: { x: number; y: number } | null) => void
 }
 
 /**
  * Drag to turn or pan the camera, wheel or pinch to zoom, and move two fingers to pan, as offsets from where the view puts it:
- * `dTheta` and `dPhi` (radians), `dPanX` and `dPanY` (world units, across the screen), and `dRadius`.
+ * `dTheta` and `dPhi` (radians), `dPanX` and `dPanY` (world units, across the screen), and `dRadius`. One finger held
+ * still is passed to `onHold` instead.
  */
 export class Orbit {
   dTheta = 0
@@ -52,6 +57,10 @@ export class Orbit {
   private lastTouchMid = { x: 0, y: 0 }
   /** Whether this touch is still one finger that could be a tap. */
   private tapping = false
+  /** Whether one finger is held (see HOLD_MS), and the timer until it will be. */
+  private holding = false
+  private holdTimer: ReturnType<typeof setTimeout> | undefined
+  private pressAt = { x: 0, y: 0 }
 
   constructor(canvas: HTMLCanvasElement, opts: OrbitOptions) {
     this.canvas = canvas
@@ -90,6 +99,7 @@ export class Orbit {
     this.canvas.removeEventListener('touchmove', this.onTouchMove)
     this.canvas.removeEventListener('touchend', this.onTouchEnd)
     this.canvas.removeEventListener('touchcancel', this.onTouchCancel)
+    clearTimeout(this.holdTimer)
   }
 
   private startDrag(mode: DragMode, x: number, y: number) {
@@ -129,6 +139,13 @@ export class Orbit {
     this.dRadius = after - base
   }
 
+  private endHold() {
+    clearTimeout(this.holdTimer)
+    if (!this.holding) return
+    this.holding = false
+    this.opts.onHold(null)
+  }
+
   private onMouseDown = (e: MouseEvent) => {
     const mode = this.opts.dragMode()
     if (!mode) return
@@ -156,9 +173,23 @@ export class Orbit {
     const mode = this.opts.dragMode()
     if (!mode) return
     if (e.touches.length === 1) {
-      this.startDrag(mode, e.touches[0].clientX, e.touches[0].clientY)
+      const { clientX: x, clientY: y } = e.touches[0]
+      this.startDrag(mode, x, y)
       this.tapping = true
+      this.pressAt = { x, y }
+      this.holdTimer = setTimeout(() => {
+        // Held: whatever the finger dragged within the slop is undone, and it no longer drags or taps.
+        this.dTheta = this.base.dTheta
+        this.dPhi = this.base.dPhi
+        this.dPanX = this.base.dPanX
+        this.dPanY = this.base.dPanY
+        this.dragging = false
+        this.tapping = false
+        this.holding = true
+        this.opts.onHold(this.pressAt)
+      }, HOLD_MS)
     } else if (e.touches.length === 2) {
+      this.endHold()
       this.dragging = false
       this.tapping = false
       this.lastTouchDist = touchDistance(e)
@@ -169,7 +200,11 @@ export class Orbit {
 
   private onTouchMove = (e: TouchEvent) => {
     if (!this.opts.dragMode()) return
-    if (e.touches.length === 1 && this.dragging) {
+    if (e.touches.length === 1 && this.holding) {
+      this.pressAt = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      this.opts.onHold(this.pressAt)
+    } else if (e.touches.length === 1 && this.dragging) {
+      if (Math.hypot(e.touches[0].clientX - this.pressAt.x, e.touches[0].clientY - this.pressAt.y) > CLICK_SLOP) clearTimeout(this.holdTimer)
       this.drag(e.touches[0].clientX, e.touches[0].clientY)
     } else if (e.touches.length === 2 && this.opts.canZoom()) {
       // Spreading zooms, about the point between the fingers; moving them together pans, in any view.
@@ -193,6 +228,7 @@ export class Orbit {
   }
 
   private onTouchCancel = (e: TouchEvent) => {
+    this.endHold()
     this.dragging = false
     if (e.touches.length === 0) this.tapping = false
     // A pinch let go of by one finger: the other carries on dragging from where it is.
