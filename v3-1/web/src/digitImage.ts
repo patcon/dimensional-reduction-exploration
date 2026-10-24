@@ -2,9 +2,9 @@ import type { Playhead } from './playhead'
 import { N_PIXELS, type Traces } from './signal'
 
 /**
- * A digit as it's read, into `img`: pixels skipped (blank everywhere) or still to come are dimmed,
- * those in the trail (which, looping, reaches back round to the end) are tinted with `accent`, and
- * the pixel being read is the accent.
+ * A digit as it's read, into `img`: pixels in the trail's window (which, looping, reaches back
+ * round to the end) are tinted with `accent`, everything outside it is dimmed, and the pixel being
+ * read is the accent.
  */
 export function shadeDigit(img: ImageData, pixels: Uint8Array, poolRow: number, traces: Traces, playhead: Playhead, trailPixels: number, accent: number[]) {
   const now = playhead.moment
@@ -15,7 +15,7 @@ export function shadeDigit(img: ImageData, pixels: Uint8Array, poolRow: number, 
     const inTrail = m >= 0 && ((m <= now && m >= now - trailPixels) || (playhead.loop && m > now && m >= now - trailPixels + traces.length - 1))
     let rgb = [v, v, v]
     if (inTrail) rgb = rgb.map((c, i) => c * 0.7 + accent[i] * 0.3)
-    else if (m < 0 || m > now) rgb = rgb.map((c) => c * 0.22 + 10)
+    else rgb = rgb.map((c) => c * 0.45 + 10)
     if (m === head) rgb = accent
     img.data.set([rgb[0], rgb[1], rgb[2], 255], p * 4)
   }

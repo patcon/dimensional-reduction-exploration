@@ -5,8 +5,8 @@ import { accentOf, shadeDigit } from '../digitImage'
 import { SIDE, valenceAt, type Traces } from '../signal'
 
 /**
- * The followed digit, read as it plays: pixels already read show in full, those still to come
- * are dimmed, the trail's reach is tinted and the pixel being read is marked; beside it, the
+ * The followed digit, read as it plays: the trail's window is tinted, everything outside it is
+ * dimmed and the pixel being read is marked; beside it, the
  * valence it's reacting with right now.
  */
 export function DigitPreview({
