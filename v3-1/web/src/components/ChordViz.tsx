@@ -6,7 +6,7 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import type { RGB } from '../palette'
 import type { Playhead } from '../playhead'
 import { valenceAt, type Traces } from '../signal'
-import { MAX_CHORDS, type GeoMode, type ViewMode, type VizStyle } from '../vizSettings'
+import { DEFAULT_STYLE, MAX_CHORDS, type GeoMode, type ViewMode, type VizStyle } from '../vizSettings'
 
 // Ported from the reaction canvas's valence cross-section (plugins/valenceCrossSection in
 // patcon/polislike-partykit-reaction-canvas, itself from valence-onboarding-v3.html): each
@@ -31,7 +31,8 @@ const FILL_VERTS_PER_SEG = 6
 const FILL_CORNERS = [2, 0, 7, 0, 5, 7]
 const FILL_LATER = [false, false, true, false, true, true]
 const FILL_IS_ROOT = [true, false, true, false, false, true]
-const DOT_SIZE = 6
+/** The focus ring's size, relative to a cursor dot. */
+const FOCUS_RING_SCALE = 2.6
 /** Chord width in pixels, as the prototype's "radial width" default. */
 const CHORD_WIDTH = 2
 const TRANS_SPEED = 0.04
@@ -198,7 +199,7 @@ export function ChordViz(props: ChordVizProps) {
 
     const dotTex = dotTexture(false)
     const dot = buffer(MAX_CHORDS)
-    const dotMat = new THREE.PointsMaterial({ vertexColors: true, size: DOT_SIZE, sizeAttenuation: true, transparent: true, depthWrite: false, map: dotTex, alphaTest: 0.05 })
+    const dotMat = new THREE.PointsMaterial({ vertexColors: true, size: DEFAULT_STYLE.cursorSize, sizeAttenuation: true, transparent: true, depthWrite: false, map: dotTex, alphaTest: 0.05 })
     const dotPoints = new THREE.Points(dot.geo, dotMat)
     dotPoints.renderOrder = 10
     dotPoints.frustumCulled = false
@@ -208,15 +209,21 @@ export function ChordViz(props: ChordVizProps) {
     const ringTex = dotTexture(true)
     const focusGeo = new THREE.BufferGeometry()
     focusGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3))
-    const focusMat = new THREE.PointsMaterial({ color: 0xffffff, size: DOT_SIZE * 2.6, sizeAttenuation: true, transparent: true, depthTest: false, map: ringTex })
+    const focusMat = new THREE.PointsMaterial({ color: 0xffffff, size: DEFAULT_STYLE.cursorSize * FOCUS_RING_SCALE, sizeAttenuation: true, transparent: true, depthTest: false, map: ringTex })
     const focusPoint = new THREE.Points(focusGeo, focusMat)
     focusPoint.renderOrder = 11
     focusPoint.frustumCulled = false
     scene.add(focusPoint)
 
-    const trace = buffer(MAX_CHORDS * TRACE_SEGS * 2)
-    const traceMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false })
-    const traceLines = new THREE.LineSegments(trace.geo, traceMat)
+    // Wide lines too, so their width can be set; the buffers are handed over once and written in place.
+    const trace = { pos: new Float32Array(MAX_CHORDS * TRACE_SEGS * 6), col: new Float32Array(MAX_CHORDS * TRACE_SEGS * 6) }
+    const traceGeo = new LineSegmentsGeometry()
+    traceGeo.setPositions(trace.pos)
+    traceGeo.setColors(trace.col)
+    const traceBuffers = ['instanceStart', 'instanceColorStart'].map((a) => (traceGeo.getAttribute(a) as THREE.InterleavedBufferAttribute).data)
+    for (const b of traceBuffers) b.setUsage(THREE.DynamicDrawUsage)
+    const traceMat = new LineMaterial({ vertexColors: true, transparent: true, depthWrite: false, linewidth: DEFAULT_STYLE.traceWidth })
+    const traceLines = new LineSegments2(traceGeo, traceMat)
     traceLines.renderOrder = 5
     traceLines.frustumCulled = false
     scene.add(traceLines)
@@ -394,9 +401,10 @@ export function ChordViz(props: ChordVizProps) {
       chordGeo.setPositions(chord.pos.subarray(0, Math.max(n, 1) * 6))
       chordGeo.setColors(chord.col.subarray(0, Math.max(n, 1) * 6))
       dot.geo.setDrawRange(0, n)
-      trace.geo.setDrawRange(0, n * TRACE_SEGS * 2)
+      traceGeo.instanceCount = n * TRACE_SEGS
+      for (const b of traceBuffers) b.needsUpdate = true
       fill.geo.setDrawRange(0, n * TRACE_SEGS * FILL_VERTS_PER_SEG)
-      for (const b of [dot, trace, fill]) {
+      for (const b of [dot, fill]) {
         b.geo.attributes.position.needsUpdate = true
         b.geo.attributes.color.needsUpdate = true
       }
@@ -407,6 +415,9 @@ export function ChordViz(props: ChordVizProps) {
       dotMat.opacity = style.opacity.cursor
       traceMat.opacity = style.opacity.trace
       fillMat.opacity = style.opacity.fill
+      dotMat.size = style.cursorSize
+      focusMat.size = style.cursorSize * FOCUS_RING_SCALE
+      traceMat.linewidth = style.traceWidth
 
       renderer.render(scene, camera)
     }
@@ -473,6 +484,7 @@ export function ChordViz(props: ChordVizProps) {
       const w = wrap.clientWidth, h = wrap.clientHeight
       renderer.setSize(w, h, false)
       chordMat.resolution.set(w, h)
+      traceMat.resolution.set(w, h)
       camera.aspect = w / h
       // Keep the whole circle in view on narrow panels too.
       camera.fov = w >= h ? 53.13 : (2 * Math.atan(Math.tan((53.13 * Math.PI) / 360) * (h / w)) * 180) / Math.PI
@@ -491,7 +503,7 @@ export function ChordViz(props: ChordVizProps) {
       canvas.removeEventListener('touchmove', onTouchMove)
       canvas.removeEventListener('touchend', onTouchEnd)
       renderer.dispose()
-      for (const g of [chordGeo, dot.geo, trace.geo, fill.geo, focusGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
+      for (const g of [chordGeo, dot.geo, traceGeo, fill.geo, focusGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
       for (const m of [chordMat, dotMat, traceMat, fillMat, focusMat, ringDotsMat, ...guides.map((l) => l.material)]) m.dispose()
       dotTex.dispose()
       ringTex.dispose()

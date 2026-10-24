@@ -245,6 +245,30 @@ function Explorer({ data }: { data: PoolData }) {
               />
             ))}
           </div>
+          <label className="slider">
+            cursor size
+            <input
+              type="range"
+              min={2}
+              max={30}
+              step={1}
+              value={style.cursorSize}
+              onChange={(e) => setStyle((s) => ({ ...s, cursorSize: Number(e.target.value) }))}
+            />
+            <span className="num">{style.cursorSize}</span>
+          </label>
+          <label className="slider">
+            trace width
+            <input
+              type="range"
+              min={0.5}
+              max={8}
+              step={0.5}
+              value={style.traceWidth}
+              onChange={(e) => setStyle((s) => ({ ...s, traceWidth: Number(e.target.value) }))}
+            />
+            <span className="num">{style.traceWidth} px</span>
+          </label>
         </aside>
       </div>
 
