@@ -199,11 +199,11 @@ function SizeIcon({ className, ...props }: React.SVGProps<SVGSVGElement>) {
   )
 }
 
-/** Each element's size setting, where it has one: its key in the style, range and how its value reads. */
-const SIZES: Partial<Record<Element, { key: 'cursorSize' | 'chordWidth' | 'traceWidth'; label: string; min: number; max: number; step: number; format: (v: number) => string }>> = {
-  cursor: { key: 'cursorSize', label: 'cursor size', min: 2, max: 30, step: 1, format: String },
-  chord: { key: 'chordWidth', label: 'chord width', min: 0.5, max: 10, step: 0.5, format: (v) => `${v} px` },
-  trace: { key: 'traceWidth', label: 'trace width', min: 0.5, max: 10, step: 0.5, format: String },
+/** Each element's size setting, where it has one: its key in the style, and its range (its step also sets the decimal places shown). */
+const SIZES: Partial<Record<Element, { key: 'cursorSize' | 'chordWidth' | 'traceWidth'; label: string; min: number; max: number; step: number }>> = {
+  cursor: { key: 'cursorSize', label: 'cursor size', min: 2, max: 30, step: 1 },
+  chord: { key: 'chordWidth', label: 'chord width', min: 0.5, max: 10, step: 0.5 },
+  trace: { key: 'traceWidth', label: 'trace width', min: 0.5, max: 10, step: 0.5 },
 }
 
 /**
@@ -265,9 +265,10 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
               ) : (
                 <span />
               )}
-              <span className="num flex items-center justify-end gap-1 text-xs">
+              {/* The icon at the cell's left and the value at its right, so both line up down the column. */}
+              <span className="num flex items-center justify-between gap-1 text-xs">
                 {showSize ? <SizeIcon className="size-3 text-muted-foreground" aria-label="size" /> : <Blend className="size-3 text-muted-foreground" aria-label="opacity" />}
-                {showSize ? size.format(style[size.key]) : style.opacity[el].toFixed(2)}
+                {showSize ? style[size.key].toFixed(size.step < 1 ? 1 : 0) : style.opacity[el].toFixed(2)}
               </span>
             </div>
           )
