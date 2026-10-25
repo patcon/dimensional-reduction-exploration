@@ -16,6 +16,9 @@ const P_S_BG = 20
  * The particle geometry's simulation: positions and velocities, pushed by group forces and, with a speaker
  * there, pulled by the centre according to each particle's valence, and trails recorded as they move.
  *
+ * The centre (where the speaker is, when there's one) needn't be the origin: the centre's pull and the boundary act
+ * around it, and `recentre` slides the whole field, trails and all, to bring it back to the origin.
+ *
  * Particle trails can't be read off the trace, so they're recorded, on the same grid of moments as
  * chord trails: a ring of `trailLength` samples (x, y, valence) per particle, and each sample's grid point.
  */
@@ -23,6 +26,9 @@ export class Particles {
   n = 0
   x = new Float32Array(0)
   y = new Float32Array(0)
+  /** The centre the speaker's pull and the boundary act around. */
+  cx = 0
+  cy = 0
   /** Where each particle was before the last step, to draw it partway from there towards where it is now. */
   prevX = new Float32Array(0)
   prevY = new Float32Array(0)
@@ -52,14 +58,17 @@ export class Particles {
     this.n = n
     ;[this.x, this.y, this.prevX, this.prevY, this.vx, this.vy, this.ax, this.ay] = Array.from({ length: 8 }, () => new Float32Array(n))
     this.history = new Float32Array(n * this.trailLength * 3)
+    this.cx = this.cy = 0
     this.clearTrails()
   }
 
   /**
    * Keeps each particle that's still taking part where it was, moving as it was, trail and all: `from[i]` is new
-   * particle i's old index, or −1 for one joining, which starts at the centre (a released speaker, say).
+   * particle i's old index, or −1 for one joining, which starts at the centre (a released speaker, say). With
+   * `centreFrom`, the old index of a particle leaving to become the speaker, the centre moves to where it was.
    */
-  carryOver(from: Int32Array) {
+  carryOver(from: Int32Array, centreFrom = -1) {
+    if (centreFrom >= 0) { this.cx = this.x[centreFrom]; this.cy = this.y[centreFrom] }
     const old = { x: this.x, y: this.y, prevX: this.prevX, prevY: this.prevY, vx: this.vx, vy: this.vy, history: this.history }
     const n = from.length
     const L = this.trailLength
@@ -75,8 +84,8 @@ export class Particles {
         this.history.set(old.history.subarray(j * L * 3, (j + 1) * L * 3), i * L * 3)
       } else {
         // Just off the centre, as particles exactly on top of each other don't push apart.
-        this.x[i] = this.prevX[i] = (Math.random() - 0.5) * 2
-        this.y[i] = this.prevY[i] = (Math.random() - 0.5) * 2
+        this.x[i] = this.prevX[i] = this.cx + (Math.random() - 0.5) * 2
+        this.y[i] = this.prevY[i] = this.cy + (Math.random() - 0.5) * 2
         for (let k = 0; k < L; k++) this.history.set([this.x[i], this.y[i], 0], (i * L + k) * 3)
       }
     }
@@ -101,6 +110,7 @@ export class Particles {
       this.vx[i] = 0; this.vy[i] = 0
     }
     this.prevX.set(this.x); this.prevY.set(this.y)
+    this.cx = this.cy = 0
     this.clearTrails()
   }
 
@@ -129,7 +139,7 @@ export class Particles {
       }
     }
     for (let i = 0; i < n; i++) {
-      const dx = -px[i], dy = -py[i]
+      const dx = this.cx - px[i], dy = this.cy - py[i]
       const r2 = dx * dx + dy * dy
       if (r2 < 0.01) continue
       const r = Math.sqrt(r2)
@@ -152,6 +162,22 @@ export class Particles {
       px[i] += vx[i] * P_DT
       py[i] += vy[i] * P_DT
     }
+  }
+
+  /**
+   * Slides the whole field, particles, trails and centre together, `rate` of the way to bringing the centre to the
+   * origin. Moving everything at once leaves every force as it was, so it's a change of view, not of the simulation.
+   */
+  recentre(rate: number) {
+    if (this.cx === 0 && this.cy === 0) return
+    let sx = -this.cx * rate, sy = -this.cy * rate
+    if (Math.hypot(this.cx + sx, this.cy + sy) < 0.05) { sx = -this.cx; sy = -this.cy }
+    this.cx += sx; this.cy += sy
+    for (let i = 0; i < this.n; i++) {
+      this.x[i] += sx; this.y[i] += sy
+      this.prevX[i] += sx; this.prevY[i] += sy
+    }
+    for (let o = 0; o < this.history.length; o += 3) { this.history[o] += sx; this.history[o + 1] += sy }
   }
 
   /** Where particle i is drawn, `t` of the way from before the last step (0) to after it (1), into `out`. */

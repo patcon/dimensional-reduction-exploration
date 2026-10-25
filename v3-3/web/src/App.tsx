@@ -202,7 +202,7 @@ function Explorer({ data }: { data: PoolData }) {
           style={style}
           trailSeconds={trailSeconds}
           particles={particles}
-          speaker={speaker !== null}
+          speaker={speaker}
           particleReset={particleReset}
           cameraReset={cameraReset}
           onFocus={setFocus}

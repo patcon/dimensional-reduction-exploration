@@ -42,6 +42,8 @@ const FILL_IS_ROOT = [true, false, true, false, false, true]
 const FOCUS_RING_SCALE = 2.6
 /** The speaker's dot at the particles' centre, relative to a cursor dot. */
 const SPEAKER_SCALE = 2
+/** How far, each frame, the particles' field slides towards bringing its centre (the speaker) to the middle. */
+const RECENTRE_EASE = 0.04
 /** The outer ring's dots, in the authoring space's units. */
 const RING_DOT_SIZE = 3
 /** How far from its root a chord reaches full width; shorter chords never get there. */
@@ -181,8 +183,8 @@ export interface ChordVizProps {
   /** How far back trails reach, in seconds of playback; further back, not squashed, for longer. */
   trailSeconds: number
   particles: ParticleSettings
-  /** Whether a speaker sits at the particles' centre, pulling on them by valence. */
-  speaker: boolean
+  /** The speaker's pool row, or null for none: with one, the particles' field centres on it, and it pulls on them by valence. */
+  speaker: number | null
   /** Changes when particles should be scattered afresh. */
   particleReset: unknown
   /** Changes when the camera should ease back from wherever it was dragged or zoomed to. */
@@ -479,12 +481,14 @@ export function ChordViz(props: ChordVizProps) {
         // The same digits, give or take a speaker: each keeps its slot, growth and particle; one joining grows in from
         // the centre.
         const from = Int32Array.from(rows.slice(0, MAX_CHORDS), (r) => lastRows.indexOf(r))
+        // A digit leaving to be the speaker takes its place as the centre, which then glides to the middle.
+        const centreFrom = speaker === null || rows.includes(speaker) ? -1 : lastRows.indexOf(speaker)
         lastRows = rows
         n = from.length
         shownSlot = Float32Array.from(from, (j, i) => (j >= 0 ? shownSlot[j] : slotOf[i]))
         arrival = Float32Array.from(from, (j) => (j >= 0 ? arrival[j] : 0))
         vNow = new Float32Array(n)
-        sim.carryOver(from)
+        sim.carryOver(from, centreFrom)
       }
 
       // ── Camera between views ──
@@ -553,6 +557,9 @@ export function ChordViz(props: ChordVizProps) {
         vNow[i] = valenceAt(traces, i, moment) * arrival[i] * arrival[i]
       }
 
+      // The field glides to centre on the speaker, playing or not: a change of view, not a step of the simulation.
+      sim.recentre(RECENTRE_EASE)
+
       // ── Particles: entering starts them at the cursors; leaving glides cursors back onto chords ──
       if (inParticles && !wasParticle) seedParticles(false)
       if (particleReset !== lastReset) {
@@ -567,7 +574,7 @@ export function ChordViz(props: ChordVizProps) {
       if (inParticles && playhead.playing) {
         const played = Number.isNaN(particleElapsed) ? 0 : Math.max(0, playhead.elapsed - particleElapsed)
         particleStepsOwed = Math.min(MAX_PARTICLE_STEPS, particleStepsOwed + played / MOMENTS_PER_PARTICLE_STEP)
-        for (; particleStepsOwed >= 1; particleStepsOwed--) sim.advance(groupOf, vNow, particles, speaker)
+        for (; particleStepsOwed >= 1; particleStepsOwed--) sim.advance(groupOf, vNow, particles, speaker !== null)
         // What's left over is how far playback is into the next step: particles are drawn that far from where the
         // last step started them towards where it left them, so they glide between steps when playback is slow.
         sim.record(elapsed, step, vNow, particleStepsOwed)
@@ -678,7 +685,9 @@ export function ChordViz(props: ChordVizProps) {
         b.geo.attributes.color.needsUpdate = true
       }
       focusPoint.visible = focusShown && style.focusRing
-      speakerPoint.visible = speaker && pb > 0
+      speakerPoint.visible = speaker !== null && pb > 0
+      speakerGeo.attributes.position.setXYZ(0, sim.cx, sim.cy, 0)
+      speakerGeo.attributes.position.needsUpdate = true
       speakerMat.opacity = pb
       traceLines.visible = showTrace
       fillMesh.visible = showTrace && !inParticles
