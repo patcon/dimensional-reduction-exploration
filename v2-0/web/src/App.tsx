@@ -12,7 +12,7 @@ import { DEFAULT_SCALE, spanning, toMultiplier, toU, type ForceScale } from './f
 import { InputStore, useControlValues, type ControlValues } from './inputStore'
 import { DEFAULT_OPTIMISER, OptimiserBank, type OptimiserSettings } from './optimisers'
 import { pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
-import { PAIR_TYPES, type Dim, type PairType, type Weights } from './types'
+import { PAIR_TYPES, type Dim, type Pairs, type PairType, type Weights } from './types'
 import { useData, useDigits, type PacmapData, type SampleSize } from './useData'
 import { useLoopClock } from './useLoopClock'
 import type { Zero } from './midi'
@@ -23,6 +23,18 @@ const KICK_THRESHOLD = 0.02
 
 const mapValues = <A, B>(r: Record<PairType, A>, f: (a: A, type: PairType) => B): Record<PairType, B> =>
   ({ nb: f(r.nb, 'nb'), mn: f(r.mn, 'mn'), fp: f(r.fp, 'fp') })
+
+/** Every partner of digit `i` in each pair type, whichever end of the pair it's at, as both ends feel its force. */
+function partnersOf(pairs: Pairs, i: number) {
+  return mapValues(pairs, (flat) => {
+    const partners: number[] = []
+    for (let k = 0; k < flat.length; k += 2) {
+      if (flat[k] === i) partners.push(flat[k + 1])
+      else if (flat[k + 1] === i) partners.push(flat[k])
+    }
+    return Uint32Array.from(partners)
+  })
+}
 
 interface PlaygroundProps {
   data: PacmapData
@@ -56,6 +68,7 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
   if (selected !== null && !digitsShown[meta.labels[selected]]) setSelected(null)
   if (hovered !== null && !digitsShown[meta.labels[hovered]]) setHovered(null)
   const previewed = hovered ?? selected
+  const edges = useMemo(() => (selected === null ? null : partnersOf(data.pairs, selected)), [data.pairs, selected])
   const optimisers = useMemo(() => new OptimiserBank(data.init[dim].length, meta.adam, dim), [data, meta.adam, dim])
   const engine = useMemo(
     () => new Engine(data.pairs, data.init[dim], optimisers.configure(DEFAULT_OPTIMISER), dim),
@@ -196,6 +209,8 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
           hovered={hovered}
           onSelect={setSelected}
           onHover={setHovered}
+          edges={edges}
+          weights={liveWeights}
           corner={
             <DigitPreview
               pixels={pixels}

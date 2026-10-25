@@ -56,6 +56,9 @@ pnpm dev
   away from any to select none. The mouse previews whichever digit it's over. Hold a press (or a finger)
   still for a moment to preview digits picked at random around it, inside a ring that follows it, as if
   tapping all round it; let go to return to the selected one.
+  The selected digit's pairs are drawn as edges to it, in its forces' colours: neighbours, mid-near
+  and far pairs (whichever end of the pair it's at). An edge is solid while its force attracts, dashed
+  while it repels, and left out while it's at no force.
 - **Autopilot** plays PaCMAP's own schedule once and stops. Grabbing a slider, pressing
   Manual or moving a MIDI control takes over from autopilot's current forces.
 - **Schedule graph.** PaCMAP's three weights over one loop (dashed; far pairs below zero,
