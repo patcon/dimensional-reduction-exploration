@@ -24,6 +24,7 @@ import { useData, useDigits, type PacmapData, type SampleSize } from './useData'
 import { useLoopClock } from './useLoopClock'
 import type { Zero } from './midi'
 import { useMidi } from './useMidi'
+import { useWakeLock } from './useWakeLock'
 
 /** How far a control must move before the kicking Adam forgets its state. */
 const KICK_THRESHOLD = 0.02
@@ -84,6 +85,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
   const { meta } = data
   // Switching size swaps `data` once it has loaded, starting over on the new digits.
   const { size, dim, autoRotate, digitsShown, optimiser, scale, spring, split } = settings
+  useWakeLock(settings.wakeLock)
   // The clicked digit, and the one hovered (by the mouse, or a held press), previewed in the plot's corner.
   const [selected, setSelected] = useState<number | null>(null)
   const [hovered, setHovered] = useState<number | null>(null)
@@ -350,6 +352,8 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
                       onRate={(v) => set('rate', v)}
                       interpolate={settings.interpolate}
                       onInterpolate={(v) => set('interpolate', v)}
+                      wakeLock={settings.wakeLock}
+                      onWakeLock={(v) => set('wakeLock', v)}
                     />
                     <Section title="Schedule" description="PaCMAP's forces over one loop, dashed, with what you've played this loop over them.">
                       <ScheduleGraph

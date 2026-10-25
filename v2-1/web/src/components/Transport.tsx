@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import type { Dim, Schedule } from '../types'
 import type { ClockStatus } from '../useLoopClock'
 import { SAMPLE_SIZES, type SampleSize } from '../useData'
+import { canWakeLock } from '../useWakeLock'
 import { Field, Section, Segmented, Slider, Toggle } from './controls'
 import { Button } from './ui/button'
 
@@ -82,17 +83,26 @@ export function TransportBar(p: BarProps) {
   )
 }
 
-/** How fast the loop steps, and whether it glides between steps. */
-export function PlaySection({ rate, onRate, interpolate, onInterpolate }: {
+/** How fast the loop steps, whether it glides between steps, and keeping the screen awake. */
+export function PlaySection({ rate, onRate, interpolate, onInterpolate, wakeLock, onWakeLock }: {
   rate: number
   onRate: (rate: number) => void
   interpolate: boolean
   onInterpolate: (on: boolean) => void
+  wakeLock: boolean
+  onWakeLock: (on: boolean) => void
 }) {
   return (
     <Section title="Playback" description="Each step is one iteration of PaCMAP's 450-iteration schedule, which loops in manual.">
       <Slider label="rate" value={rate} min={1} max={60} onChange={onRate} format={(v) => `${v} it/s`} />
       <Toggle label="smooth: glide between steps (one step behind)" checked={interpolate} onChange={onInterpolate} />
+      <Toggle
+        label="keep screen awake"
+        checked={canWakeLock && wakeLock}
+        onChange={onWakeLock}
+        disabled={!canWakeLock}
+        note={canWakeLock ? undefined : window.isSecureContext ? 'not supported here' : 'requires https'}
+      />
     </Section>
   )
 }
