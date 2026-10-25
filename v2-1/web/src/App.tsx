@@ -14,11 +14,12 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { PlaySection, TransportBar, ViewSection } from './components/Transport'
 import { Engine } from './engine'
-import { DEFAULT_SCALE, spanning, toMultiplier, toU, type ForceScale } from './forceScale'
+import { spanning, toMultiplier, toU } from './forceScale'
 import { InputStore, useControlValues, type ControlValues } from './inputStore'
-import { DEFAULT_OPTIMISER, OptimiserBank, type OptimiserSettings } from './optimisers'
+import { DEFAULT_OPTIMISER, OptimiserBank } from './optimisers'
+import { useSettings, type SetSetting, type Settings } from './settings'
 import { pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
-import { PAIR_TYPES, type Dim, type Pairs, type PairType, type Weights } from './types'
+import { PAIR_TYPES, type Pairs, type PairType, type Weights } from './types'
 import { useData, useDigits, type PacmapData, type SampleSize } from './useData'
 import { useLoopClock } from './useLoopClock'
 import type { Zero } from './midi'
@@ -68,25 +69,24 @@ function partnersOf(pairs: Pairs, i: number) {
 
 interface PlaygroundProps {
   data: PacmapData
-  size: SampleSize
+  settings: Settings
+  set: SetSetting
+  /** Puts every setting back to its default. */
+  onResetSettings: () => void
   /** The size `data` is, which lags `size` while it loads. */
   dataSize: SampleSize
-  /** Switching size swaps `data` once it has loaded, starting over on the new digits. */
-  onSize: (size: SampleSize) => void
   /** Whether `size` is still loading (`data` is the previous size's until it arrives). */
   loading: boolean
   loadError?: string
 }
 
-function Playground({ data, size, dataSize, onSize, loading, loadError }: PlaygroundProps) {
+function Playground({ data, settings, set, onResetSettings, dataSize, loading, loadError }: PlaygroundProps) {
   const { meta } = data
-  const [dim, setDim] = useState<Dim>(3)
-  const [autoRotate, setAutoRotate] = useState(true)
+  // Switching size swaps `data` once it has loaded, starting over on the new digits.
+  const { size, dim, autoRotate, digitsShown, optimiser, scale, spring, split } = settings
   // The clicked digit, and the one hovered (by the mouse, or a held press), previewed in the plot's corner.
   const [selected, setSelected] = useState<number | null>(null)
   const [hovered, setHovered] = useState<number | null>(null)
-  // Which digit labels are drawn; hiding one lets go of it if it was picked.
-  const [digitsShown, setDigitsShown] = useState(() => Array<boolean>(10).fill(true))
   const pixels = useDigits(dataSize)
   // Other digits, so whatever was picked is gone.
   const [pickedIn, setPickedIn] = useState(data)
@@ -106,7 +106,6 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
   )
   const length = scheduleLength(meta.schedule)
 
-  const [optimiser, setOptimiser] = useState<OptimiserSettings>(DEFAULT_OPTIMISER)
   useEffect(() => {
     engine.setSpeed(optimiser.speed[optimiser.kind])
     const next = optimisers.configure(optimiser)
@@ -115,10 +114,6 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
 
   const store = useMemo(() => new InputStore(), [])
   const controls = useControlValues(store)
-  // Each force's slider has its own range.
-  const [scale, setScale] = useState<Record<PairType, ForceScale>>({ nb: DEFAULT_SCALE, mn: DEFAULT_SCALE, fp: DEFAULT_SCALE })
-  const [spring, setSpring] = useState<Record<PairType, boolean>>({ nb: false, mn: false, fp: false })
-  const [split, setSplit] = useState<Record<PairType, boolean>>({ nb: true, mn: true, fp: true })
   // Opens on autopilot, paused at the start: press Play to watch PaCMAP's own run.
   const [autopilot, setAutopilot] = useState(true)
 
@@ -131,7 +126,7 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
   const trail = useMemo(() => new Trail(length), [length])
   const onStep = useCallback((playhead: number, w: Weights) => trail.record(playhead, w), [trail])
   // Autopilot plays PaCMAP's schedule once and stops; manual play loops.
-  const clock = useLoopClock(engine, length, getWeights, !autopilot, onStep, true)
+  const clock = useLoopClock(engine, length, getWeights, !autopilot, settings.rate, settings.interpolate, onStep, true)
   // The Reset button: back to the start, stopped there until Start simulation.
   const reset = () => {
     trail.clear()
@@ -176,7 +171,7 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
   // the current optimiser's speed on the speed slider's 0.1x-10x log scale.
   const midi = useMidi((target, u) => {
     if (target === 'speed')
-      setOptimiser((o) => ({ ...o, speed: { ...o.speed, [o.kind]: Number((10 ** u).toPrecision(2)) } }))
+      set('optimiser', (o) => ({ ...o, speed: { ...o.speed, [o.kind]: Number((10 ** u).toPrecision(2)) } }))
     else {
       takeOver()
       store.set(target, u)
@@ -184,16 +179,17 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
   })
   // Each slider follows how its MIDI control behaves whenever that changes (a layout applied, a
   // control learnt, its 0 point moved): pitch bend springs back, and a control with 0 at the
-  // bottom draws its slider unsplit. In between, spring and split are yours to change.
+  // bottom draws its slider unsplit. In between, spring and split are yours to change, and are remembered, so
+  // the modes there are on opening count as seen.
   const modes = mapValues(midi.zeros, (zero, type) => `${midi.bindings[type]?.kind ?? 'none'}:${zero}`)
-  const [seenModes, setSeenModes] = useState<Record<PairType, string> | null>(null)
-  const changed = PAIR_TYPES.filter((type) => seenModes?.[type] !== modes[type])
+  const [seenModes, setSeenModes] = useState<Record<PairType, string>>(modes)
+  const changed = PAIR_TYPES.filter((type) => seenModes[type] !== modes[type])
   if (changed.length) {
     setSeenModes(modes)
     const pick = <T,>(prev: Record<PairType, T>, f: (type: PairType) => T) =>
       mapValues(prev, (v, type) => (changed.includes(type) ? f(type) : v))
-    setSpring((prev) => pick(prev, (type) => midi.bindings[type]?.kind === 'pitchbend'))
-    setSplit((prev) => pick(prev, (type) => midi.zeros[type] === 'centre'))
+    set('spring', (prev) => pick(prev, (type) => midi.bindings[type]?.kind === 'pitchbend'))
+    set('split', (prev) => pick(prev, (type) => midi.zeros[type] === 'centre'))
   }
 
   // Forces played from a fader (a CC) show where that fader sits, as MIDI Surf shows it.
@@ -255,7 +251,7 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
             />
           }
         >
-          <DigitPicker shown={digitsShown} onShown={setDigitsShown} />
+          <DigitPicker shown={digitsShown} onShown={(v) => set('digitsShown', v)} />
         </Scatter>
       </div>
       {/* What sits over the plot, kept clear of the drawer. The buttons sit on the drawer's top edge, so they rise and
@@ -338,18 +334,23 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
                     <ForceSliders
                       values={shown}
                       scale={scale}
-                      onScale={(type, s) => setScale((prev) => ({ ...prev, [type]: s }))}
+                      onScale={(type, s) => set('scale', (prev) => ({ ...prev, [type]: s }))}
                       spring={spring}
-                      onSpring={(type, s) => setSpring((prev) => ({ ...prev, [type]: s }))}
+                      onSpring={(type, s) => set('spring', (prev) => ({ ...prev, [type]: s }))}
                       split={split}
-                      onSplit={(type, s) => setSplit((prev) => ({ ...prev, [type]: s }))}
+                      onSplit={(type, s) => set('split', (prev) => ({ ...prev, [type]: s }))}
                       faderZero={faderZero}
                       onGrab={takeOver}
                       onChange={(type, u) => store.set(type, u)}
                     />
                   </TabsContent>
                   <TabsContent value="play" className="flex flex-col gap-8">
-                    <PlaySection rate={clock.rate} onRate={clock.setRate} interpolate={clock.interpolate} onInterpolate={clock.setInterpolate} />
+                    <PlaySection
+                      rate={settings.rate}
+                      onRate={(v) => set('rate', v)}
+                      interpolate={settings.interpolate}
+                      onInterpolate={(v) => set('interpolate', v)}
+                    />
                     <Section title="Schedule" description="PaCMAP's forces over one loop, dashed, with what you've played this loop over them.">
                       <ScheduleGraph
                         schedule={meta.schedule}
@@ -361,10 +362,17 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
                     </Section>
                   </TabsContent>
                   <TabsContent value="view">
-                    <ViewSection dim={dim} onDim={setDim} autoRotate={autoRotate} onAutoRotate={setAutoRotate} size={size} onSize={onSize} />
+                    <ViewSection
+                      dim={dim}
+                      onDim={(v) => set('dim', v)}
+                      autoRotate={autoRotate}
+                      onAutoRotate={(v) => set('autoRotate', v)}
+                      size={size}
+                      onSize={(v) => set('size', v)}
+                    />
                   </TabsContent>
                   <TabsContent value="optimiser">
-                    <OptimiserPanel settings={optimiser} onChange={setOptimiser} />
+                    <OptimiserPanel settings={optimiser} onChange={(v) => set('optimiser', v)} />
                   </TabsContent>
                   <TabsContent value="midi">
                     <MidiPanel midi={midi} />
@@ -394,6 +402,12 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
               450-iteration schedule; autopilot plays PaCMAP's own forces along it.
             </SheetDescription>
           </SheetHeader>
+          <div className="flex flex-col gap-2 px-4 text-sm text-muted-foreground">
+            <p>Settings are remembered in this browser; MIDI bindings are kept separately.</p>
+            <Button variant="outline" className="self-start" onClick={onResetSettings}>
+              Reset settings to their defaults
+            </Button>
+          </div>
         </SheetContent>
       </Sheet>
     </>
@@ -401,8 +415,8 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
 }
 
 export default function App() {
-  const [size, setSize] = useState<SampleSize>('20k')
-  const { data, dataSize, error, loading } = useData(size)
+  const { settings, set, reset } = useSettings()
+  const { data, dataSize, error, loading } = useData(settings.size)
   if (!data) return <p className="p-12 text-muted-foreground">{error ?? 'Loading…'}</p>
-  return <Playground data={data} size={size} dataSize={dataSize!} onSize={setSize} loading={loading} loadError={error} />
+  return <Playground data={data} settings={settings} set={set} onResetSettings={reset} dataSize={dataSize!} loading={loading} loadError={error} />
 }

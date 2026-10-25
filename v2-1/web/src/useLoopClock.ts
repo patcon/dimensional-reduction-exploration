@@ -29,24 +29,25 @@ const anyForce = (w: Weights) => PAIR_TYPES.some((type) => w[type] !== 0)
  * With `loop` on, the playhead wraps to 0 after `length` iterations but the layout and optimiser
  * carry on; only reset() returns them to the initial layout. With it off, the clock ends there.
  *
- * `display` is the layout to draw, refreshed at up to DRAW_FPS. With `interpolate` on, it
- * glides from the layout before the latest step to the one after it, timed to arrive as the
- * next step is due, so slow rates move smoothly (one step behind) instead of jumping.
+ * It steps at `rate` iterations per second. `display` is the layout to draw, refreshed at up to
+ * DRAW_FPS. With `interpolate` on, it glides from the layout before the latest step to the one
+ * after it, timed to arrive as the next step is due, so slow rates move smoothly (one step
+ * behind) instead of jumping.
  */
 export function useLoopClock(
   engine: Engine,
   length: number,
   getWeights: (playhead: number) => Weights,
   loop: boolean,
+  rate: number,
+  interpolate: boolean,
   /** Called after each step with the playhead it was taken at and the forces it used. */
   onStep?: (playhead: number, weights: Weights) => void,
   /** Start paused, waiting for resume(), rather than idle, waiting for a force. */
   startPaused = false,
 ) {
   const [status, setStatus] = useState<ClockStatus>(startPaused ? 'paused' : 'idle')
-  const [rate, setRate] = useState(10)
   const [playhead, setPlayhead] = useState(0)
-  const [interpolate, setInterpolate] = useState(true)
   /** Bumped whenever `display` changes, to redraw it. */
   const [version, setVersion] = useState(0)
 
@@ -165,7 +166,7 @@ export function useLoopClock(
   }, [engine, prevY])
 
   return {
-    status, rate, setRate, interpolate, setInterpolate, playhead, steps: engine.steps,
+    status, playhead, steps: engine.steps,
     display, version, pause, resume, reset,
   }
 }
