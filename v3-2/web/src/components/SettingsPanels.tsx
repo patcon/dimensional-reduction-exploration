@@ -207,15 +207,16 @@ const SIZES: Partial<Record<Element, { key: 'cursorSize' | 'chordWidth' | 'trace
 }
 
 /**
- * A row per element: what it's coloured by (a button that switches between the two), its opacity and its size. One
- * readout on the right shows whichever of the row's sliders was touched last, marked with that column's icon.
+ * A row per element: what it's coloured by (a button that switches between the two), its opacity and its size. The
+ * readouts on the right all show opacity or all show size, whichever kind of slider was touched last, as the icon
+ * at the column's top says.
  */
 export function StyleSection({ settings, patch }: SettingsEditor) {
   const { style } = settings
-  const [shown, setShown] = useState<Partial<Record<Element, 'opacity' | 'size'>>>({})
+  const [shown, setShown] = useState<'opacity' | 'size'>('opacity')
   return (
     <Section title="Style">
-      <div className="grid grid-cols-[3rem_auto_1fr_1fr_3.5rem] items-center gap-x-2.5 gap-y-2 text-sm">
+      <div className="grid grid-cols-[3rem_auto_1fr_1fr_2.5rem] items-center gap-x-2.5 gap-y-2 text-sm">
         <span />
         <span className="text-xs text-muted-foreground">colour by</span>
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -224,10 +225,11 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <SizeIcon className="size-3.5" aria-hidden /> size
         </span>
-        <span />
+        <span className="flex justify-end text-muted-foreground" title={`Showing ${shown}`}>
+          {shown === 'size' ? <SizeIcon className="size-3.5" aria-label="showing size" /> : <Blend className="size-3.5" aria-label="showing opacity" />}
+        </span>
         {ELEMENTS.map((el) => {
           const size = SIZES[el]
-          const showSize = size && shown[el] === 'size'
           return (
             <div key={el} className="contents">
               <span className="text-muted-foreground">{el}</span>
@@ -247,8 +249,8 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
                 min={0}
                 max={1}
                 step={0.05}
-                onPointerDown={() => setShown((s) => ({ ...s, [el]: 'opacity' }))}
-                onFocus={() => setShown((s) => ({ ...s, [el]: 'opacity' }))}
+                onPointerDown={() => setShown('opacity')}
+                onFocus={() => setShown('opacity')}
                 onValueChange={([v]) => patch('style', { opacity: { ...style.opacity, [el]: v } })}
               />
               {size ? (
@@ -258,17 +260,15 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
                   min={size.min}
                   max={size.max}
                   step={size.step}
-                  onPointerDown={() => setShown((s) => ({ ...s, [el]: 'size' }))}
-                  onFocus={() => setShown((s) => ({ ...s, [el]: 'size' }))}
+                  onPointerDown={() => setShown('size')}
+                  onFocus={() => setShown('size')}
                   onValueChange={([v]) => patch('style', { [size.key]: v })}
                 />
               ) : (
                 <span />
               )}
-              {/* The icon at the cell's left and the value at its right, so both line up down the column. */}
-              <span className="num flex items-center justify-between gap-1 text-xs">
-                {showSize ? <SizeIcon className="size-3 text-muted-foreground" aria-label="size" /> : <Blend className="size-3 text-muted-foreground" aria-label="opacity" />}
-                {showSize ? style[size.key].toFixed(size.step < 1 ? 1 : 0) : style.opacity[el].toFixed(2)}
+              <span className="num text-right text-xs">
+                {shown === 'opacity' ? style.opacity[el].toFixed(2) : size ? style[size.key].toFixed(size.step < 1 ? 1 : 0) : <span className="text-muted-foreground">–</span>}
               </span>
             </div>
           )
