@@ -11,11 +11,10 @@ export class Playhead {
   playing = false
   /** Pixels per second. */
   speed = 14
-  loop = true
   /** Times playback has looped back to the start, so `elapsed` keeps counting through the loop. */
   laps = 0
   /**
-   * A window of moments playback is pinned to, looping round inside it (whatever `loop` is), or null. Trails
+   * A window of moments playback is pinned to, looping round inside it, or null. Trails
    * wrap round inside it too, and the clustering window holds still on it. `releasing`, playback carries on to the
    * window's end once more and breaks through it, unpinning.
    */
@@ -53,11 +52,11 @@ export class Playhead {
   }
 
   /**
-   * Whether trails reach back round: from the start to the end, looping, once playback has actually looped; or
+   * Whether trails reach back round: from the start to the end, once playback has actually looped; or
    * from the pinned window's start to its end.
    */
   get wraps() {
-    return this.pin !== null || (this.loop && this.laps > 0)
+    return this.pin !== null || this.laps > 0
   }
 
   /** Where moment `t` (as a trail reaches back to it) falls: wrapped round the pinned window, or round the whole as `wraps` says. */
@@ -151,11 +150,6 @@ export class Playhead {
     this.changed()
   }
 
-  setLoop(loop: boolean) {
-    this.loop = loop
-    this.changed()
-  }
-
   tick(seconds: number) {
     if (!this.playing) return
     this.moment += this.speed * seconds
@@ -167,14 +161,9 @@ export class Playhead {
         this.moment = from + ((this.moment - from) % (to - from))
       }
     } else if (this.moment >= this.length - 1) {
-      if (this.loop) {
-        this.moment %= this.length - 1
-        this.laps++
-      }
-      else {
-        this.moment = this.length - 1
-        this.setPlaying(false)
-      }
+      // Playback always loops.
+      this.moment %= this.length - 1
+      this.laps++
     }
     this.frame()
   }

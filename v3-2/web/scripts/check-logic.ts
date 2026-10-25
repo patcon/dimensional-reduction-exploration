@@ -36,9 +36,6 @@ check('looping past the end counts a lap', [close(playhead.moment), playhead.lap
 check('elapsed counts through the loop', close(playhead.elapsed), 101)
 check('once looped: window wraps round to the end', playhead.windowRanges(10).map((r) => r.map(close)), [[0, 1], [91, 100]])
 check('a window longer than the loop stops at now', playhead.windowRanges(500).map((r) => r.map(close)), [[0, 1], [1, 100]])
-playhead.setLoop(false)
-check('not looping: no wrap', playhead.windowRanges(10).map((r) => r.map(close)), [[0, 1]])
-playhead.setLoop(true)
 playhead.restart()
 check('restart forgets laps', [playhead.moment, playhead.laps, playhead.wraps], [0, 0, false])
 

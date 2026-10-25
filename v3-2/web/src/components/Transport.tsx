@@ -87,14 +87,12 @@ export function TransportBar({ playhead, traces, open, onOpen }: {
   )
 }
 
-/** Speed, how far trails reach, looping, keeping the screen awake, and where the playhead is in the digit's pixels. */
-export function PlaybackSection({ playhead, traces, speed, onSpeed, loop, onLoop, trailSeconds, onTrailSeconds, wakeLock, onWakeLock }: {
+/** Speed, how far trails reach, keeping the screen awake, and where the playhead is in the digit's pixels. */
+export function PlaybackSection({ playhead, traces, speed, onSpeed, trailSeconds, onTrailSeconds, wakeLock, onWakeLock }: {
   playhead: Playhead
   traces: Traces
   speed: number
   onSpeed: (speed: number) => void
-  loop: boolean
-  onLoop: (loop: boolean) => void
   trailSeconds: number
   onTrailSeconds: (seconds: number) => void
   wakeLock: boolean
@@ -115,7 +113,6 @@ export function PlaybackSection({ playhead, traces, speed, onSpeed, loop, onLoop
     <Section title="Playback" description="Each pixel read is one moment; trails cover the last few seconds and fade out with age.">
       <Slider label="speed" value={fromSpeed(speed)} min={0} max={1} step={0.001} onChange={(u) => onSpeed(toSpeed(u))} format={() => `${speed} px/s`} />
       <Slider label="trail" value={trailSeconds} min={5} max={300} step={5} onChange={onTrailSeconds} format={(v) => `${v} s`} />
-      <Toggle label="loop" checked={loop} onChange={onLoop} />
       <Toggle
         label="keep screen awake"
         checked={canWakeLock && wakeLock}

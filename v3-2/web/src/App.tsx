@@ -58,7 +58,7 @@ function Explorer({ data }: { data: PoolData }) {
   const { meta, pixels, pcs } = data
   const labels = meta.rows.label
 
-  // Every setting, as presets save and load them; the playhead follows its speed and looping.
+  // Every setting, as presets save and load them; the playhead follows its speed.
   const { settings, setSettings, set, patch, reset } = useSettings()
   const editor = { settings, set, patch }
   const { count, seed, groupBy, resolution, neighbours, clusterOver, clusterRate, windowPixels, order, signal, view, geometry, style, trailSeconds, particles, focus } = settings
@@ -71,7 +71,6 @@ function Explorer({ data }: { data: PoolData }) {
   const [hover, setHover] = useState<number | null>(null)
   const playhead = usePlayhead()
   useEffect(() => playhead.setSpeed(settings.speed), [playhead, settings.speed])
-  useEffect(() => playhead.setLoop(settings.loop), [playhead, settings.loop])
   useWakeLock(settings.wakeLock)
 
   const available = useMemo(() => labels.filter((l) => digits.has(l)).length, [labels, digits])
@@ -286,8 +285,6 @@ function Explorer({ data }: { data: PoolData }) {
                       traces={traces}
                       speed={settings.speed}
                       onSpeed={(v) => set('speed', v)}
-                      loop={settings.loop}
-                      onLoop={(v) => set('loop', v)}
                       trailSeconds={trailSeconds}
                       onTrailSeconds={(v) => set('trailSeconds', v)}
                       wakeLock={settings.wakeLock}

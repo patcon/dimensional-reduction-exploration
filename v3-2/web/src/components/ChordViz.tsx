@@ -509,10 +509,10 @@ export function ChordViz(props: ChordVizProps) {
       ghostRings.forEach((r, i) => { r.material.opacity = depthA * (0.12 - i * 0.03); r.visible = depthA > 0.02 })
       // ── Chords, cursors and trails ──
       const moment = playhead.moment
-      // Looping, trails run on through the loop (and, once it has looped, reach back round from the
-      // start to the end; pinned, round the pinned window); trail grids count moments played through, so they
-      // don't jump back when the playhead does.
-      const elapsed = playhead.loop || playhead.pin ? playhead.elapsed : moment
+      // Trails run on through the loop (and, once it has looped, reach back round from the start to the end;
+      // pinned, round the pinned window); trail grids count moments played through, so they don't jump back when
+      // the playhead does.
+      const elapsed = playhead.elapsed
       const showTrace = depth > 0.01
       // Trail samples are spread over the last `trailSeconds` of playback, in moments.
       const step = trailMoments / TRACE_SEGS

@@ -28,7 +28,6 @@ export interface Settings {
   focus: number | null
   /** Playback, in pixels per second. */
   speed: number
-  loop: boolean
   /** Keep the screen from dimming or locking while the page is open. */
   wakeLock: boolean
 }
@@ -52,7 +51,6 @@ export const DEFAULT_SETTINGS: Settings = {
   particles: DEFAULT_PARTICLES,
   focus: 0,
   speed: 14,
-  loop: true,
   wakeLock: false,
 }
 
