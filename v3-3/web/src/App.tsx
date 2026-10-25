@@ -19,6 +19,7 @@ import { groupColors } from './palette'
 import { usePlayhead } from './playhead'
 import { useSettings } from './presets'
 import { chordSlots, groupParticipants, pcsOf, pickRows, windowFeatures, type Grouping } from './selection'
+import { neighbourAffinity } from './knn'
 import { buildTraces } from './signal'
 import { useData, type PoolData } from './useData'
 import { usePresets } from './usePresets'
@@ -88,6 +89,13 @@ function Explorer({ data }: { data: PoolData }) {
     () => groupParticipants(rowLabels, points, meta.nPcs, groupBy, { resolution, neighbours, seed }),
     [rowLabels, points, meta.nPcs, groupBy, resolution, neighbours, seed],
   )
+  // Neighbour forces: how much each digit counts each other as a neighbour, over what Leiden clusters over (the
+  // full digit here; the window below, while clustering over it). Only worked out while particles feel it.
+  const affinityOneWay = geometry === 'particle' && particles.forces === 'neighbours' ? particles.oneWay : null
+  const fullAffinity = useMemo(
+    () => (affinityOneWay === null ? null : neighbourAffinity(points, rowLabels.length, meta.nPcs, neighbours, affinityOneWay)),
+    [affinityOneWay, points, rowLabels.length, meta.nPcs, neighbours],
+  )
   const traces = useMemo(() => buildTraces(pixels, rows, signal, speaker), [pixels, rows, signal, speaker])
   useEffect(() => playhead.setLength(traces.length), [playhead, traces.length])
   useEffect(() => playhead.resetLaps(), [playhead, traces])
@@ -99,15 +107,17 @@ function Explorer({ data }: { data: PoolData }) {
   const pin = playhead.pin
   /** Pinned, and not on the way out (see Playhead.pin). */
   const pinned = pin !== null && !pin.releasing
-  const [windowGrouping, setWindowGrouping] = useState<{ rows: number[]; grouping: Grouping } | null>(null)
-  const lastWindow = useRef<{ rows: number[]; grouping: Grouping } | null>(null)
+  type WindowGrouping = { rows: number[]; grouping: Grouping; affinity: Float32Array | null }
+  const [windowGrouping, setWindowGrouping] = useState<WindowGrouping | null>(null)
+  const lastWindow = useRef<WindowGrouping | null>(null)
   useEffect(() => {
     if (!windowed) return
     const cluster = (moment: number, span: number, wrap: boolean) => {
       const previous = lastWindow.current?.rows === rows ? lastWindow.current.grouping : fullGrouping
       const features = windowFeatures(traces, moment, span, WINDOW_SAMPLES, wrap)
       const grouping = groupParticipants(rowLabels, features, WINDOW_SAMPLES, 'leiden', { resolution, neighbours, seed }, previous)
-      lastWindow.current = { rows, grouping }
+      const affinity = affinityOneWay === null ? null : neighbourAffinity(features, rowLabels.length, WINDOW_SAMPLES, neighbours, affinityOneWay)
+      lastWindow.current = { rows, grouping, affinity }
       setWindowGrouping(lastWindow.current)
     }
     if (pin) {
@@ -123,8 +133,11 @@ function Explorer({ data }: { data: PoolData }) {
     run()
     const id = setInterval(run, 1000 / clusterRate)
     return () => clearInterval(id)
-  }, [windowed, pin, clusterRate, rows, rowLabels, traces, playhead, windowPixels, resolution, neighbours, seed, fullGrouping])
-  const grouping = windowed && windowGrouping?.rows === rows ? windowGrouping.grouping : fullGrouping
+  }, [windowed, pin, clusterRate, rows, rowLabels, traces, playhead, windowPixels, resolution, neighbours, seed, fullGrouping, affinityOneWay])
+  const windowCurrent = windowed && windowGrouping?.rows === rows ? windowGrouping : null
+  const grouping = windowCurrent?.grouping ?? fullGrouping
+  // Until the window's first clustering with them, neighbour forces go by the full digit's.
+  const affinity = affinityOneWay === null ? null : (windowCurrent?.affinity ?? fullAffinity)
 
   const colors = useMemo(() => groupColors(grouping), [grouping])
   const slotOf = useMemo(() => chordSlots(grouping, points, meta.nPcs, order), [grouping, points, meta.nPcs, order])
@@ -211,6 +224,7 @@ function Explorer({ data }: { data: PoolData }) {
           playhead={playhead}
           slotOf={slotOf}
           groupOf={grouping.groupOf}
+          affinity={affinity}
           colors={colors}
           focus={followed}
           view={view}

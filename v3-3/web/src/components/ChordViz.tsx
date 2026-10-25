@@ -18,7 +18,8 @@ import { DEFAULT_STYLE, MAX_CHORDS, type GeoMode, type ParticleSettings, type Vi
 // trace rather than a live cursor, so trails are drawn from the trace itself, which also lets
 // them follow a scrub backwards. Added: group colouring and chord order. The particle geometry is
 // the prototype's charged particles, with its group force matrix replaced by one force within
-// groups and one between them, and its speaker's per-group pull by each digit's valence.
+// groups and one between them (or by how much each digit counts each other as a neighbour), and its
+// speaker's per-group pull by each digit's valence.
 
 // ── Layout, in the original's 480×480 authoring space ──
 const CENTER = 240
@@ -175,6 +176,8 @@ export interface ChordVizProps {
   /** slotOf[participant] = its chord's position in the geometry. */
   slotOf: Int32Array
   groupOf: Int32Array
+  /** With neighbour forces, how much each particle counts each other as a neighbour (n × n); null for group forces. */
+  affinity: Float32Array | null
   colors: RGB[]
   focus: number | null
   view: ViewMode
@@ -462,7 +465,7 @@ export function ChordViz(props: ChordVizProps) {
     let animFrameId = 0
     function animate() {
       animFrameId = requestAnimationFrame(animate)
-      const { traces, pickKey, rows, playhead, slotOf, groupOf, colors, focus, view, geometry, style, trailSeconds, particles, speaker, particleReset, cameraReset } = live.current
+      const { traces, pickKey, rows, playhead, slotOf, groupOf, affinity, colors, focus, view, geometry, style, trailSeconds, particles, speaker, particleReset, cameraReset } = live.current
       const inParticles = geometry === 'particle'
       // How many moments trails cover, and so how deep they reach.
       const trailMoments = trailSeconds * playhead.speed
@@ -574,7 +577,7 @@ export function ChordViz(props: ChordVizProps) {
       if (inParticles && playhead.playing) {
         const played = Number.isNaN(particleElapsed) ? 0 : Math.max(0, playhead.elapsed - particleElapsed)
         particleStepsOwed = Math.min(MAX_PARTICLE_STEPS, particleStepsOwed + played / MOMENTS_PER_PARTICLE_STEP)
-        for (; particleStepsOwed >= 1; particleStepsOwed--) sim.advance(groupOf, vNow, particles, speaker !== null)
+        for (; particleStepsOwed >= 1; particleStepsOwed--) sim.advance(groupOf, affinity, vNow, particles, speaker !== null)
         // What's left over is how far playback is into the next step: particles are drawn that far from where the
         // last step started them towards where it left them, so they glide between steps when playback is slow.
         sim.record(elapsed, step, vNow, particleStepsOwed)

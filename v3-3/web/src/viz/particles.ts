@@ -114,8 +114,12 @@ export class Particles {
     this.clearTrails()
   }
 
-  /** One step of the simulation, with each particle's group and valence now; the centre only pulls with a speaker there. */
-  advance(groupOf: Int32Array, valence: Float32Array, ps: ParticleSettings, speaker: boolean) {
+  /**
+   * One step of the simulation, with each particle's group and valence now; the centre only pulls with a speaker there.
+   * With `affinity` (n × n, `[i * n + j]` how much i counts j as a neighbour), it sets the pair forces instead of
+   * groups: the force on i towards j runs from `separation` at 0 to `cohesion` at 1, and needn't match j's towards i.
+   */
+  advance(groupOf: Int32Array, affinity: Float32Array | null, valence: Float32Array, ps: ParticleSettings, speaker: boolean) {
     const { n, x: px, y: py, vx, vy, ax, ay } = this
     this.prevX.set(px); this.prevY.set(py)
     ax.fill(0); ay.fill(0)
@@ -124,18 +128,28 @@ export class Particles {
     const sRMax = P_S_RMAX * ps.spread, sRMin = P_S_RMIN * ps.spread
     const S_RR = sRMax * sRMax, S_BRR = (sRMax + P_S_BWIDTH) ** 2
     const sign = ps.reverseCentre ? -1 : 1
-    // Pairs: the force is the same both ways, so each pair is visited once.
+    // Only an affinity for these particles: one left from before a speaker was set or released is a frame behind.
+    const aff = affinity?.length === n * n ? affinity : null
+    const span = ps.cohesion - ps.separation
+    // Pairs, each visited once: group forces are the same both ways, affinity's needn't be (the hard core always is).
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
         const dx = px[j] - px[i], dy = py[j] - py[i]
         const r2 = dx * dx + dy * dy
         if (r2 < 0.01 || r2 > RR) continue
         const r = Math.sqrt(r2)
-        const k = groupOf[i] === groupOf[j] ? ps.cohesion : ps.separation
-        const f = r < P_R_MIN ? r / P_R_MIN - 1 : k * (1 - r / rMax)
-        const inv = (f * P_G) / r
-        ax[i] += dx * inv; ay[i] += dy * inv
-        ax[j] -= dx * inv; ay[j] -= dy * inv
+        let fi: number, fj: number
+        if (r < P_R_MIN) fi = fj = r / P_R_MIN - 1
+        else {
+          const fall = 1 - r / rMax
+          if (aff) {
+            fi = (ps.separation + span * aff[i * n + j]) * fall
+            fj = (ps.separation + span * aff[j * n + i]) * fall
+          } else fi = fj = (groupOf[i] === groupOf[j] ? ps.cohesion : ps.separation) * fall
+        }
+        const invI = (fi * P_G) / r, invJ = (fj * P_G) / r
+        ax[i] += dx * invI; ay[i] += dy * invI
+        ax[j] -= dx * invJ; ay[j] -= dy * invJ
       }
     }
     for (let i = 0; i < n; i++) {

@@ -1,11 +1,15 @@
 // Checks of the small pure pieces that are easy to get subtly wrong: valence lookups wrapping when
-// playback loops, the playhead's laps and window, presets filling in missing settings, and
-// the group legend's sample of each group staying put through churn and representing merges.
+// playback loops, the playhead's laps and window, presets filling in missing settings, the group
+// legend's sample of each group staying put through churn and representing merges, and neighbour
+// forces being one-way only when asked.
 // Plain Node (no DOM types), so it's type-checked with the app: `pnpm check:logic`.
+import { knnGraph, neighbourAffinity } from '../src/knn.ts'
 import { Playhead } from '../src/playhead.ts'
 import { completeSettings, DEFAULT_SETTINGS } from '../src/presets.ts'
 import { sampleGroups } from '../src/selection.ts'
 import { buildTraces, N_PIXELS, valenceAt, type Traces } from '../src/signal.ts'
+import { Particles } from '../src/viz/particles.ts'
+import { DEFAULT_PARTICLES } from '../src/vizSettings.ts'
 
 const failures: string[] = []
 function check(name: string, actual: unknown, expected: unknown) {
@@ -77,6 +81,36 @@ const churned = Int32Array.from(split, (g, i) => (i === 4 ? 1 : g))
 check('a late member moving changes nothing', sampleGroups(2, churned, order, 3), [[2, 0, 8], [7, 9, 5]])
 // The two merge: the merged group's picks come from both.
 check('a merged group shows both', sampleGroups(1, new Int32Array(10), order, 3), [[7, 2, 9]])
+
+// ── neighbourAffinity: symmetrised, Leiden's graph weights; one-way, not mutual ──
+// A tight cluster of 6 on a line, and one outlier off to the side: it counts them, they don't count it.
+const linePoints = Float32Array.from([0, 0.1, 0.2, 0.3, 0.4, 0.5, 3])
+const nLine = linePoints.length
+const graph = knnGraph(linePoints, nLine, 1, 4)
+const sym = neighbourAffinity(linePoints, nLine, 1, 4, false)
+let worst = 0
+for (let i = 0; i < nLine; i++) {
+  for (let e = graph.offsets[i]; e < graph.offsets[i + 1]; e++) worst = Math.max(worst, Math.abs(sym[i * nLine + graph.nbrs[e]] - graph.weights[e]))
+}
+check("symmetrised affinity is Leiden's graph", worst < 1e-6, true)
+check('symmetrised affinity is symmetric', sym.every((w, at) => w === sym[(at % nLine) * nLine + Math.floor(at / nLine)]), true)
+const oneWay = neighbourAffinity(linePoints, nLine, 1, 4, true)
+check('the outlier counts its nearest', oneWay[6 * nLine + 5] > 0, true)
+check("which doesn't count it back", oneWay[5 * nLine + 6], 0)
+
+// ── Particles.advance: symmetric forces cancel overall; one-way forces needn't ──
+function netPush(affinity: Float32Array) {
+  const sim = new Particles(4)
+  sim.resize(nLine)
+  for (let i = 0; i < nLine; i++) { sim.x[i] = linePoints[i] * 20 - 30; sim.y[i] = (i % 2) * 15 }
+  sim.advance(new Int32Array(nLine), affinity, new Float32Array(nLine), { ...DEFAULT_PARTICLES, radius: 150, cohesion: 0.6, separation: -0.3 }, false)
+  // Within the boundary and with no speaker, velocities are the pair forces alone; their sum is the net push.
+  let sx = 0
+  for (let i = 0; i < nLine; i++) sx += sim.x[i] - sim.prevX[i]
+  return Math.abs(sx)
+}
+check('symmetric forces leave the cloud where it was', netPush(sym) < 1e-4, true)
+check('one-way forces push it', netPush(oneWay) > 1e-3, true)
 
 if (failures.length) throw new Error(`${failures.length} failed:\n${failures.join('\n')}`)
 console.log('All logic checks pass.')

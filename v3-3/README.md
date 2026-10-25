@@ -46,7 +46,10 @@ pnpm run check:leiden        # the browser's kNN graph and Leiden against scanpy
   digit's agreement in black and white (tap the speaker for the digit itself). Tapping the
   megaphone again releases it back among the digits.
 - **Particles** (particle geometry): each digit is a particle. Digits in the same group (label or
-  Leiden cluster) pull together and other groups push away. With a speaker, it sits at the
+  Leiden cluster) pull together and other groups push away. Or, with forces from **neighbours**, each
+  digit is pulled towards the digits it counts among its nearest neighbours, one-way (they needn't count it
+  back, so forces needn't be equal and opposite) or symmetrised as Leiden sees them; see
+  [non-reciprocal forces](docs/non-reciprocal-forces.md). With a speaker, it sits at the
   centre, and the field glides to centre on it: it pulls in the digits agreeing with it now and
   pushes out those disagreeing (or the other way round with "agreement repels from speaker").
   With no speaker, nothing at the centre pulls. Spread draws the whole cloud in (more crowding,

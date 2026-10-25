@@ -114,12 +114,10 @@ function fromRows(rows: Map<number, number>[]): Graph {
   return { n, offsets, nbrs, weights }
 }
 
-/** scanpy's connectivities for `points` (n × dim): k includes the point itself, as in sc.pp.neighbors. */
-export function knnGraph(points: Float32Array, n: number, dim: number, k: number): Graph {
-  k = Math.max(2, Math.min(k, n))
+/** UMAP's directed membership strengths: directed[i] maps each of i's k nearest (not itself) to w(j|i). */
+function memberships(points: Float32Array, n: number, dim: number, k: number) {
   const { indices, dists } = nearestNeighbours(points, n, dim, k)
   const { rhos, sigmas } = smoothKnnDist(dists, n, k)
-  // Directed membership strengths, then the fuzzy union P + Pᵀ − P∘Pᵀ.
   const directed: Map<number, number>[] = Array.from({ length: n }, () => new Map())
   for (let i = 0; i < n; i++) {
     for (let m = 0; m < k; m++) {
@@ -130,6 +128,14 @@ export function knnGraph(points: Float32Array, n: number, dim: number, k: number
       directed[i].set(j, w)
     }
   }
+  return directed
+}
+
+/** scanpy's connectivities for `points` (n × dim): k includes the point itself, as in sc.pp.neighbors. */
+export function knnGraph(points: Float32Array, n: number, dim: number, k: number): Graph {
+  k = Math.max(2, Math.min(k, n))
+  // Directed membership strengths, then the fuzzy union P + Pᵀ − P∘Pᵀ.
+  const directed = memberships(points, n, dim, k)
   const rows: Map<number, number>[] = Array.from({ length: n }, () => new Map())
   for (let i = 0; i < n; i++) {
     for (const [j, w] of directed[i]) {
@@ -142,6 +148,28 @@ export function knnGraph(points: Float32Array, n: number, dim: number, k: number
     }
   }
   return fromRows(rows)
+}
+
+/**
+ * How much each point counts each other as a neighbour, dense n × n: `[i * n + j]` is w(j|i), UMAP's membership
+ * strength of j in i's neighbourhood, 0 past i's k nearest. One-way, it isn't symmetric: an outlier counts the
+ * dense points near it, which needn't count it back. Otherwise it's the fuzzy union, the weights `knnGraph` gives.
+ */
+export function neighbourAffinity(points: Float32Array, n: number, dim: number, k: number, oneWay: boolean) {
+  const affinity = new Float32Array(n * n)
+  if (n < 2) return affinity
+  k = Math.max(2, Math.min(k, n))
+  const directed = memberships(points, n, dim, k)
+  for (let i = 0; i < n; i++) {
+    for (const [j, w] of directed[i]) {
+      if (oneWay) affinity[i * n + j] = w
+      else {
+        const back = directed[j].get(i) ?? 0
+        affinity[i * n + j] = affinity[j * n + i] = w + back - w * back
+      }
+    }
+  }
+  return affinity
 }
 
 /** A graph from an undirected edge list (each edge once), e.g. scanpy's connectivities. */
