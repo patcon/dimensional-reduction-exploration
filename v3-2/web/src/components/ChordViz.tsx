@@ -46,7 +46,6 @@ const RING_DOT_SIZE = 3
 const CHORD_TAPER = 60
 /** A chord's ribbon: root, then the two corners where the taper ends, then the two at the tip. */
 const CHORD_VERTS = 9
-const TRANS_SPEED = 0.04
 /** Frames the camera takes to sweep from one view to another, or back to a view's own place. */
 const VIEW_FRAMES = 40
 /** The camera's vertical field of view, in degrees, at full perspective on a panel at least as wide as it is tall. */
@@ -317,11 +316,12 @@ export function ChordViz(props: ChordVizProps) {
     let to3d = 0, toTs = 0
     // Perspective is a dolly zoom: the field of view narrows from `baseFov` (the panel's, at full
     // perspective) while the camera backs off by `dolly`, so the plane it looks at stays the same size.
-    let baseFov = FOV, shownPerspective = live.current.style.perspective, dolly = 1
+    // It goes with the 3d view: none in the 2d views, so they're flat, coming in as the camera sweeps to 3d.
+    let baseFov = FOV, dolly = 1
     function setLens() {
       const half = (deg: number) => Math.tan((deg * Math.PI) / 360)
       // Blended in tan(fov/2), not in degrees, so lines converge less in even steps along the slider.
-      const t = half(FLAT_FOV) + (half(baseFov) - half(FLAT_FOV)) * shownPerspective
+      const t = half(FLAT_FOV) + (half(baseFov) - half(FLAT_FOV)) * to3d
       camera.fov = (2 * Math.atan(t) * 180) / Math.PI
       dolly = half(baseFov) / t
       // Near grows with the square of the distance, keeping the depth buffer's precision at the scene
@@ -480,7 +480,6 @@ export function ChordViz(props: ChordVizProps) {
       camTheta += (CAM_2D_TS.theta - camTheta) * toTs
       camPhi += (CAM_2D_TS.phi - camPhi) * toTs
       camTargetZ = tsTargetZ(trailMoments * TRACE_Z_PER_MOMENT) * toTs
-      shownPerspective += (clamp01(style.perspective) - shownPerspective) * TRANS_SPEED * 3
       const covered = Math.max(0, Math.min(viewHeight, Math.round(live.current.coveredBottom?.() ?? 0)))
       if (covered !== shownCovered) {
         shownCovered = covered

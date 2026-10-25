@@ -15,8 +15,6 @@ export interface VizStyle {
   traceWidth: number
   /** Ring the followed digit's cursor. */
   focusRing: boolean
-  /** 1 is the camera's usual perspective; 0 is nearly orthographic, so lines into the distance stay parallel. */
-  perspective: number
 }
 
 export const VIEW_LABELS: Record<ViewMode, string> = { '2d': '2d time slice', '2d-ts': '2d time series', '3d': '3d' }
@@ -29,7 +27,6 @@ export const DEFAULT_STYLE: VizStyle = {
   chordWidth: 8,
   traceWidth: 8,
   focusRing: true,
-  perspective: 0,
 }
 
 /** Forces in the particle geometry. Positive pulls together, negative pushes apart. */
