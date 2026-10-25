@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet } from 'lucide-react'
+import { Box, ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet, Square } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DigitPicker } from './components/DigitPicker'
 import { DigitPreview } from './components/DigitPreview'
@@ -32,6 +32,9 @@ const KICK_THRESHOLD = 0.02
 /** vaul's own easing and duration, so what sits over the plot keeps clear of the drawer as it moves. */
 const DRAWER_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const DRAWER_SECONDS = 0.5
+
+/** How long the dimension button names what it moved to, as phones can't hover for a tooltip. */
+const MODE_LABEL_MS = 1200
 
 /** The drawer's tabs, in order. */
 const TABS = [
@@ -204,6 +207,17 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [tab, setTab] = useState<string>('forces')
   const [infoOpen, setInfoOpen] = useState(false)
+  // The dimension last moved to, named for a moment over its button.
+  const [modeLabelShown, setModeLabelShown] = useState(false)
+  const modeLabelTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(modeLabelTimer.current), [])
+  const otherDim = dim === 3 ? 2 : 3
+  const switchDim = () => {
+    set('dim', otherDim)
+    setModeLabelShown(true)
+    clearTimeout(modeLabelTimer.current)
+    modeLabelTimer.current = setTimeout(() => setModeLabelShown(false), MODE_LABEL_MS)
+  }
   const [barHeight, setBarHeight] = useState(64)
   // A callback ref, as the drawer's portal mounts its content after the page does.
   const barEl = useRef<HTMLDivElement | null>(null)
@@ -270,6 +284,23 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
           aria-label="About"
         >
           <Info />
+        </Button>
+        <span
+          className="pointer-events-none absolute right-3 bottom-11 rounded-md bg-foreground/75 px-2 py-0.5 text-xs text-background transition-opacity duration-300 motion-reduce:transition-none"
+          style={{ opacity: modeLabelShown ? 1 : 0 }}
+          aria-hidden
+        >
+          {dim}D
+        </span>
+        {/* Starts over from that dimension's initial layout, as the view tab's buttons do. */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="pointer-events-auto absolute right-3 bottom-0 rounded-b-none bg-background/85 text-muted-foreground hover:text-foreground"
+          onClick={switchDim}
+          aria-label={`${dim}D. Switch to ${otherDim}D, starting over.`}
+        >
+          {dim === 3 ? <Box /> : <Square />}
         </Button>
       </main>
 

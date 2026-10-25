@@ -170,7 +170,8 @@
 /* The digits shown in the top left of the plot (the plot keeps clear of the top), the picked digit in the top right. */
 .scatter-overlay { position: absolute; top: max(8px, env(safe-area-inset-top)); left: 8px; right: 112px; }
 .scatter-corner { position: absolute; top: max(8px, env(safe-area-inset-top)); right: 8px; }
-.scatter-reset { position: absolute; right: 8px; bottom: 8px; }
+/* On the edge of what covers the plot, beside the button at its right. */
+.scatter-reset { position: absolute; right: 56px; }
 
 /* ── The picked digit ── */
 .digit-preview {
