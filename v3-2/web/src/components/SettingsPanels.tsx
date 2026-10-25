@@ -1,4 +1,4 @@
-import { RotateCcw, Shuffle, Sparkles } from 'lucide-react'
+import { Blend, RotateCcw, Shuffle, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { DIGIT_COLORS } from '../palette'
@@ -188,6 +188,17 @@ export function ViewSection({ settings, set, onView }: SettingsEditor & { onView
   )
 }
 
+/** Size, as three circles growing left to right, drawn as lucide's icons are (24 units, 2-unit strokes, round caps). */
+function SizeIcon({ className, ...props }: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+      <circle cx="2" cy="15" r="1" />
+      <circle cx="8.75" cy="13.75" r="2.25" />
+      <circle cx="18.25" cy="12.25" r="3.75" />
+    </svg>
+  )
+}
+
 /** Each element's size setting, where it has one: its key in the style, range and how its value reads. */
 const SIZES: Partial<Record<Element, { key: 'cursorSize' | 'chordWidth' | 'traceWidth'; label: string; min: number; max: number; step: number; format: (v: number) => string }>> = {
   cursor: { key: 'cursorSize', label: 'cursor size', min: 2, max: 30, step: 1, format: String },
@@ -197,18 +208,22 @@ const SIZES: Partial<Record<Element, { key: 'cursorSize' | 'chordWidth' | 'trace
 
 /**
  * A row per element: what it's coloured by (a button that switches between the two), its opacity and its size. One
- * readout on the right shows whichever of the row's sliders was touched last.
+ * readout on the right shows whichever of the row's sliders was touched last, marked with that column's icon.
  */
 export function StyleSection({ settings, patch }: SettingsEditor) {
   const { style } = settings
   const [shown, setShown] = useState<Partial<Record<Element, 'opacity' | 'size'>>>({})
   return (
     <Section title="Style">
-      <div className="grid grid-cols-[3rem_auto_1fr_1fr_2.75rem] items-center gap-x-2.5 gap-y-2 text-sm">
+      <div className="grid grid-cols-[3rem_auto_1fr_1fr_3.5rem] items-center gap-x-2.5 gap-y-2 text-sm">
         <span />
         <span className="text-xs text-muted-foreground">colour by</span>
-        <span className="text-xs text-muted-foreground">opacity</span>
-        <span className="text-xs text-muted-foreground">size</span>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Blend className="size-3.5" aria-hidden /> opacity
+        </span>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <SizeIcon className="size-3.5" aria-hidden /> size
+        </span>
         <span />
         {ELEMENTS.map((el) => {
           const size = SIZES[el]
@@ -250,7 +265,10 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
               ) : (
                 <span />
               )}
-              <span className="num text-right text-xs">{showSize ? size.format(style[size.key]) : style.opacity[el].toFixed(2)}</span>
+              <span className="num flex items-center justify-end gap-1 text-xs">
+                {showSize ? <SizeIcon className="size-3 text-muted-foreground" aria-label="size" /> : <Blend className="size-3 text-muted-foreground" aria-label="opacity" />}
+                {showSize ? size.format(style[size.key]) : style.opacity[el].toFixed(2)}
+              </span>
             </div>
           )
         })}
