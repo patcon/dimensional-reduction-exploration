@@ -121,7 +121,7 @@ export function PlaybackSection({ playhead, traces, speed, onSpeed, loop, onLoop
         checked={canWakeLock && wakeLock}
         onChange={onWakeLock}
         disabled={!canWakeLock}
-        note={canWakeLock ? undefined : window.isSecureContext ? "This browser can't keep the screen awake." : 'Needs the page on https (or localhost) to keep the screen awake.'}
+        note={canWakeLock ? undefined : window.isSecureContext ? 'not supported here' : 'requires https'}
       />
       <p ref={readoutRef} className="num text-xs text-muted-foreground" />
     </Section>
