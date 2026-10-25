@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   seed: 0,
   groupBy: 'leiden',
   resolution: 0.4,
-  neighbours: 15,
+  neighbours: 30,
   clusterOver: 'window',
   clusterRate: 1,
   windowPixels: 140,
