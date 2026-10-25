@@ -44,9 +44,9 @@ pnpm dev
   random sample with its own pairs. Switching starts over once the new digits have
   loaded; forces, optimiser and MIDI carry across. 65k steps about 4x slower than 20k.
 - **Starting.** It opens in 3D on autopilot, paused: press play to watch
-  PaCMAP's own run, or set the forces yourself first (grabbing a slider switches to Manual)
+  PaCMAP's own run, or set the forces yourself first (grabbing a slider turns autopilot off)
   and then start it.
-- **Loop.** In Manual, nothing runs until a force is non-zero. Then a playhead steps through
+- **Loop.** Off autopilot, nothing runs until a force is non-zero. Then a playhead steps through
   PaCMAP's 450-iteration schedule at the chosen rate (1–60 it/s; at 20k about 30 is the
   most this machine manages, at 65k about 13) and wraps, with the layout carrying on. **smooth** glides between
   steps at 30 fps. Reset returns to the initial layout and stops there until you start it again.
@@ -68,8 +68,9 @@ pnpm dev
   The selected digit's pairs are drawn as edges to it, in its forces' colours: neighbours, mid-near
   and far pairs (whichever end of the pair it's at). An edge is solid while its force attracts, dashed
   while it repels, and left out while it's at no force.
-- **Autopilot** plays PaCMAP's own schedule once and stops. Grabbing a slider, pressing
-  Manual or moving a MIDI control takes over from autopilot's current forces.
+- **Autopilot** (the button atop the forces tab) plays PaCMAP's own schedule once and stops.
+  Grabbing a slider, moving a MIDI control or pressing the button again turns it off, taking over
+  from autopilot's current forces.
 - **Schedule graph.** PaCMAP's three weights over one loop (dashed; far pairs below zero,
   as they repel), on a scale spanning the sliders' ranges, with what you've played this loop drawn solid
   over them.

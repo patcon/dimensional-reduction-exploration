@@ -1,4 +1,4 @@
-import { Box, ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet, Square } from 'lucide-react'
+import { Box, ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet, Plane, Square } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DigitPicker } from './components/DigitPicker'
 import { DigitPreview } from './components/DigitPreview'
@@ -7,7 +7,7 @@ import { MidiPanel } from './components/MidiPanel'
 import { OptimiserPanel } from './components/OptimiserPanel'
 import { Scatter } from './components/Scatter'
 import { ScheduleGraph } from './components/ScheduleGraph'
-import { Section, Segmented } from './components/controls'
+import { Section } from './components/controls'
 import { Button } from './components/ui/button'
 import { Drawer, DrawerContent, DrawerDescription, DrawerHandle, DrawerTitle } from './components/ui/drawer'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './components/ui/sheet'
@@ -356,12 +356,16 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-6">
                   <TabsContent value="forces" className="flex h-full flex-col gap-3">
                     <div className="flex items-center justify-between gap-3">
-                      <Segmented
-                        options={['manual', 'autopilot'] as const}
-                        value={autopilot ? 'autopilot' : 'manual'}
-                        onChange={(v) => (v === 'autopilot' ? setAutopilot(true) : takeOver())}
-                        className="shrink-0 flex-nowrap"
-                      />
+                      {/* On by a press; off by touching a force (or pressing it again), taking over from its forces. */}
+                      <Button
+                        variant={autopilot ? 'default' : 'outline'}
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => (autopilot ? takeOver() : setAutopilot(true))}
+                        aria-pressed={autopilot}
+                      >
+                        <Plane /> autopilot
+                      </Button>
                       <span className="text-right text-xs text-muted-foreground">↑ attract · ↓ repel, PaCMAP's own marked</span>
                     </div>
                     <ForceSliders
