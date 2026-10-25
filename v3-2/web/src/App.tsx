@@ -9,6 +9,7 @@ import { Matrix } from './components/Matrix'
 import { PresetsPanel } from './components/Presets'
 import { DigitPicker, GroupingSection, ParticleSection, ReadingSection, SampleSection, StyleSection, ViewSection } from './components/SettingsPanels'
 import { PlaybackSection, TransportBar } from './components/Transport'
+import { GeometryIcon } from './components/GeometryIcons'
 import { ViewIcon } from './components/ViewIcons'
 import { Button } from './components/ui/button'
 import { Drawer, DrawerContent, DrawerDescription, DrawerHandle, DrawerTitle } from './components/ui/drawer'
@@ -22,7 +23,7 @@ import { buildTraces } from './signal'
 import { useData, type PoolData } from './useData'
 import { usePresets } from './usePresets'
 import { useWakeLock } from './useWakeLock'
-import { MAX_CHORDS, VIEW_LABELS, type ViewMode } from './vizSettings'
+import { GEO_MODES, MAX_CHORDS, VIEW_LABELS, type ViewMode } from './vizSettings'
 
 /** Moments sampled across the window when clustering over it. */
 const WINDOW_SAMPLES = 32
@@ -31,8 +32,8 @@ const DRAWER_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const DRAWER_SECONDS = 0.5
 /** The views the view button steps through, in order. */
 const VIEW_CYCLE: ViewMode[] = ['2d', '2d-ts', '3d']
-/** How long the view button names the view it moved to, as phones can't hover for a tooltip. */
-const VIEW_LABEL_MS = 1200
+/** How long the view and geometry buttons name what they moved to, as phones can't hover for a tooltip. */
+const MODE_LABEL_MS = 1200
 
 /** The drawer's tabs, in order. */
 const TABS = [
@@ -133,15 +134,24 @@ function Explorer({ data }: { data: PoolData }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [tab, setTab] = useState<string>('playback')
   const [presetsOpen, setPresetsOpen] = useState(false)
-  const [viewLabelShown, setViewLabelShown] = useState(false)
-  const viewLabelTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  useEffect(() => () => clearTimeout(viewLabelTimer.current), [])
+  // The view or geometry last moved to, named for a moment over the buttons.
+  const [modeLabel, setModeLabel] = useState<{ text: string; shown: boolean }>({ text: '', shown: false })
+  const modeLabelTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(modeLabelTimer.current), [])
+  const showModeLabel = (text: string) => {
+    setModeLabel({ text, shown: true })
+    clearTimeout(modeLabelTimer.current)
+    modeLabelTimer.current = setTimeout(() => setModeLabel((l) => ({ ...l, shown: false })), MODE_LABEL_MS)
+  }
   const followingView = VIEW_CYCLE[(VIEW_CYCLE.indexOf(view) + 1) % VIEW_CYCLE.length]
   const nextView = () => {
     set('view', followingView)
-    setViewLabelShown(true)
-    clearTimeout(viewLabelTimer.current)
-    viewLabelTimer.current = setTimeout(() => setViewLabelShown(false), VIEW_LABEL_MS)
+    showModeLabel(VIEW_LABELS[followingView])
+  }
+  const followingGeometry = GEO_MODES[(GEO_MODES.indexOf(geometry) + 1) % GEO_MODES.length]
+  const nextGeometry = () => {
+    set('geometry', followingGeometry)
+    showModeLabel(followingGeometry)
   }
   const [barHeight, setBarHeight] = useState(64)
   // A callback ref, as the drawer's portal mounts its content after the page does.
@@ -225,14 +235,23 @@ function Explorer({ data }: { data: PoolData }) {
         <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-[calc(5.25rem+1.5rem)] left-3 pointer-events-none [&_button]:pointer-events-auto">
           <DigitPicker digits={settings.digits} onDigits={(v) => set('digits', v)} compact />
         </div>
-        {/* Both buttons sit on the drawer's top edge, so they rise and fall with it. */}
+        {/* The buttons sit on the drawer's top edge, so they rise and fall with it. */}
         <span
           className="pointer-events-none absolute right-3 bottom-11 rounded-md bg-black/65 px-2 py-0.5 text-xs text-white transition-opacity duration-300 motion-reduce:transition-none"
-          style={{ opacity: viewLabelShown ? 1 : 0 }}
+          style={{ opacity: modeLabel.shown ? 1 : 0 }}
           aria-hidden
         >
-          {VIEW_LABELS[view]}
+          {modeLabel.text}
         </span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="pointer-events-auto absolute right-[3.375rem] bottom-0 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
+          onClick={nextGeometry}
+          aria-label={`Geometry: ${geometry}. Switch to ${followingGeometry}.`}
+        >
+          <GeometryIcon geometry={geometry} />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
