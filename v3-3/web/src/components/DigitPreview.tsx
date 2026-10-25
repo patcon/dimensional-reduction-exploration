@@ -7,22 +7,31 @@ import { SIDE, valenceAt, type Traces } from '../signal'
 
 /**
  * A digit, read as it plays: the clustering window is tinted, everything outside it is dimmed and the pixel being
- * read is marked. Clicking a pixel, or dragging across them, moves the playhead to where it's read.
+ * read is marked. Clicking a pixel, or dragging across them, moves the playhead to where it's read, unless `onPress`
+ * is given, which clicking calls instead.
  */
 export function DigitImage({
   pixels,
   poolRow,
+  against = null,
   traces,
   playhead,
   windowPixels,
+  onPress,
+  pressLabel,
   className,
 }: {
   pixels: Uint8Array
   /** The digit, or null for none: just the clustering window, on a blank square. */
   poolRow: number | null
+  /** The speaker's row, to show the digit's agreement with it rather than the digit itself, or null. */
+  against?: number | null
   traces: Traces
   playhead: Playhead
   windowPixels: number
+  onPress?: () => void
+  /** What clicking does, with `onPress`. */
+  pressLabel?: string
   className?: string
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -48,12 +57,26 @@ export function DigitImage({
     const img = ctx.createImageData(SIDE, SIDE)
     const accent = accentOf(canvas)
     const draw = () => {
-      shadeDigit(img, pixels, poolRow, traces, playhead, windowPixels, accent)
+      shadeDigit(img, pixels, poolRow, traces, playhead, windowPixels, accent, against)
       ctx.putImageData(img, 0, 0)
     }
     draw()
     return playhead.onFrame(draw)
-  }, [pixels, poolRow, traces, playhead, windowPixels])
+  }, [pixels, poolRow, against, traces, playhead, windowPixels])
+
+  if (onPress)
+    return (
+      <canvas
+        ref={ref}
+        className={cn('digit-image cursor-pointer!', className)}
+        width={SIDE}
+        height={SIDE}
+        role="button"
+        aria-label={pressLabel}
+        title={pressLabel}
+        onClick={onPress}
+      />
+    )
 
   return (
     <canvas

@@ -135,12 +135,16 @@ function Explorer({ data }: { data: PoolData }) {
   // Making the followed digit the speaker leaves no digit followed, so the square in front starts blank; releasing it
   // follows it again, back among the digits taking part, once it has grown back into its place.
   const [releasing, setReleasing] = useState(false)
+  // With a speaker, the square in front shows how the digit there agrees with it, or, tapping the speaker, the digit itself.
+  const [showOriginal, setShowOriginal] = useState(false)
   const releaseTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(releaseTimer.current), [])
   const toggleSpeaker = () => {
     if (releasing) return
     if (speaker === null) {
-      if (followed !== null) setSettings((s) => ({ ...s, speaker: rows[followed], focus: null }))
+      if (followed === null) return
+      setSettings((s) => ({ ...s, speaker: rows[followed], focus: null }))
+      setShowOriginal(false)
       return
     }
     setReleasing(true)
@@ -229,7 +233,8 @@ function Explorer({ data }: { data: PoolData }) {
       >
         {/* The followed (or hovered) digit as it plays, as in the inspect tab, always in sight; with none, the
             window still shows where in the reading the playhead is. With a speaker, it shrinks back behind, to the top
-            left, and the digit reacting to it comes in front. Without one, the speaker's square waits, full size, behind the
+            left, and the digit reacting to it comes in front, as its agreement with the speaker (tap the speaker for the digit
+            itself). Without one, the speaker's square waits, full size, behind the
             one in front, so it's already in place as the square in front vanishes. */}
         <div className="pointer-events-auto absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 flex flex-col items-end gap-1.5">
           <div className="relative size-21">
@@ -239,6 +244,8 @@ function Explorer({ data }: { data: PoolData }) {
               traces={traces}
               playhead={playhead}
               windowPixels={windowPixels}
+              onPress={speaking ? () => setShowOriginal((o) => !o) : undefined}
+              pressLabel={showOriginal ? 'Show how the digit in front agrees with the speaker' : 'Show the digit in front as it is'}
               className={cn(
                 'absolute inset-0 size-21 origin-top-left rounded-sm border-white/90! motion-reduce:transition-none',
                 speaker === null && 'pointer-events-none',
@@ -253,6 +260,7 @@ function Explorer({ data }: { data: PoolData }) {
               key={speaker ?? 'none'}
               pixels={pixels}
               poolRow={shown !== null ? rows[shown] : null}
+              against={showOriginal ? null : speaker}
               traces={traces}
               playhead={playhead}
               windowPixels={windowPixels}
