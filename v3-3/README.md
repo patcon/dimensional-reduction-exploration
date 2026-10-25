@@ -1,7 +1,7 @@
 # v3.3 — Valence particles from MNIST (speaker)
 
-A fresh copy of [v3.2](../v3-2/) to build on. It will compare the MNIST digits against a ground
-truth: one digit broadcasting itself.
+Built on [v3.2](../v3-2/), to compare the MNIST digits against a ground truth: one digit, the
+speaker, broadcasting itself, with every other digit heard by how far it agrees.
 
 A valence visualisation fed with stand-in data. Each MNIST digit is one participant: its
 pixels, read in order and smoothed, are its valence over time (paper −1, ink +1). The
@@ -39,11 +39,19 @@ pnpm run check:leiden        # the browser's kNN graph and Leiden against scanpy
   sampled digit; smoothing (Gaussian blur, or a lagging moving average); paper −1 or 0.
 - **View, geometry, colour by**: as in the reaction canvas's visualiser. Cursor, chord, trail and
   fill can each be coloured by valence or group.
+- **Speaker** (the megaphone under the corner digit): makes the followed digit the speaker, which
+  every other digit then reacts to. A digit's valence becomes its agreement with the speaker, pixel
+  by pixel: where both are paper, or both ink, they agree (+1); ink against paper disagrees (−1).
+  The speaker leaves the sample and shrinks behind the corner square, which shows the followed
+  digit's agreement in black and white (tap the speaker for the digit itself). Tapping the
+  megaphone again releases it back among the digits.
 - **Particles** (particle geometry): each digit is a particle. Digits in the same group (label or
-  Leiden cluster) pull together and other groups push away, and the centre pulls each digit in by
-  its valence now: ink attracts, paper repels, or the other way round with "ink repels from
-  centre". Spread draws the whole cloud in (more crowding, so more interaction) or lets it out.
-  The forces, their reach and damping can be set; "scatter" starts the particles over.
+  Leiden cluster) pull together and other groups push away. With a speaker, it sits at the
+  centre, and the field glides to centre on it: it pulls in the digits agreeing with it now and
+  pushes out those disagreeing (or the other way round with "agreement repels from speaker").
+  With no speaker, nothing at the centre pulls. Spread draws the whole cloud in (more crowding,
+  so more interaction) or lets it out. The forces, their reach and damping can be set; "scatter"
+  starts the particles over.
 - **Playback**: 1 pixel per second by default (0.25–60). Trails cover the last 30 seconds
   (5–300) and fade out with age. The matrix below shows one row per digit and one column per
   pixel, with the playhead; click a row to follow that digit.
