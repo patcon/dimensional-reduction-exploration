@@ -49,6 +49,9 @@ pnpm dev
   cursor; dragging pans (in 3D, shift- or right-drag, or two fingers). Both hold as the
   layout grows, since they sit on top of the auto-fit. Double-click or **Reset view** to
   go back.
+- **Digits shown.** The bar in the plot's top left, one toggle per digit underlined in its colour, shows or
+  hides that digit's points (the layout stays fitted to them all, so it doesn't jump); **\*** shows them all,
+  and once all are shown, **∅** hides them all, to pick a few afresh. Hidden digits can't be picked.
 - **Picking digits.** Click a digit to select it, ringed, and see it in the plot's top right corner; click
   away from any to select none. The mouse previews whichever digit it's over. Hold a press (or a finger)
   still for a moment to preview digits picked at random around it, inside a ring that follows it, as if

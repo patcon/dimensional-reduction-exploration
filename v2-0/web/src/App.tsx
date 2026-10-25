@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { DigitPicker } from './components/DigitPicker'
 import { DigitPreview } from './components/DigitPreview'
 import { ForceSliders } from './components/ForceSliders'
 import { MidiPanel } from './components/MidiPanel'
@@ -10,7 +11,6 @@ import { Engine } from './engine'
 import { DEFAULT_SCALE, spanning, toMultiplier, toU, type ForceScale } from './forceScale'
 import { InputStore, useControlValues, type ControlValues } from './inputStore'
 import { DEFAULT_OPTIMISER, OptimiserBank, type OptimiserSettings } from './optimisers'
-import { DIGIT_COLORS } from './palette'
 import { pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
 import { PAIR_TYPES, type Dim, type PairType, type Weights } from './types'
 import { useData, useDigits, type PacmapData, type SampleSize } from './useData'
@@ -43,6 +43,8 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
   // The clicked digit, and the one hovered (by the mouse, or a held press), previewed in the plot's corner.
   const [selected, setSelected] = useState<number | null>(null)
   const [hovered, setHovered] = useState<number | null>(null)
+  // Which digit labels are drawn; hiding one lets go of it if it was picked.
+  const [digitsShown, setDigitsShown] = useState(() => Array<boolean>(10).fill(true))
   const pixels = useDigits(dataSize)
   // Other digits, so whatever was picked is gone.
   const [pickedIn, setPickedIn] = useState(data)
@@ -51,6 +53,8 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
     setSelected(null)
     setHovered(null)
   }
+  if (selected !== null && !digitsShown[meta.labels[selected]]) setSelected(null)
+  if (hovered !== null && !digitsShown[meta.labels[hovered]]) setHovered(null)
   const previewed = hovered ?? selected
   const optimisers = useMemo(() => new OptimiserBank(data.init[dim].length, meta.adam, dim), [data, meta.adam, dim])
   const engine = useMemo(
@@ -185,6 +189,7 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
           Y={clock.display}
           dim={dim}
           labels={meta.labels}
+          shown={digitsShown}
           version={clock.version}
           autoRotate={autoRotate}
           selected={selected}
@@ -200,13 +205,7 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
             />
           }
         >
-          <ul className="legend">
-            {DIGIT_COLORS.map((color, digit) => (
-              <li key={digit}>
-                <span className="swatch" style={{ background: color }} /> {digit}
-              </li>
-            ))}
-          </ul>
+          <DigitPicker shown={digitsShown} onShown={setDigitsShown} />
         </Scatter>
         <ForceSliders
           values={shown}

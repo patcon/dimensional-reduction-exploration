@@ -7,13 +7,15 @@ interface Props {
   Y: Float32Array
   dim: Dim
   labels: number[]
+  /** Which digit labels are drawn (and can be picked); the layout is still fitted to them all, so it holds still. */
+  shown: boolean[]
   /** Bump to redraw after Y changes. */
   version: number
   /** In 3D, spin the view slowly about the vertical axis. */
   autoRotate?: boolean
-  /** Overlaid along the top of the plot (e.g. a legend); points are kept clear of it. */
+  /** Overlaid in the top left corner (e.g. the digits shown); points are kept clear of the top. */
   children?: ReactNode
-  /** Overlaid in the top right corner, below `children` (e.g. a preview of the picked digit). */
+  /** Overlaid in the top right corner (e.g. a preview of the picked digit). */
   corner?: ReactNode
   /** The clicked digit, ringed, and the one under the cursor (or a held finger), ringed more faintly. */
   selected: number | null
@@ -152,7 +154,7 @@ function background(el: Element) {
  * Clicking a digit selects it and clicking away selects none; the mouse hovers digits, and holding a press still
  * hovers digits picked at random around it (see JITTER_RADIUS), inside a ring drawn there.
  */
-export function Scatter({ Y, dim, labels, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover }: Props) {
+export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   /** The rings around the selected and hovered digits, over the points, so they move without redrawing them. */
@@ -186,6 +188,7 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children,
     let best: number | null = null
     let bestD2 = (PICK_RADIUS * dpr) ** 2
     for (let i = 0; i < scratch.sx.length; i++) {
+      if (!shown[labels[i]]) continue
       const d2 = (scratch.sx[i] - px) ** 2 + (scratch.sy[i] - py) ** 2
       // In 3D, nearer digits win ties, as they're drawn on top.
       if (d2 < bestD2 || (d2 === bestD2 && best !== null && scratch.level[i] < scratch.level[best])) {
@@ -367,6 +370,7 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children,
     const px = new Uint32Array(image.data.buffer)
     px.fill(pack(bg[0], bg[1], bg[2]))
     for (const i of drawOrder) {
+      if (!shown[labels[i]]) continue
       const x0 = Math.round(sx[i])
       const y0 = Math.round(sy[i])
       if (x0 < 0 || y0 < 0 || x0 > w - dot || y0 > h - dot) continue
@@ -375,7 +379,7 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children,
     }
     ctx.putImageData(image, 0, 0)
     drawMarks.current()
-  }, [Y, dim, labels, order, size, version, viewVersion])
+  }, [Y, dim, labels, shown, order, size, version, viewVersion])
 
   const turnable = dim === 3
   const redraw = () => setViewVersion((v) => v + 1)
