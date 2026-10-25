@@ -209,11 +209,13 @@ const SIZES: Partial<Record<Element, { key: 'cursorSize' | 'chordWidth' | 'trace
 /**
  * A row per element: what it's coloured by (a button that switches between the two), its opacity and its size. The
  * readouts on the right all show opacity or all show size, whichever kind of slider was touched last, as the icon
- * at the column's top says.
+ * at the column's top says. Rows for what isn't drawn now are greyed out: the trace and fill in the time slice, which
+ * has no depth, and the chord and fill in the particle geometry.
  */
 export function StyleSection({ settings, patch }: SettingsEditor) {
   const { style } = settings
   const [shown, setShown] = useState<'opacity' | 'size'>('opacity')
+  const hidden = new Set<Element>([...(settings.view === '2d' ? ['trace', 'fill'] as const : []), ...(settings.geometry === 'particle' ? ['chord', 'fill'] as const : [])])
   return (
     <Section title="Style">
       <div className="grid grid-cols-[3rem_auto_1fr_1fr_2.5rem] items-center gap-x-2.5 gap-y-2 text-sm">
@@ -230,14 +232,17 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
         </span>
         {ELEMENTS.map((el) => {
           const size = SIZES[el]
+          const off = hidden.has(el)
           return (
-            <div key={el} className="contents">
-              <span className="text-muted-foreground">{el}</span>
+            <div key={el} className="contents" title={off ? `No ${el} is drawn in this view` : undefined}>
+              {/* The button and sliders dim themselves when disabled; the label and readout dim to match. */}
+              <span className={cn('text-muted-foreground', off && 'opacity-50')}>{el}</span>
               {/* One button, showing what it's coloured by now; a press switches to the other. */}
               <Button
                 variant="outline"
                 size="sm"
                 className="w-18"
+                disabled={off}
                 aria-label={`${el} coloured by ${style.colorBy[el]}; switch to ${style.colorBy[el] === 'valence' ? 'group' : 'valence'}`}
                 onClick={() => patch('style', { colorBy: { ...style.colorBy, [el]: style.colorBy[el] === 'valence' ? 'group' : 'valence' } })}
               >
@@ -249,6 +254,7 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
                 min={0}
                 max={1}
                 step={0.05}
+                disabled={off}
                 onPointerDown={() => setShown('opacity')}
                 onFocus={() => setShown('opacity')}
                 onValueChange={([v]) => patch('style', { opacity: { ...style.opacity, [el]: v } })}
@@ -260,6 +266,7 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
                   min={size.min}
                   max={size.max}
                   step={size.step}
+                  disabled={off}
                   onPointerDown={() => setShown('size')}
                   onFocus={() => setShown('size')}
                   onValueChange={([v]) => patch('style', { [size.key]: v })}
@@ -267,7 +274,7 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
               ) : (
                 <span />
               )}
-              <span className="num text-right text-xs">
+              <span className={cn('num text-right text-xs', off && 'opacity-50')}>
                 {shown === 'opacity' ? style.opacity[el].toFixed(2) : size ? style[size.key].toFixed(size.step < 1 ? 1 : 0) : <span className="text-muted-foreground">–</span>}
               </span>
             </div>
