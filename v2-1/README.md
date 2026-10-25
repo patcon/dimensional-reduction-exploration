@@ -23,20 +23,27 @@ pnpm dev
 
 ## Playing it
 
+- **Layout.** The plot fills the screen. A drawer along the bottom always shows the transport (play,
+  reset, and the schedule's three phases filling as the loop plays); open it (the chevron, or drag its
+  handle) for the settings, in tabs along its bottom: **Forces**, **Play** (rate, smoothing, keeping
+  the screen awake, the schedule graph), **View** (2D/3D, digits, auto-rotate), **Optimiser** and
+  **MIDI**. The plot stays full-screen behind it, its centre sliding up into the space left. On the
+  drawer's top edge, ⓘ opens the intro (and resets settings) and the cube or square switches 2D/3D.
+  Every setting is remembered in the browser; what's played (the forces, autopilot) isn't.
 - **Forces.** One bipolar slider each for neighbours, mid-near and far pairs: up
   attracts, down repels, the grey band at centre is no force. The scale is logarithmic,
-  from ±0.1 to ±2000 (each slider's range adjustable beneath it), so one slider reaches both
-  PaCMAP's 1–3 and its 1000; untick **logarithmic** for even steps of force instead (best
-  with a smaller max). PaCMAP's values are marked on each track. Tick **spring** to
-  make a slider return to 0 when let go. Untick **split** to draw a slider like a fader
+  from ±0.1 to ±2000 (each slider's range adjustable behind the ⚙ under it), so one slider reaches both
+  PaCMAP's 1–3 and its 1000; turn off **logarithmic** (behind the ⚙) for even steps of force instead (best
+  with a smaller max). PaCMAP's values are marked on each track. Turn on **spring** to
+  make a slider return to 0 when let go. Turn off **split** to draw a slider like a fader
   that starts at the bottom: the track sets the strength alone and a button beside it
-  flips attract/repel. Both follow your MIDI setup when it changes (pitch bend ticks
-  spring; a control with 0 at the bottom unticks split). Arrow keys nudge a focused slider (shift for
+  flips attract/repel. Both follow your MIDI setup when it changes (pitch bend turns on
+  spring; a control with 0 at the bottom turns off split). Arrow keys nudge a focused slider (shift for
   bigger steps), 0 zeroes it, double-click zeroes it too.
-- **Digits.** 10k, 20k or all 65k (the switch after 2D/3D in the toolbar), each its own
+- **Digits.** 10k, 20k or all 65k (in the view tab), each its own
   random sample with its own pairs. Switching starts over once the new digits have
   loaded; forces, optimiser and MIDI carry across. 65k steps about 4x slower than 20k.
-- **Starting.** It opens in 3D on autopilot, paused: press **Start simulation** to watch
+- **Starting.** It opens in 3D on autopilot, paused: press play to watch
   PaCMAP's own run, or set the forces yourself first (grabbing a slider switches to Manual)
   and then start it.
 - **Loop.** In Manual, nothing runs until a force is non-zero. Then a playhead steps through
@@ -45,7 +52,7 @@ pnpm dev
   steps at 30 fps. Reset returns to the initial layout and stops there until you start it again.
 - **2D / 3D.** The same pairs laid out in two or three dimensions; switching starts over
   from that dimension's initial layout (PaCMAP's first two or three principal components).
-  In 3D, drag the plot to turn it, or tick **auto-rotate** to spin it. Nearer points are
+  In 3D, drag the plot to turn it, or turn on **auto-rotate** to spin it. Nearer points are
   drawn over farther ones, which fade.
 - **Pan and zoom.** The wheel, a trackpad pinch or a two-finger pinch zooms about the
   cursor; dragging pans (in 3D, shift- or right-drag, or two fingers). Both hold as the
