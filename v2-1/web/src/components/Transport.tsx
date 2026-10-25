@@ -1,22 +1,104 @@
-import type { Dim } from '../types'
+import { Pause, Play, RotateCcw } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { cn } from '@/lib/utils'
+import type { Dim, Schedule } from '../types'
 import type { ClockStatus } from '../useLoopClock'
 import { SAMPLE_SIZES, type SampleSize } from '../useData'
+import { Field, Section, Segmented, Slider, Toggle } from './controls'
+import { Button } from './ui/button'
 
-interface Props {
+interface BarProps {
   status: ClockStatus
   playhead: number
+  schedule: Schedule
   length: number
   phase: 1 | 2 | 3
   steps: number
-  rate: number
-  onRate: (rate: number) => void
+  autopilot: boolean
   onPause: () => void
   onResume: () => void
   onReset: () => void
-  autopilot: boolean
-  onAutopilot: (on: boolean) => void
+  loading: boolean
+  loadError?: string
+  size: SampleSize
+  /** At the bar's end (the drawer's open button, say). */
+  children?: ReactNode
+}
+
+/** Play/pause, reset, and where the loop is up to in PaCMAP's schedule, phase by phase. */
+export function TransportBar(p: BarProps) {
+  const stopped = p.status === 'paused' || p.status === 'ended'
+  const start = stopped && p.steps === 0
+  const [p1, p2] = p.schedule.phases
+  return (
+    <div className="flex items-center gap-1.5">
+      <Button
+        size="icon"
+        className={cn('rounded-full', stopped && 'bg-go text-on-go hover:bg-go-hover')}
+        onClick={stopped ? p.onResume : p.onPause}
+        // Resuming a finished autopilot run would only replay it; that's what reset is for.
+        disabled={stopped ? p.status === 'ended' && p.autopilot : p.status === 'idle'}
+        aria-label={start ? 'Start simulation' : stopped ? 'Resume' : 'Pause'}
+      >
+        {stopped || p.status === 'idle' ? <Play className="fill-current" /> : <Pause className="fill-current" />}
+      </Button>
+      <Button variant="ghost" size="icon-sm" onClick={p.onReset} disabled={p.steps === 0} aria-label="Reset to the initial layout">
+        <RotateCcw />
+      </Button>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {/* The schedule's three phases, filled as far as the playhead. */}
+        <div className="flex h-1.5 gap-0.5" aria-hidden>
+          {[
+            [0, p1],
+            [p1, p1 + p2],
+            [p1 + p2, p.length],
+          ].map(([a, b]) => (
+            <div key={a} className="relative overflow-hidden rounded-full bg-muted" style={{ flex: b - a }}>
+              <div className="absolute inset-y-0 left-0 bg-highlight" style={{ width: `${(Math.min(Math.max(p.playhead - a, 0), b - a) / (b - a)) * 100}%` }} />
+            </div>
+          ))}
+        </div>
+        <span className="num truncate text-xs text-muted-foreground">
+          {p.loadError ? (
+            <strong>{p.loadError}</strong>
+          ) : p.loading ? (
+            <strong>Loading {p.size} digits…</strong>
+          ) : p.status === 'idle' ? (
+            <strong>Move a force to start</strong>
+          ) : start ? (
+            <strong>Press play to watch PaCMAP's own run</strong>
+          ) : p.status === 'ended' && p.autopilot ? (
+            <strong>Autopilot finished: reset to replay, or go manual to carry on</strong>
+          ) : (
+            <>
+              iteration {p.playhead} / {p.length} · phase {p.phase} · {p.steps} steps
+              {p.status === 'paused' && ' · paused'}
+            </>
+          )}
+        </span>
+      </div>
+      {p.children}
+    </div>
+  )
+}
+
+/** How fast the loop steps, and whether it glides between steps. */
+export function PlaySection({ rate, onRate, interpolate, onInterpolate }: {
+  rate: number
+  onRate: (rate: number) => void
   interpolate: boolean
   onInterpolate: (on: boolean) => void
+}) {
+  return (
+    <Section title="Playback" description="Each step is one iteration of PaCMAP's 450-iteration schedule, which loops in manual.">
+      <Slider label="rate" value={rate} min={1} max={60} onChange={onRate} format={(v) => `${v} it/s`} />
+      <Toggle label="smooth: glide between steps (one step behind)" checked={interpolate} onChange={onInterpolate} />
+    </Section>
+  )
+}
+
+/** 2D or 3D, spinning in 3D, and how many digits. */
+export function ViewSection(p: {
   dim: Dim
   /** Switching dimension starts over from that dimension's initial layout. */
   onDim: (dim: Dim) => void
@@ -25,97 +107,21 @@ interface Props {
   /** How many digits; switching starts over on the new ones once they've loaded. */
   size: SampleSize
   onSize: (size: SampleSize) => void
-  loading: boolean
-  loadError?: string
-}
-
-/** The play/pause button's labels; the first, before anything has run, is drawn bold. */
-const PLAY_LABELS = ['Start simulation', 'Resume', 'Pause']
-
-/** 2D/3D, sample size, play/pause, reset, speed, autopilot and smoothing, with where the loop is up to. */
-export function Transport(p: Props) {
-  const stopped = p.status === 'paused' || p.status === 'ended'
-  const start = stopped && p.steps === 0
-  const playLabel = start ? PLAY_LABELS[0] : stopped ? PLAY_LABELS[1] : PLAY_LABELS[2]
+}) {
   return (
-    <div className="toolbar">
-      <div className="segmented" role="group" aria-label="Dimensions" title="Switching starts over from the initial layout">
-        {([2, 3] as const).map((dim) => (
-          <button key={dim} type="button" className={p.dim === dim ? 'on' : ''} onClick={() => p.dim !== dim && p.onDim(dim)}>
-            {dim}D
-          </button>
-        ))}
-      </div>
-      <label className="spin" title="Spin the 3D layout (drag it to turn it yourself, double-click to reset the view)">
-        <input
-          type="checkbox"
-          checked={p.autoRotate}
-          disabled={p.dim !== 3}
-          onChange={(e) => p.onAutoRotate(e.target.checked)}
-        />{' '}
-        auto-rotate
-      </label>
-      <div className="segmented" role="group" aria-label="Digits" title="How many MNIST digits (switching starts over)">
-        {SAMPLE_SIZES.map((size) => (
-          <button key={size} type="button" className={p.size === size ? 'on' : ''} onClick={() => p.onSize(size)}>
-            {size}
-          </button>
-        ))}
-      </div>
-      {/* The loop's own controls on a line of their own. */}
-      <div className="toolbar-break" />
-      <div className="segmented" role="group" aria-label="Forces from">
-        <button type="button" className={p.autopilot ? '' : 'on'} onClick={() => p.onAutopilot(false)}>
-          Manual
-        </button>
-        <button type="button" className={p.autopilot ? 'on' : ''} onClick={() => p.onAutopilot(true)}>
-          Autopilot
-        </button>
-      </div>
-      <button
-        type="button"
-        className={start ? 'start' : ''}
-        onClick={stopped ? p.onResume : p.onPause}
-        // Resuming a finished autopilot run would only replay it; that's what Reset is for.
-        disabled={stopped ? p.status === 'ended' && p.autopilot : p.status === 'idle'}
-      >
-        {/* Every label stacked in one cell, only this one shown, so the button never changes width. */}
-        <span className="play-labels">
-          {PLAY_LABELS.map((label) => (
-            <span key={label} className={label === playLabel ? '' : 'hidden'} aria-hidden={label !== playLabel}>
-              {label}
-            </span>
-          ))}
-        </span>
-      </button>
-      <button type="button" onClick={p.onReset} disabled={p.steps === 0}>
-        Reset
-      </button>
-      <label className="rate">
-        <input type="range" min={1} max={60} value={p.rate} onChange={(e) => p.onRate(Number(e.target.value))} />
-        {p.rate} it/s
-      </label>
-      <label className="smooth" title="Glide between steps (drawn at 30 fps, one step behind)">
-        <input type="checkbox" checked={p.interpolate} onChange={(e) => p.onInterpolate(e.target.checked)} /> smooth
-      </label>
-      <span className="readout">
-        {p.loadError ? (
-          <strong>{p.loadError}</strong>
-        ) : p.loading ? (
-          <strong>Loading {p.size} digits…</strong>
-        ) : p.status === 'idle' ? (
-          <strong>Move a control to start</strong>
-        ) : p.status === 'paused' && p.steps === 0 ? (
-          <strong>Press Start simulation to begin</strong>
-        ) : (
-          <>
-            iteration {p.playhead} / {p.length} · phase {p.phase} · {p.steps} steps total
-            {p.status === 'paused' && ' · paused'}
-            {p.status === 'ended' &&
-              (p.autopilot ? ' · autopilot finished: Reset, then Start simulation, to replay, or switch to Manual to carry on' : ' · ended')}
-          </>
-        )}
-      </span>
-    </div>
+    <Section title="Layout" description="Switching dimension or digits starts over from the initial layout.">
+      <Field label="dimensions">
+        <Segmented
+          options={['2', '3'] as const}
+          value={String(p.dim) as '2' | '3'}
+          onChange={(d) => Number(d) !== p.dim && p.onDim(Number(d) as Dim)}
+          labels={{ 2: '2D', 3: '3D' }}
+        />
+      </Field>
+      <Field label="digits" title="How many MNIST digits, each its own random sample">
+        <Segmented options={SAMPLE_SIZES} value={p.size} onChange={(size) => size !== p.size && p.onSize(size)} />
+      </Field>
+      <Toggle label="auto-rotate" checked={p.autoRotate} onChange={p.onAutoRotate} disabled={p.dim !== 3} note={p.dim !== 3 ? 'in 3D only' : undefined} />
+    </Section>
   )
 }

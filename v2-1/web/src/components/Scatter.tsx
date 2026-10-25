@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { DIGIT_COLORS, FORCE_COLORS } from '../palette'
+import { Button } from './ui/button'
 import type { Dim, PairType, Weights } from '../types'
 
 interface Props {
@@ -143,7 +144,7 @@ const plotCentre = (w: number, h: number, dpr: number) => [w / 2, PAD_TOP * dpr 
 /** The page background as [r, g, b], so the canvas follows light/dark mode. */
 function background(el: Element) {
   const probe = document.createElement('canvas').getContext('2d')!
-  probe.fillStyle = getComputedStyle(el).getPropertyValue('--bg').trim() || '#ffffff'
+  probe.fillStyle = getComputedStyle(el).getPropertyValue('--background').trim() || '#ffffff'
   probe.fillRect(0, 0, 1, 1)
   const [r, g, b] = probe.getImageData(0, 0, 1, 1).data
   return [r, g, b]
@@ -230,10 +231,10 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
       ctx.arc(scratch.sx[i] + dot / 2, scratch.sy[i] + dot / 2, RING_RADIUS * dpr, 0, 2 * Math.PI)
       // A halo of the background under the ring, so it shows over dense clusters.
       ctx.lineWidth = 4 * dpr
-      ctx.strokeStyle = style.getPropertyValue('--bg')
+      ctx.strokeStyle = style.getPropertyValue('--background')
       ctx.stroke()
       ctx.lineWidth = (faint ? 1.25 : 2) * dpr
-      ctx.strokeStyle = style.getPropertyValue(faint ? '--muted' : '--fg')
+      ctx.strokeStyle = style.getPropertyValue(faint ? '--muted-foreground' : '--foreground')
       ctx.stroke()
     }
     const { selected, hovered } = live.current
@@ -576,7 +577,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   }
 
   return (
-    <div ref={wrapRef} className="scatter">
+    <div ref={wrapRef} className="scatter h-[60vh] min-w-0 flex-1 rounded-lg border">
       <canvas
         ref={canvasRef}
         style={{ width: size.width, height: size.height }}
@@ -599,9 +600,9 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
       {children && <div className="scatter-overlay">{children}</div>}
       {corner && <div className="scatter-corner">{corner}</div>}
       {moved && (
-        <button type="button" className="scatter-reset" onClick={resetView} title="Or double-click the plot">
+        <Button variant="outline" size="sm" className="scatter-reset" onClick={resetView} title="Or double-click the plot">
           Reset view
-        </button>
+        </Button>
       )}
     </div>
   )

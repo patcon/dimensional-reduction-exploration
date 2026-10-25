@@ -6,7 +6,8 @@ import { MidiPanel } from './components/MidiPanel'
 import { OptimiserPanel } from './components/OptimiserPanel'
 import { Scatter } from './components/Scatter'
 import { ScheduleGraph } from './components/ScheduleGraph'
-import { Transport } from './components/Transport'
+import { Section, Segmented } from './components/controls'
+import { PlaySection, TransportBar, ViewSection } from './components/Transport'
 import { Engine } from './engine'
 import { DEFAULT_SCALE, spanning, toMultiplier, toU, type ForceScale } from './forceScale'
 import { InputStore, useControlValues, type ControlValues } from './inputStore'
@@ -172,32 +173,25 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
   ) as Record<PairType, Zero | null>
 
   return (
-    <div className="playground">
-      <Transport
-        status={clock.status}
-        playhead={clock.playhead}
-        length={length}
-        phase={phaseOf(clock.playhead, meta.schedule)}
-        steps={clock.steps}
-        rate={clock.rate}
-        onRate={clock.setRate}
-        onPause={clock.pause}
-        onResume={clock.resume}
-        onReset={reset}
-        autopilot={autopilot}
-        onAutopilot={(on) => (on ? setAutopilot(true) : takeOver())}
-        interpolate={clock.interpolate}
-        onInterpolate={clock.setInterpolate}
-        dim={dim}
-        onDim={setDim}
-        size={size}
-        onSize={onSize}
-        loading={loading}
-        loadError={loadError}
-        autoRotate={autoRotate}
-        onAutoRotate={setAutoRotate}
-      />
-      <div className="stage">
+    <div className="flex flex-col gap-3">
+      <div className="rounded-lg border p-3">
+        <TransportBar
+          status={clock.status}
+          playhead={clock.playhead}
+          schedule={meta.schedule}
+          length={length}
+          phase={phaseOf(clock.playhead, meta.schedule)}
+          steps={clock.steps}
+          autopilot={autopilot}
+          onPause={clock.pause}
+          onResume={clock.resume}
+          onReset={reset}
+          loading={loading}
+          loadError={loadError}
+          size={size}
+        />
+      </div>
+      <div className="flex flex-col gap-3 md:flex-row">
         <Scatter
           Y={clock.display}
           dim={dim}
@@ -222,28 +216,47 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
         >
           <DigitPicker shown={digitsShown} onShown={setDigitsShown} />
         </Scatter>
-        <ForceSliders
-          values={shown}
-          scale={scale}
-          onScale={(type, s) => setScale((prev) => ({ ...prev, [type]: s }))}
-          spring={spring}
-          onSpring={(type, s) => setSpring((prev) => ({ ...prev, [type]: s }))}
-          split={split}
-          onSplit={(type, s) => setSplit((prev) => ({ ...prev, [type]: s }))}
-          faderZero={faderZero}
-          onGrab={takeOver}
-          onChange={(type, u) => store.set(type, u)}
+        <div className="flex h-[60vh] flex-col gap-3 rounded-lg border p-3">
+          <Section title="Forces" description="Up attracts, down repels; PaCMAP's values are marked beside each.">
+            <Segmented
+              options={['manual', 'autopilot'] as const}
+              value={autopilot ? 'autopilot' : 'manual'}
+              onChange={(v) => (v === 'autopilot' ? setAutopilot(true) : takeOver())}
+            />
+          </Section>
+          <ForceSliders
+            values={shown}
+            scale={scale}
+            onScale={(type, s) => setScale((prev) => ({ ...prev, [type]: s }))}
+            spring={spring}
+            onSpring={(type, s) => setSpring((prev) => ({ ...prev, [type]: s }))}
+            split={split}
+            onSplit={(type, s) => setSplit((prev) => ({ ...prev, [type]: s }))}
+            faderZero={faderZero}
+            onGrab={takeOver}
+            onChange={(type, u) => store.set(type, u)}
+          />
+        </div>
+      </div>
+      <div className="grid gap-6 rounded-lg border p-3 md:grid-cols-2">
+        <PlaySection rate={clock.rate} onRate={clock.setRate} interpolate={clock.interpolate} onInterpolate={clock.setInterpolate} />
+        <ViewSection dim={dim} onDim={setDim} autoRotate={autoRotate} onAutoRotate={setAutoRotate} size={size} onSize={onSize} />
+      </div>
+      <div className="rounded-lg border p-3">
+        <ScheduleGraph
+          schedule={meta.schedule}
+          scale={spanning(PAIR_TYPES.map((type) => scale[type]))}
+          playhead={clock.playhead}
+          current={liveWeights}
+          trail={trail}
         />
       </div>
-      <ScheduleGraph
-        schedule={meta.schedule}
-        scale={spanning(PAIR_TYPES.map((type) => scale[type]))}
-        playhead={clock.playhead}
-        current={liveWeights}
-        trail={trail}
-      />
-      <OptimiserPanel settings={optimiser} onChange={setOptimiser} />
-      <MidiPanel midi={midi} />
+      <div className="rounded-lg border p-3">
+        <OptimiserPanel settings={optimiser} onChange={setOptimiser} />
+      </div>
+      <div className="rounded-lg border p-3">
+        <MidiPanel midi={midi} />
+      </div>
     </div>
   )
 }
@@ -253,10 +266,10 @@ export default function App() {
   const { data, dataSize, error, loading } = useData(size)
 
   return (
-    <main>
-      <header className="page-header">
-        <h1>Playable PaCMAP (mobile)</h1>
-        <p>
+    <main className="mx-auto max-w-300 px-4 py-6">
+      <header className="mb-3">
+        <h1 className="mb-2 text-2xl font-semibold">Playable PaCMAP (mobile)</h1>
+        <p className="max-w-[70ch] text-muted-foreground">
           PaCMAP's optimisation, live in the browser on {data ? data.meta.nSamples.toLocaleString() : '20,000'} MNIST
           digits. The neighbour, mid-near and far pairs are fixed; the forces on them are yours to play. A loop runs
           over PaCMAP's 450-iteration schedule; autopilot plays PaCMAP's own forces along it.
@@ -265,7 +278,7 @@ export default function App() {
       {data ? (
         <Playground data={data} size={size} dataSize={dataSize!} onSize={setSize} loading={loading} loadError={error} />
       ) : (
-        <p className="status">{error ?? 'Loading…'}</p>
+        <p className="p-12 text-muted-foreground">{error ?? 'Loading…'}</p>
       )}
     </main>
   )

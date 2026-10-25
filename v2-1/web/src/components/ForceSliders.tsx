@@ -4,6 +4,11 @@ import { FORCE_COLORS, FORCE_LABELS } from '../palette'
 import { PAIR_TYPES, type PairType } from '../types'
 import type { ControlValues } from '../inputStore'
 import { faderPercent, PACMAP_SIGNS, type Zero } from '../midi'
+import { Settings2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Toggle } from './controls'
+import { Button } from './ui/button'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet'
 
 /** The multipliers PaCMAP's schedule uses for each force, marked on its slider as targets. */
 const PACMAP_MARKS: Record<PairType, number[]> = { nb: [1, 2, 3], mn: [3, 1000], fp: [-1] }
@@ -73,6 +78,7 @@ function ForceSlider({ type, u, scale, onScale, spring, onSpring, split, onSplit
   }, [])
   // Not split, the sign is kept even at no force (as -0), or as last chosen here, starting as PaCMAP's.
   const [chosenSign, setChosenSign] = useState<1 | -1>(PACMAP_SIGNS[type])
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const sign = u > 0 ? 1 : u < 0 || Object.is(u, -0) ? -1 : chosenSign
   const color = FORCE_COLORS[type]
   const m = toMultiplier(u, scale)
@@ -185,34 +191,63 @@ function ForceSlider({ type, u, scale, onScale, spring, onSpring, split, onSplit
         )}
         <div className="force-thumb" style={{ top: pct(posOf(u, split)), borderColor: color }} />
       </div>
-      <button
-        type="button"
-        className={`force-sign${split ? ' hidden' : ''}`}
-        onClick={flipSign}
-        disabled={split}
-        aria-label={`${FORCE_LABELS[type]} sign: ${sign > 0 ? 'attract' : 'repel'}`}
-      >
-        {sign > 0 ? '+ attract' : '− repel'}
-      </button>
-      <div className="force-options">
-        <label>
-          <input type="checkbox" checked={spring} onChange={(e) => onSpring(e.target.checked)} /> spring
-        </label>
-        <label title="Up attracts, down repels. Untick to make the slider the strength alone, with a sign button.">
-          <input type="checkbox" checked={split} onChange={(e) => onSplit(e.target.checked)} /> split
-        </label>
-        <label title="Logarithmic from min to max, so one slider reaches both 1 and 1000. Untick for even steps of force.">
-          <input type="checkbox" checked={scale.log} onChange={(e) => onScale({ ...scale, log: e.target.checked })} /> logarithmic
-        </label>
+      <div className="flex items-center gap-1" style={{ marginRight: 'var(--marks-width)' }}>
+        {/* Keeps its space when split, so sliders line up whichever way each is drawn. */}
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn('h-7 px-2 text-xs', split && 'invisible')}
+          onClick={flipSign}
+          disabled={split}
+          aria-label={`${FORCE_LABELS[type]} sign: ${sign > 0 ? 'attract' : 'repel'}`}
+        >
+          {sign > 0 ? '+ attract' : '− repel'}
+        </Button>
       </div>
-      <div className="force-range" title="The weakest and strongest force this slider reaches (either sign)">
-        <label>
-          min <input type="number" step="any" defaultValue={scale.min} onChange={(e) => setRange('min', Number(e.target.value))} />
-        </label>
-        <label>
-          max <input type="number" step="any" defaultValue={scale.max} onChange={(e) => setRange('max', Number(e.target.value))} />
-        </label>
-      </div>
+      <Button variant="ghost" size="icon-sm" onClick={() => setOptionsOpen(true)} aria-label={`${FORCE_LABELS[type]} slider options`} style={{ marginRight: 'var(--marks-width)' }}>
+        <Settings2 />
+      </Button>
+      <Sheet open={optionsOpen} onOpenChange={setOptionsOpen}>
+        <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <SheetHeader>
+            <SheetTitle style={{ color }}>{FORCE_LABELS[type]} slider</SheetTitle>
+            <SheetDescription>How this force's slider reads and behaves.</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-col gap-4 px-4">
+            <Toggle label="spring back to 0 when let go" checked={spring} onChange={onSpring} />
+            <Toggle
+              label="split: up attracts, down repels"
+              checked={split}
+              onChange={onSplit}
+              note="Off, the slider is the strength alone, from 0 at the bottom, with a sign button under it."
+            />
+            <Toggle
+              label="logarithmic"
+              checked={scale.log}
+              onChange={(log) => onScale({ ...scale, log })}
+              note="From min to max, so one slider reaches both 1 and 1000. Off, even steps of force (best with a smaller max)."
+            />
+            <div className="flex flex-col gap-1.5 text-sm">
+              <span className="text-muted-foreground">The weakest and strongest force it reaches (either sign)</span>
+              <div className="flex gap-4">
+                {(['min', 'max'] as const).map((key) => (
+                  <label key={key} className="flex items-center gap-2">
+                    {key}
+                    <input
+                      className="num h-9 w-24 rounded-md border bg-background px-2 shadow-xs"
+                      type="number"
+                      inputMode="decimal"
+                      step="any"
+                      defaultValue={scale[key]}
+                      onChange={(e) => setRange(key, Number(e.target.value))}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
@@ -230,15 +265,11 @@ interface Props {
   onChange: (type: PairType, u: number) => void
 }
 
-/** The three forces side by side, each with its own range below it. */
+/** The three forces side by side, each with its options behind a button below it. */
 export function ForceSliders({ values, scale, onScale, spring, onSpring, split, onSplit, faderZero, onGrab, onChange }: Props) {
   return (
-    <section className="forces" aria-label="Forces">
-      <div className="force-ends">
-        <span>attract</span>
-        <span>repel</span>
-      </div>
-      <div className="force-sliders">
+    <section className="flex min-h-0 flex-1 flex-col gap-1 text-sm" aria-label="Forces">
+      <div className="flex min-h-0 flex-1 justify-center gap-3">
         {PAIR_TYPES.map((type) => (
           <ForceSlider
             key={type}

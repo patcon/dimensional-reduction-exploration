@@ -113,13 +113,13 @@ export function ScheduleGraph({ schedule, scale, playhead, current, trail }: Pro
           </circle>
         ))}
       </svg>
-      <ul className="legend sg-legend">
+      <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
         {PAIR_TYPES.map((t) => (
           <li key={t}>
             <span className="swatch" style={{ background: FORCE_COLORS[t] }} /> {FORCE_LABELS[t]}
           </li>
         ))}
-        <li className="muted">dashed: PaCMAP · solid: you, this loop</li>
+        <li className="text-muted-foreground">dashed: PaCMAP · solid: you, this loop</li>
       </ul>
     </div>
   )

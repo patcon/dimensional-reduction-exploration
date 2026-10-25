@@ -32,10 +32,10 @@ export function DigitPreview({ pixels, index, label, hovering }: {
     <div className="digit-preview">
       {pixels ? <canvas ref={ref} width={SIDE} height={SIDE} /> : <div className="digit-preview-loading">Loading…</div>}
       {label === null ? (
-        <div className="muted">Click a digit</div>
+        <div className="text-muted-foreground">Click a digit</div>
       ) : (
         <div>
-          <span className="muted">{hovering ? 'Hovering' : 'Selected'}</span>{' '}
+          <span className="text-muted-foreground">{hovering ? 'Hovering' : 'Selected'}</span>{' '}
           <span className="swatch" style={{ background: DIGIT_COLORS[label] }} /> <strong>{label}</strong>
         </div>
       )}
