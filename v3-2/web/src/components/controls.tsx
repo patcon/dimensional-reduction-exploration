@@ -6,12 +6,13 @@ import { Slider as SliderBase } from './ui/slider'
 import { Switch } from './ui/switch'
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group'
 
-/** One of `options`. Choosing the one already chosen calls `onChange` with it again (to reset something, say). */
-export function Segmented<T extends string>({ options, value, onChange, labels, className }: {
+/** One of `options`, each with an icon before it if given. Choosing the one already chosen calls `onChange` with it again (to reset something, say). */
+export function Segmented<T extends string>({ options, value, onChange, labels, icons, className }: {
   options: readonly T[]
   value: T
   onChange: (value: T) => void
   labels?: Partial<Record<T, string>>
+  icons?: Partial<Record<T, React.ReactNode>>
   className?: string
 }) {
   return (
@@ -19,6 +20,7 @@ export function Segmented<T extends string>({ options, value, onChange, labels, 
     <ToggleGroup type="single" value={value} onValueChange={(v) => onChange((v || value) as T)} className={className}>
       {options.map((o) => (
         <ToggleGroupItem key={o} value={o}>
+          {icons?.[o]}
           {labels?.[o] ?? o}
         </ToggleGroupItem>
       ))}

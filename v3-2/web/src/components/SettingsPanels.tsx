@@ -8,6 +8,7 @@ import { N_PIXELS, READING_LABELS, type ReadingKey } from '../signal'
 import { ELEMENTS, GEO_MODES, VIEW_LABELS, type Element, type ViewMode } from '../vizSettings'
 import { Field, Section, Segmented, Slider, Toggle } from './controls'
 import { Button } from './ui/button'
+import { ViewIcon } from './ViewIcons'
 import { Slider as SliderBase } from './ui/slider'
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group'
 
@@ -169,12 +170,16 @@ export function GroupingSection({ settings, set, grouping }: SettingsEditor & { 
   )
 }
 
+const VIEWS = ['2d', '2d-ts', '3d'] as const
+/** Each view's icon, as on the view button over the visualiser. */
+const VIEW_ICONS = { '2d': <ViewIcon view="2d" />, '2d-ts': <ViewIcon view="2d-ts" />, '3d': <ViewIcon view="3d" /> }
+
 /** The visualiser's view and geometry. Choosing the view already shown resets the camera. */
 export function ViewSection({ settings, set, onView }: SettingsEditor & { onView: (view: ViewMode) => void }) {
   return (
     <Section title="View" description="Drag to orbit (3d) or pan, pinch or scroll to zoom, tap a digit to follow it.">
       <Field label="view" stacked>
-        <Segmented options={['2d', '2d-ts', '3d'] as const} value={settings.view} onChange={onView} labels={VIEW_LABELS} />
+        <Segmented options={VIEWS} value={settings.view} onChange={onView} labels={VIEW_LABELS} icons={VIEW_ICONS} />
       </Field>
       <Field label="geometry" stacked>
         <Segmented options={GEO_MODES} value={settings.geometry} onChange={(v) => set('geometry', v)} />
