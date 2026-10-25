@@ -191,22 +191,22 @@ function ForceSlider({ type, u, scale, onScale, spring, onSpring, split, onSplit
         )}
         <div className="force-thumb" style={{ top: pct(posOf(u, split)), borderColor: color }} />
       </div>
-      <div className="flex items-center gap-1" style={{ marginRight: 'var(--marks-width)' }}>
-        {/* Keeps its space when split, so sliders line up whichever way each is drawn. */}
+      {/* The sign keeps its space when split, so sliders line up whichever way each is drawn. */}
+      <div className="flex items-center gap-0.5" style={{ marginRight: 'calc(var(--marks-width) - 36px)' }}>
         <Button
           variant="outline"
           size="sm"
-          className={cn('h-7 px-2 text-xs', split && 'invisible')}
+          className={cn('h-7 w-17 px-0 text-xs', split && 'invisible')}
           onClick={flipSign}
           disabled={split}
           aria-label={`${FORCE_LABELS[type]} sign: ${sign > 0 ? 'attract' : 'repel'}`}
         >
           {sign > 0 ? '+ attract' : '− repel'}
         </Button>
+        <Button variant="ghost" size="icon-sm" onClick={() => setOptionsOpen(true)} aria-label={`${FORCE_LABELS[type]} slider options`}>
+          <Settings2 />
+        </Button>
       </div>
-      <Button variant="ghost" size="icon-sm" onClick={() => setOptionsOpen(true)} aria-label={`${FORCE_LABELS[type]} slider options`} style={{ marginRight: 'var(--marks-width)' }}>
-        <Settings2 />
-      </Button>
       <Sheet open={optionsOpen} onOpenChange={setOptionsOpen}>
         <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
           <SheetHeader>

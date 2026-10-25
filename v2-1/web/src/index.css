@@ -96,6 +96,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* One screen, nothing to scroll: the plot fills what the drawer leaves. */
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   body {
     @apply bg-background font-sans text-foreground;
   }
@@ -160,8 +168,8 @@
   border: 1px solid color-mix(in srgb, var(--foreground) 60%, transparent); background: color-mix(in srgb, var(--foreground) 5%, transparent);
 }
 /* The digits shown in the top left of the plot (the plot keeps clear of the top), the picked digit in the top right. */
-.scatter-overlay { position: absolute; top: 8px; left: 8px; }
-.scatter-corner { position: absolute; top: 8px; right: 8px; }
+.scatter-overlay { position: absolute; top: max(8px, env(safe-area-inset-top)); left: 8px; right: 112px; }
+.scatter-corner { position: absolute; top: max(8px, env(safe-area-inset-top)); right: 8px; }
 .scatter-reset { position: absolute; right: 8px; bottom: 8px; }
 
 /* ── The picked digit ── */

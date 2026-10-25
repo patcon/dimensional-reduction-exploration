@@ -32,7 +32,7 @@ export function DigitPreview({ pixels, index, label, hovering }: {
     <div className="digit-preview">
       {pixels ? <canvas ref={ref} width={SIDE} height={SIDE} /> : <div className="digit-preview-loading">Loading…</div>}
       {label === null ? (
-        <div className="text-muted-foreground">Click a digit</div>
+        <div className="text-muted-foreground">Tap a digit</div>
       ) : (
         <div>
           <span className="text-muted-foreground">{hovering ? 'Hovering' : 'Selected'}</span>{' '}

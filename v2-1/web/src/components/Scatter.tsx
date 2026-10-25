@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { DIGIT_COLORS, FORCE_COLORS } from '../palette'
 import { Button } from './ui/button'
+import { cn } from '@/lib/utils'
 import type { Dim, PairType, Weights } from '../types'
 
 interface Props {
@@ -28,6 +29,7 @@ interface Props {
   edges: Record<PairType, Uint32Array> | null
   /** The forces now, which style the edges: solid attracting, dashed repelling, left out at no force. */
   weights: Weights
+  className?: string
 }
 
 const PAD = 12
@@ -165,7 +167,7 @@ function background(el: Element) {
  * Clicking a digit selects it and clicking away selects none; the mouse hovers digits, and holding a press still
  * hovers digits picked at random around it (see JITTER_RADIUS), inside a ring drawn there.
  */
-export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights }: Props) {
+export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, className }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   /** The rings around the selected and hovered digits, over the points, so they move without redrawing them. */
@@ -577,7 +579,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   }
 
   return (
-    <div ref={wrapRef} className="scatter h-[60vh] min-w-0 flex-1 rounded-lg border">
+    <div ref={wrapRef} className={cn('scatter', className)}>
       <canvas
         ref={canvasRef}
         style={{ width: size.width, height: size.height }}
