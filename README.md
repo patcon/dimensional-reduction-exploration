@@ -9,6 +9,7 @@ UMAP / PaCMAP / LocalMAP projections. Each version builds on the last:
 - [v1.2](v1-2/) — v1.1 with every pooled digit binarised to stroke or background
 - [v2.0](v2-0/) — PaCMAP's optimisation running live in the browser, in 2D or 3D, its
   three forces played from sliders or MIDI
+- [v2.1](v2-1/) — Playable PaCMAP (mobile): building a mobile version of v2.0
 - [v3.0](v3-0/) — a valence visualisation fed with stand-in data: each digit's pixels, read in
   order, as one participant's valence over time
 - [v3.1](v3-1/) — valence particles: a fresh copy of v3.0 to build on
@@ -20,4 +21,4 @@ UMAP / PaCMAP / LocalMAP projections. Each version builds on the last:
 
 Data for each comes from `pipeline/v<n>.py` (e.g. `pipeline/v2-0.py`); each app lives in
 `v<n>/web`. GitHub Pages serves a landing page (`site/index.html`) with every version
-beneath it at `/v1-0/`, `/v1-1/`, `/v1-2/`, `/v2-0/`, `/v3-0/`, `/v3-1/`, `/v3-2/`, `/v3-3/` and `/v3-4/`.
+beneath it at `/v1-0/`, `/v1-1/`, `/v1-2/`, `/v2-0/`, `/v2-1/`, `/v3-0/`, `/v3-1/`, `/v3-2/`, `/v3-3/` and `/v3-4/`.

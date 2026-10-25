@@ -1,0 +1,89 @@
+{
+  "label": "PaCMAP 🎚️",
+  "controller": {
+    "tag": "Row",
+    "args": [
+      [
+        {
+          "tag": "Fader",
+          "args": [
+            {
+              "status": null,
+              "label": "nbrs",
+              "labelSize": {
+                "tag": "Medium",
+                "args": []
+              },
+              "colour": {
+                "tag": "Blue",
+                "args": []
+              },
+              "channel": {
+                "tag": "Ch1",
+                "args": []
+              },
+              "ccNumber": 20,
+              "valuePercent": 50,
+              "valueMin": 0,
+              "valueMax": 127
+            }
+          ]
+        },
+        {
+          "tag": "Fader",
+          "args": [
+            {
+              "status": null,
+              "label": "midnear",
+              "labelSize": {
+                "tag": "Medium",
+                "args": []
+              },
+              "colour": {
+                "tag": "Green",
+                "args": []
+              },
+              "channel": {
+                "tag": "Ch1",
+                "args": []
+              },
+              "ccNumber": 21,
+              "valuePercent": 50,
+              "valueMin": 0,
+              "valueMax": 127
+            }
+          ]
+        },
+        {
+          "tag": "Fader",
+          "args": [
+            {
+              "status": null,
+              "label": "far",
+              "labelSize": {
+                "tag": "Medium",
+                "args": []
+              },
+              "colour": {
+                "tag": "Red",
+                "args": []
+              },
+              "channel": {
+                "tag": "Ch1",
+                "args": []
+              },
+              "ccNumber": 22,
+              "valuePercent": 50,
+              "valueMin": 0,
+              "valueMax": 127
+            }
+          ]
+        }
+      ]
+    ]
+  },
+  "config": {
+    "gapSize": 2,
+    "debug": false
+  }
+}

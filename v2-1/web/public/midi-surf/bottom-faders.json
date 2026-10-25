@@ -1,0 +1,248 @@
+{
+  "label": "PaCMAP 🎚️±",
+  "controller": {
+    "tag": "Row",
+    "args": [
+      [
+        {
+          "tag": "SizedColumn",
+          "args": [
+            [
+              [
+                5,
+                {
+                  "tag": "Fader",
+                  "args": [
+                    {
+                      "status": null,
+                      "label": "nbrs",
+                      "labelSize": {
+                        "tag": "Medium",
+                        "args": []
+                      },
+                      "colour": {
+                        "tag": "Blue",
+                        "args": []
+                      },
+                      "channel": {
+                        "tag": "Ch1",
+                        "args": []
+                      },
+                      "ccNumber": 23,
+                      "valuePercent": 0,
+                      "valueMin": 0,
+                      "valueMax": 127
+                    }
+                  ]
+                }
+              ],
+              [
+                1,
+                {
+                  "tag": "Sequence",
+                  "args": [
+                    {
+                      "status": null,
+                      "label": "🧲±",
+                      "labelSize": {
+                        "tag": "Small",
+                        "args": []
+                      },
+                      "colour": {
+                        "tag": "Blue",
+                        "args": []
+                      },
+                      "midiMsgs": [
+                        {
+                          "tag": "ControllerChange",
+                          "args": [
+                            {
+                              "channel": 0,
+                              "controller": 26,
+                              "value": 0
+                            }
+                          ]
+                        },
+                        {
+                          "tag": "ControllerChange",
+                          "args": [
+                            {
+                              "channel": 0,
+                              "controller": 26,
+                              "value": 127
+                            }
+                          ]
+                        }
+                      ],
+                      "index": 0
+                    }
+                  ]
+                }
+              ]
+            ]
+          ]
+        },
+        {
+          "tag": "SizedColumn",
+          "args": [
+            [
+              [
+                5,
+                {
+                  "tag": "Fader",
+                  "args": [
+                    {
+                      "status": null,
+                      "label": "midnear",
+                      "labelSize": {
+                        "tag": "Medium",
+                        "args": []
+                      },
+                      "colour": {
+                        "tag": "Green",
+                        "args": []
+                      },
+                      "channel": {
+                        "tag": "Ch1",
+                        "args": []
+                      },
+                      "ccNumber": 24,
+                      "valuePercent": 0,
+                      "valueMin": 0,
+                      "valueMax": 127
+                    }
+                  ]
+                }
+              ],
+              [
+                1,
+                {
+                  "tag": "Sequence",
+                  "args": [
+                    {
+                      "status": null,
+                      "label": "🧲±",
+                      "labelSize": {
+                        "tag": "Small",
+                        "args": []
+                      },
+                      "colour": {
+                        "tag": "Green",
+                        "args": []
+                      },
+                      "midiMsgs": [
+                        {
+                          "tag": "ControllerChange",
+                          "args": [
+                            {
+                              "channel": 0,
+                              "controller": 27,
+                              "value": 0
+                            }
+                          ]
+                        },
+                        {
+                          "tag": "ControllerChange",
+                          "args": [
+                            {
+                              "channel": 0,
+                              "controller": 27,
+                              "value": 127
+                            }
+                          ]
+                        }
+                      ],
+                      "index": 0
+                    }
+                  ]
+                }
+              ]
+            ]
+          ]
+        },
+        {
+          "tag": "SizedColumn",
+          "args": [
+            [
+              [
+                5,
+                {
+                  "tag": "Fader",
+                  "args": [
+                    {
+                      "status": null,
+                      "label": "far",
+                      "labelSize": {
+                        "tag": "Medium",
+                        "args": []
+                      },
+                      "colour": {
+                        "tag": "Red",
+                        "args": []
+                      },
+                      "channel": {
+                        "tag": "Ch1",
+                        "args": []
+                      },
+                      "ccNumber": 25,
+                      "valuePercent": 0,
+                      "valueMin": 0,
+                      "valueMax": 127
+                    }
+                  ]
+                }
+              ],
+              [
+                1,
+                {
+                  "tag": "Sequence",
+                  "args": [
+                    {
+                      "status": null,
+                      "label": "🧲±",
+                      "labelSize": {
+                        "tag": "Small",
+                        "args": []
+                      },
+                      "colour": {
+                        "tag": "Red",
+                        "args": []
+                      },
+                      "midiMsgs": [
+                        {
+                          "tag": "ControllerChange",
+                          "args": [
+                            {
+                              "channel": 0,
+                              "controller": 28,
+                              "value": 0
+                            }
+                          ]
+                        },
+                        {
+                          "tag": "ControllerChange",
+                          "args": [
+                            {
+                              "channel": 0,
+                              "controller": 28,
+                              "value": 127
+                            }
+                          ]
+                        }
+                      ],
+                      "index": 0
+                    }
+                  ]
+                }
+              ]
+            ]
+          ]
+        }
+      ]
+    ]
+  },
+  "config": {
+    "gapSize": 2,
+    "debug": false
+  }
+}
