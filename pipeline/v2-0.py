@@ -18,6 +18,7 @@ Outputs per sample size (written to ../v2-0/web/public/data/<size>/, e.g. 20k/):
   pairs_mn.bin   uint32, N*n_MN x 2: mid-near pairs
   pairs_fp.bin   uint32, N*n_FP x 2: far pairs
   init_{2,3}d.bin       float32, N x d: the layout before the first iteration
+  digits.bin.gz  uint8, N x 784, gzipped: each digit's pixels, row-major, for previewing it
   meta.json      labels, pair counts, snapshot iterations, the weight schedule and Adam params
 
 and, kept out of the site (only the checks use it), to data/v2-0/<size>/:
@@ -29,6 +30,7 @@ match closely), to prove the exports are complete. -n and --dims pick which runs
 """
 
 import argparse
+import gzip
 import json
 import urllib.request
 from pathlib import Path
@@ -111,6 +113,11 @@ def size_name(n: int) -> str:
     return f"{n // 1000}k" if n % 1000 == 0 else str(n)
 
 
+def write_digits(out_dir: Path, sprite: np.ndarray, idx: np.ndarray) -> None:
+    """The sampled digits' pixels, gzipped (MNIST's flat backgrounds shrink ~5x), with no timestamp so reruns match."""
+    (out_dir / "digits.bin.gz").write_bytes(gzip.compress(np.ascontiguousarray(sprite[idx]).tobytes(), mtime=0))
+
+
 def run(args: argparse.Namespace) -> None:
     sprite, labels = load_mnist()
     for n in args.n_samples:
@@ -151,6 +158,7 @@ def run_size(args: argparse.Namespace, sprite: np.ndarray, labels: np.ndarray, n
 
     for name, p in pairs.items():
         p.astype(np.uint32).tofile(out_dir / f"pairs_{name}.bin")
+    write_digits(out_dir, sprite, idx)
 
     meta = {
         "nSamples": n,

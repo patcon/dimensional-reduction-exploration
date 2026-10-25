@@ -61,5 +61,38 @@ export function useData(size: SampleSize) {
     }
   }, [size])
 
-  return { data: state.data, error: state.error, loading: state.size !== size && !state.error }
+  return { data: state.data, dataSize: state.size, error: state.error, loading: state.size !== size && !state.error }
+}
+
+/** Each digit's pixels, nSamples x 784 row-major (pipeline/v2-0.py's digits.bin.gz). */
+async function loadDigits(size: SampleSize) {
+  const bytes = new Uint8Array(await fetchBinary(`${base}/${size}`, 'digits.bin.gz'))
+  // Some servers mark .gz files as gzip-encoded, and the browser has unzipped it already.
+  if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) return bytes
+  const unzipped = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
+  return new Uint8Array(await new Response(unzipped).arrayBuffer())
+}
+
+const digitsCache = new Map<SampleSize, Promise<Uint8Array>>()
+
+/**
+ * The pixels of `size`'s digits, for previewing them, or undefined until they've loaded. Fetched on
+ * their own, after the layout, as they're only needed once a digit is picked.
+ */
+export function useDigits(size: SampleSize) {
+  const [state, setState] = useState<{ size?: SampleSize; pixels?: Uint8Array }>({})
+
+  useEffect(() => {
+    let current = true
+    if (!digitsCache.has(size)) digitsCache.set(size, loadDigits(size))
+    digitsCache
+      .get(size)!
+      .then((pixels) => current && setState({ size, pixels }))
+      .catch(() => digitsCache.delete(size))
+    return () => {
+      current = false
+    }
+  }, [size])
+
+  return state.size === size ? state.pixels : undefined
 }
