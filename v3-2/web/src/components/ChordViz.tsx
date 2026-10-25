@@ -60,6 +60,14 @@ const BG: RGB = [15, 15, 14]
 /** Frames a cursor takes to glide from its particle back onto its chord. */
 const PARTICLE_EXIT_FRAMES = 30
 /**
+ * Moments played per step of the particle simulation: one step a frame at 60 frames a second and the default 14
+ * pixels a second, as it was tuned. Stepping by playback rather than by frame keeps particles to the same pace on
+ * any screen, and moving faster or slower with playback.
+ */
+const MOMENTS_PER_PARTICLE_STEP = 14 / 60
+/** The most simulation steps a frame catches up on, so a slow frame or a jump can't stall the next. */
+const MAX_PARTICLE_STEPS = 8
+/**
  * While a finger is held, a random spot this many pixels around it is picked every JITTER_MS, as if tapping all
  * round it, and whichever digit is there is hovered: so many digits nearby can be previewed, as a mouse could.
  */
@@ -379,6 +387,9 @@ export function ChordViz(props: ChordVizProps) {
     let particleBlend = live.current.geometry === 'particle' ? 1 : 0
     let wasParticle = false
     let lastReset: unknown = live.current.particleReset
+    /** Simulation steps owed for the moments played so far, and `elapsed` when last counted. */
+    let particleStepsOwed = 0
+    let particleElapsed = NaN
     const seedParticles = (scatter: boolean) => sim.seed(scatter, live.current.particles.spread, dot.pos)
 
     const morph: Morph = { p1: 0, p2: 0, pp1: 0, pp2: 0, lp1: 0, lp2: 0 }
@@ -521,11 +532,15 @@ export function ChordViz(props: ChordVizProps) {
       wasParticle = inParticles
       particleBlend = inParticles ? 1 : Math.max(0, particleBlend - 1 / PARTICLE_EXIT_FRAMES)
       const pb = ease(particleBlend)
-      // Frozen while paused (scrubbing included), so a paused frame holds still.
+      // Frozen while paused (scrubbing included), so a paused frame holds still. Playing, steps as many times as the
+      // moments played since the last frame owe; playback jumping back (restarting, say) owes none.
       if (inParticles && playhead.playing) {
-        sim.advance(groupOf, vNow, particles)
+        const played = Number.isNaN(particleElapsed) ? 0 : Math.max(0, playhead.elapsed - particleElapsed)
+        particleStepsOwed = Math.min(MAX_PARTICLE_STEPS, particleStepsOwed + played / MOMENTS_PER_PARTICLE_STEP)
+        for (; particleStepsOwed >= 1; particleStepsOwed--) sim.advance(groupOf, vNow, particles)
         sim.record(elapsed, step, vNow)
       }
+      particleElapsed = playhead.elapsed
 
       let focusShown = false
       for (let i = 0; i < n; i++) {
