@@ -294,18 +294,28 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
   )
 }
 
-/** The particle geometry's forces, and a button to scatter the particles afresh. */
+/** The particle geometry's forces, and a button to scatter the particles afresh. The centre only pulls with a speaker there. */
 export function ParticleSection({ settings, patch, onScatter }: SettingsEditor & { onScatter: () => void }) {
-  const { particles } = settings
+  const { particles, speaker } = settings
+  const unheard = speaker === null ? 'With no speaker, nothing at the centre pulls.' : undefined
   return (
-    <Section title="Particles" description="Groups pull together; the centre pulls ink in and pushes paper out, by each digit's valence now.">
+    <Section
+      title="Particles"
+      description="Groups pull together. With a speaker, it sits at the centre, pulling in the digits agreeing with it now and pushing out those disagreeing."
+    >
       <Slider label="within groups" value={particles.cohesion} min={-1} max={1} step={0.05} onChange={(v) => patch('particles', { cohesion: v })} format={fixed(2)} />
       <Slider label="between groups" value={particles.separation} min={-1} max={1} step={0.05} onChange={(v) => patch('particles', { separation: v })} format={fixed(2)} />
-      <Slider label="centre" value={particles.centreForce} min={0} max={6} step={0.1} onChange={(v) => patch('particles', { centreForce: v })} format={fixed(1)} />
+      <Slider label="speaker" value={particles.centreForce} min={0} max={6} step={0.1} onChange={(v) => patch('particles', { centreForce: v })} format={fixed(1)} title={unheard} />
       <Slider label="spread" value={particles.spread} min={0.2} max={1.5} step={0.05} onChange={(v) => patch('particles', { spread: v })} format={fixed(2)} />
       <Slider label="reach" value={particles.radius} min={10} max={150} onChange={(v) => patch('particles', { radius: v })} format={fixed(0)} />
       <Slider label="damping" value={particles.damping} min={0.5} max={0.99} step={0.01} onChange={(v) => patch('particles', { damping: v })} format={fixed(2)} />
-      <Toggle label="ink repels from centre" checked={particles.reverseCentre} onChange={(on) => patch('particles', { reverseCentre: on })} />
+      <Toggle
+        label="agreement repels from speaker"
+        checked={particles.reverseCentre}
+        onChange={(on) => patch('particles', { reverseCentre: on })}
+        disabled={speaker === null}
+        note={unheard}
+      />
       <div>
         <Button variant="outline" size="sm" onClick={onScatter}>
           <Sparkles /> Scatter

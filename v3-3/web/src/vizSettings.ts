@@ -35,9 +35,9 @@ export interface ParticleSettings {
   cohesion: number
   /** Between particles of different groups. */
   separation: number
-  /** The centre's pull on a particle, scaled by its valence now. */
+  /** The speaker's pull on a particle, from the centre, scaled by its valence now; with no speaker, nothing pulls. */
   centreForce: number
-  /** Ink pushes away from the centre and paper pulls in, rather than the other way round. */
+  /** Agreement pushes away from the centre and disagreement pulls in, rather than the other way round. */
   reverseCentre: boolean
   /** Scales the centre's reach and the boundary past it: below 1 crowds particles in, above 1 lets them spread out. */
   spread: number

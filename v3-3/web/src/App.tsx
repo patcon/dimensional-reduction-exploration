@@ -1,4 +1,4 @@
-import { Bookmark, Eye, Focus, Gauge, Hash, ScanSearch, Shapes } from 'lucide-react'
+import { Bookmark, Eye, Focus, Gauge, Hash, Megaphone, ScanSearch, Shapes } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ChordViz } from './components/ChordViz'
@@ -62,7 +62,7 @@ function Explorer({ data }: { data: PoolData }) {
   // Every setting, as presets save and load them; the playhead follows its speed.
   const { settings, setSettings, set, patch, reset } = useSettings()
   const editor = { settings, set, patch }
-  const { count, seed, groupBy, resolution, neighbours, clusterOver, clusterRate, windowPixels, order, signal, view, geometry, style, trailSeconds, particles, focus } = settings
+  const { count, seed, groupBy, resolution, neighbours, clusterOver, clusterRate, windowPixels, order, signal, view, geometry, style, trailSeconds, particles, focus, speaker } = settings
   const digits = useMemo(() => new Set(settings.digits), [settings.digits])
   const setFocus = (i: number | null) => set('focus', i)
   const presets = usePresets(settings, setSettings)
@@ -77,14 +77,16 @@ function Explorer({ data }: { data: PoolData }) {
   const available = useMemo(() => labels.filter((l) => digits.has(l)).length, [labels, digits])
   const maxCount = Math.min(MAX_CHORDS, available)
   const shownCount = Math.min(count, maxCount)
-  const rows = useMemo(() => pickRows(labels, digits, shownCount, seed), [labels, digits, shownCount, seed])
+  const picked = useMemo(() => pickRows(labels, digits, shownCount, seed), [labels, digits, shownCount, seed])
+  // The speaker isn't one of the digits taking part: it's what they react to, at the centre.
+  const rows = useMemo(() => (speaker === null ? picked : picked.filter((r) => r !== speaker)), [picked, speaker])
   const points = useMemo(() => pcsOf(pcs, meta.nPcs, rows), [pcs, meta.nPcs, rows])
   const rowLabels = useMemo(() => rows.map((r) => labels[r]), [rows, labels])
   const fullGrouping = useMemo(
     () => groupParticipants(rowLabels, points, meta.nPcs, groupBy, { resolution, neighbours, seed }),
     [rowLabels, points, meta.nPcs, groupBy, resolution, neighbours, seed],
   )
-  const traces = useMemo(() => buildTraces(pixels, rows, signal), [pixels, rows, signal])
+  const traces = useMemo(() => buildTraces(pixels, rows, signal, speaker), [pixels, rows, signal, speaker])
   useEffect(() => playhead.setLength(traces.length), [playhead, traces.length])
   useEffect(() => playhead.resetLaps(), [playhead, traces])
 
@@ -128,6 +130,14 @@ function Explorer({ data }: { data: PoolData }) {
   // None, once a tap lands on no digit; the first, if the one followed has gone from the sample.
   const followed = focus === null ? null : focus < rows.length ? focus : rows.length ? 0 : null
   const shown = hover ?? followed
+  // Making the followed digit the speaker leaves no digit followed, so the square in front starts blank; releasing it
+  // follows it again, back among the digits taking part.
+  const toggleSpeaker = () =>
+    setSettings((s) =>
+      s.speaker === null
+        ? followed === null ? s : { ...s, speaker: rows[followed], focus: null }
+        : { ...s, speaker: null, focus: picked.includes(s.speaker) ? picked.indexOf(s.speaker) : s.focus },
+    )
 
   // The drawer is always there, at one of two heights: closed, only the playback bar on its top edge shows; open,
   // its tabs show too. The visualiser centres in the rest of the window, above it.
@@ -180,7 +190,8 @@ function Explorer({ data }: { data: PoolData }) {
       <div className="fixed inset-0 overflow-hidden bg-viz">
         <ChordViz
           traces={traces}
-          pickKey={rows}
+          pickKey={picked}
+          rows={rows}
           playhead={playhead}
           slotOf={slotOf}
           groupOf={grouping.groupOf}
@@ -191,6 +202,7 @@ function Explorer({ data }: { data: PoolData }) {
           style={style}
           trailSeconds={trailSeconds}
           particles={particles}
+          speaker={speaker !== null}
           particleReset={particleReset}
           cameraReset={cameraReset}
           onFocus={setFocus}
@@ -204,35 +216,72 @@ function Explorer({ data }: { data: PoolData }) {
         style={{ bottom: drawerOpen ? openSnap : closedSnap, transition: `bottom ${DRAWER_SECONDS}s ${DRAWER_EASE}` }}
       >
         {/* The followed (or hovered) digit as it plays, as in the inspect tab, always in sight; with none, the
-            window still shows where in the reading the playhead is. */}
+            window still shows where in the reading the playhead is. With a speaker, it shrinks back behind, to the top
+            left, and the digit reacting to it comes in front. */}
         <div className="pointer-events-auto absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 flex flex-col items-end gap-1.5">
-          <DigitImage
-            pixels={pixels}
-            poolRow={shown !== null ? rows[shown] : null}
-            traces={traces}
-            playhead={playhead}
-            windowPixels={windowPixels}
-            className="size-21 rounded-sm border-white/90!"
-          />
-          {/* Pins playback to the window, looping round inside it, so its groups hold still as it plays; unpinned,
-              playback carries on to the window's end and breaks through it. */}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className={cn(
-              'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white',
-              pinned && 'bg-white/90 text-black hover:bg-white hover:text-black',
-            )}
-            onClick={() => playhead.setPin(pinned ? null : windowPixels)}
-            aria-pressed={pinned}
-            aria-label={pinned ? 'Unpin from this window' : 'Pin to the window'}
-            title={pinned ? 'Unpin from this window' : 'Pin to the window'}
-          >
-            <Focus />
-          </Button>
+          <div className="relative size-21">
+            <DigitImage
+              pixels={pixels}
+              poolRow={speaker}
+              traces={traces}
+              playhead={playhead}
+              windowPixels={windowPixels}
+              className={cn(
+                'absolute inset-0 size-21 origin-top-left rounded-sm border-white/90! transition-[translate,scale,opacity] duration-500 motion-reduce:transition-none',
+                speaker === null ? 'pointer-events-none opacity-0' : '-translate-x-8 -translate-y-1.5 scale-60 opacity-70',
+              )}
+            />
+            <DigitImage
+              pixels={pixels}
+              poolRow={shown !== null ? rows[shown] : null}
+              traces={traces}
+              playhead={playhead}
+              windowPixels={windowPixels}
+              className="absolute inset-0 size-21 rounded-sm border-white/90! shadow-lg shadow-black/60"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            {/* Makes the followed digit the speaker, the one every other digit reacts to; again, releases it. */}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={cn(
+                'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white',
+                speaker !== null && 'bg-white/90 text-black hover:bg-white hover:text-black',
+              )}
+              onClick={toggleSpeaker}
+              disabled={speaker === null && followed === null}
+              aria-pressed={speaker !== null}
+              aria-label={speaker !== null ? 'Release the speaker' : 'Make this digit the speaker'}
+              title={speaker !== null ? 'Release the speaker' : 'Make this digit the speaker'}
+            >
+              <Megaphone />
+            </Button>
+            {/* Pins playback to the window, looping round inside it, so its groups hold still as it plays; unpinned,
+                playback carries on to the window's end and breaks through it. */}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={cn(
+                'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white',
+                pinned && 'bg-white/90 text-black hover:bg-white hover:text-black',
+              )}
+              onClick={() => playhead.setPin(pinned ? null : windowPixels)}
+              aria-pressed={pinned}
+              aria-label={pinned ? 'Unpin from this window' : 'Pin to the window'}
+              title={pinned ? 'Unpin from this window' : 'Pin to the window'}
+            >
+              <Focus />
+            </Button>
+          </div>
         </div>
-        {/* The digits taking part, along the top as in the digits tab, clear of the corner digit. */}
-        <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-[calc(5.25rem+1.5rem)] left-3 pointer-events-none [&_button]:pointer-events-auto">
+        {/* The digits taking part, along the top as in the digits tab, clear of the corner digit (and the speaker behind it). */}
+        <div
+          className={cn(
+            'pointer-events-none absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 [&_button]:pointer-events-auto',
+            speaker === null ? 'right-[calc(5.25rem+1.5rem)]' : 'right-[calc(5.25rem+3.5rem)]',
+          )}
+        >
           <DigitPicker digits={settings.digits} onDigits={(v) => set('digits', v)} compact />
         </div>
         {/* The buttons sit on the drawer's top edge, so they rise and fall with it. */}
@@ -351,6 +400,7 @@ function Explorer({ data }: { data: PoolData }) {
                           playhead={playhead}
                           windowPixels={windowPixels}
                           following={hover === null}
+                          heard={speaker !== null}
                         />
                       )}
                     </Section>
@@ -390,7 +440,8 @@ function Explorer({ data }: { data: PoolData }) {
           <SheetHeader>
             <SheetTitle>Presets</SheetTitle>
             <SheetDescription>
-              Valence particles from MNIST: each digit's pixels, read in order, are one participant's valence over time (paper −1, ink +1). Save
+              Valence particles from MNIST: each digit's pixels, read in order, are one participant's valence over time (paper −1, ink +1). Make a
+              digit the speaker and the others react to it instead: matching it agrees, differing disagrees. Save
               the settings you've arrived at, or carry them between browsers as files.
             </SheetDescription>
           </SheetHeader>

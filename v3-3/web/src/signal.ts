@@ -1,6 +1,7 @@
 /**
  * Each digit read out as a trace over time: its pixels, in some reading order, become one
- * value per moment, smoothed, then mapped to valence (−1 disagree … +1 agree).
+ * value per moment, smoothed, then mapped to valence (−1 disagree … +1 agree). With a speaker, a
+ * digit's valence is how far it agrees with the speaker at each pixel, rather than its own ink.
  */
 
 export const SIDE = 28
@@ -95,7 +96,10 @@ export const READINGS: Record<ReadingKey, Int32Array> = {
 
 /** blur: a centred Gaussian. lag: an exponential moving average, which trails the input. */
 export type SmoothingKind = 'blur' | 'lag'
-/** ink: ink agrees, paper disagrees (−1…+1). ink-only: ink agrees, paper is neutral (0…+1). */
+/**
+ * ink: ink agrees, paper disagrees (−1…+1). ink-only: ink agrees, paper is neutral (0…+1).
+ * With a speaker, matching it agrees and differing disagrees instead: −1…+1 for ink, 0…+1 for ink-only.
+ */
 export type ValenceMapping = 'ink' | 'ink-only'
 
 export interface SignalSettings {
@@ -148,12 +152,16 @@ function smoothInPlace(row: Float32Array, kind: SmoothingKind, amount: number, s
   row.set(scratch.subarray(0, L))
 }
 
-/** Reads each of `rows` (row indices into `pixels`, N × 784) out as a trace. */
-export function buildTraces(pixels: Uint8Array, rows: number[], settings: SignalSettings): Traces {
+/**
+ * Reads each of `rows` (row indices into `pixels`, N × 784) out as a trace; with `speaker` (a row too), as how far
+ * each agrees with it.
+ */
+export function buildTraces(pixels: Uint8Array, rows: number[], settings: SignalSettings, speaker: number | null = null): Traces {
   const reading = READINGS[settings.reading]
   let pixelAt = reading
   if (settings.skipBlank) {
-    const kept = Array.from(reading).filter((p) => rows.some((r) => pixels[r * N_PIXELS + p] > 0))
+    const heard = speaker === null ? rows : [...rows, speaker]
+    const kept = Array.from(reading).filter((p) => heard.some((r) => pixels[r * N_PIXELS + p] > 0))
     // Keep at least something to play, even for an all-blank pick.
     if (kept.length > 1) pixelAt = Int32Array.from(kept)
   }
@@ -165,11 +173,20 @@ export function buildTraces(pixels: Uint8Array, rows: number[], settings: Signal
   const ink = new Float32Array(n * L)
   const valence = new Float32Array(n * L)
   const scratch = new Float32Array(L)
-  rows.forEach((r, i) => {
-    const row = ink.subarray(i * L, (i + 1) * L)
+  const read = (r: number, row: Float32Array) => {
     for (let t = 0; t < L; t++) row[t] = pixels[r * N_PIXELS + pixelAt[t]] / 255
     smoothInPlace(row, settings.smoothing, settings.smoothingPixels, scratch)
-    for (let t = 0; t < L; t++) valence[i * L + t] = settings.mapping === 'ink' ? row[t] * 2 - 1 : row[t]
+  }
+  let spoken: Float32Array | null = null
+  if (speaker !== null) read(speaker, (spoken = new Float32Array(L)))
+  rows.forEach((r, i) => {
+    const row = ink.subarray(i * L, (i + 1) * L)
+    read(r, row)
+    for (let t = 0; t < L; t++) {
+      // Against a speaker, agreement: 1 where the two match, falling to 0 where one is ink and the other paper.
+      const v = spoken ? 1 - Math.abs(row[t] - spoken[t]) : row[t]
+      valence[i * L + t] = settings.mapping === 'ink' ? v * 2 - 1 : v
+    }
   })
   return { n, length: L, pixelAt, momentOf, ink, valence }
 }

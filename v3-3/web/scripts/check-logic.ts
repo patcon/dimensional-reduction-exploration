@@ -5,7 +5,7 @@
 import { Playhead } from '../src/playhead.ts'
 import { completeSettings, DEFAULT_SETTINGS } from '../src/presets.ts'
 import { sampleGroups } from '../src/selection.ts'
-import { valenceAt, type Traces } from '../src/signal.ts'
+import { buildTraces, N_PIXELS, valenceAt, type Traces } from '../src/signal.ts'
 
 const failures: string[] = []
 function check(name: string, actual: unknown, expected: unknown) {
@@ -22,6 +22,20 @@ check('interpolated', valenceAt(traces, 0, 1.5), 1.5)
 check('wrapped before the start', valenceAt(traces, 0, -1, true), 3)
 check('wrapped, interpolated', close(valenceAt(traces, 0, -0.5, true)), 3.5)
 check('wrapped past the end', valenceAt(traces, 0, 5, true), 1)
+
+// ── buildTraces against a speaker: matching agrees, ink against paper disagrees ──
+const digitPixels = new Uint8Array(3 * N_PIXELS)
+for (let p = 0; p < N_PIXELS; p++) {
+  digitPixels[p] = p % 3 ? 0 : 255
+  digitPixels[N_PIXELS + p] = digitPixels[p]
+  digitPixels[2 * N_PIXELS + p] = 255 - digitPixels[p]
+}
+const unsmoothed = { ...DEFAULT_SETTINGS.signal, smoothingPixels: 0, mapping: 'ink' as const }
+const heard = buildTraces(digitPixels, [1, 2], unsmoothed, 0)
+check('a digit matching the speaker agrees throughout', heard.valence.subarray(0, heard.length).every((v) => v === 1), true)
+check('a digit inverting the speaker disagrees throughout', heard.valence.subarray(heard.length).every((v) => v === -1), true)
+const own = buildTraces(digitPixels, [0], unsmoothed)
+check('with no speaker, ink speaks for itself', [own.valence[own.momentOf[0]], own.valence[own.momentOf[1]]], [1, -1])
 
 // ── Playhead: laps, and the window ──
 const playhead = new Playhead()

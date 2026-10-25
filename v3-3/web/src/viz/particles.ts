@@ -13,8 +13,8 @@ const P_S_BWIDTH = 400
 const P_S_BG = 20
 
 /**
- * The particle geometry's simulation: positions and velocities, pushed by group forces and pulled by
- * the centre according to each particle's valence, and trails recorded as they move.
+ * The particle geometry's simulation: positions and velocities, pushed by group forces and, with a speaker
+ * there, pulled by the centre according to each particle's valence, and trails recorded as they move.
  *
  * Particle trails can't be read off the trace, so they're recorded, on the same grid of moments as
  * chord trails: a ring of `trailLength` samples (x, y, valence) per particle, and each sample's grid point.
@@ -55,6 +55,33 @@ export class Particles {
     this.clearTrails()
   }
 
+  /**
+   * Keeps each particle that's still taking part where it was, moving as it was, trail and all: `from[i]` is new
+   * particle i's old index, or −1 for one joining, which starts at the centre (a released speaker, say).
+   */
+  carryOver(from: Int32Array) {
+    const old = { x: this.x, y: this.y, prevX: this.prevX, prevY: this.prevY, vx: this.vx, vy: this.vy, history: this.history }
+    const n = from.length
+    const L = this.trailLength
+    this.n = n
+    ;[this.x, this.y, this.prevX, this.prevY, this.vx, this.vy, this.ax, this.ay] = Array.from({ length: 8 }, () => new Float32Array(n))
+    this.history = new Float32Array(n * L * 3)
+    for (let i = 0; i < n; i++) {
+      const j = from[i]
+      if (j >= 0) {
+        this.x[i] = old.x[j]; this.y[i] = old.y[j]
+        this.prevX[i] = old.prevX[j]; this.prevY[i] = old.prevY[j]
+        this.vx[i] = old.vx[j]; this.vy[i] = old.vy[j]
+        this.history.set(old.history.subarray(j * L * 3, (j + 1) * L * 3), i * L * 3)
+      } else {
+        // Just off the centre, as particles exactly on top of each other don't push apart.
+        this.x[i] = this.prevX[i] = (Math.random() - 0.5) * 2
+        this.y[i] = this.prevY[i] = (Math.random() - 0.5) * 2
+        for (let k = 0; k < L; k++) this.history.set([this.x[i], this.y[i], 0], (i * L + k) * 3)
+      }
+    }
+  }
+
   clearTrails() {
     this.count = 0
     this.lastGrid = -Infinity
@@ -77,8 +104,8 @@ export class Particles {
     this.clearTrails()
   }
 
-  /** One step of the simulation, with each particle's group and valence now. */
-  advance(groupOf: Int32Array, valence: Float32Array, ps: ParticleSettings) {
+  /** One step of the simulation, with each particle's group and valence now; the centre only pulls with a speaker there. */
+  advance(groupOf: Int32Array, valence: Float32Array, ps: ParticleSettings, speaker: boolean) {
     const { n, x: px, y: py, vx, vy, ax, ay } = this
     this.prevX.set(px); this.prevY.set(py)
     ax.fill(0); ay.fill(0)
@@ -107,7 +134,9 @@ export class Particles {
       if (r2 < 0.01) continue
       const r = Math.sqrt(r2)
       if (r2 <= S_RR) {
-        // The centre pulls in by valence (ink in, paper out, unless reversed), and pushes out up close.
+        // With no speaker, nothing's at the centre to pull, or to push away up close.
+        if (!speaker) continue
+        // The speaker pulls in by valence (agreement in, disagreement out, unless reversed), and pushes out up close.
         const f = r < sRMin ? r / sRMin - 1 : sign * valence[i] * (1 - r / sRMax)
         const inv = (f * ps.centreForce) / r
         ax[i] += dx * inv; ay[i] += dy * inv

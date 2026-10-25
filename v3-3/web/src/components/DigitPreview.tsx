@@ -89,6 +89,7 @@ export function DigitPreview({
   playhead,
   windowPixels,
   following,
+  heard = false,
 }: {
   pixels: Uint8Array
   poolRow: number
@@ -101,6 +102,8 @@ export function DigitPreview({
   windowPixels: number
   /** Whether this is the followed digit (rather than one hovered for a moment). */
   following: boolean
+  /** Whether its valence is against a speaker, rather than its own ink. */
+  heard?: boolean
 }) {
   const meterRef = useRef<HTMLDivElement>(null)
   const readoutRef = useRef<HTMLSpanElement>(null)
@@ -134,7 +137,7 @@ export function DigitPreview({
           <span className="valence-end">+1</span>
         </div>
         <div className="muted">
-          valence <span ref={readoutRef} className="num" />
+          valence{heard && ' against the speaker'} <span ref={readoutRef} className="num" />
         </div>
       </div>
     </div>

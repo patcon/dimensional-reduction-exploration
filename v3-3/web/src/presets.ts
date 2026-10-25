@@ -26,6 +26,8 @@ export interface Settings {
   particles: ParticleSettings
   /** The followed digit, by its place in the sample. */
   focus: number | null
+  /** The digit every other digit reacts to, by its pool row, or null for none: each digit then speaks for itself. */
+  speaker: number | null
   /** Playback, in pixels per second. */
   speed: number
   /** Keep the screen from dimming or locking while the page is open. */
@@ -50,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   trailSeconds: 10,
   particles: DEFAULT_PARTICLES,
   focus: 0,
+  speaker: null,
   speed: 14,
   wakeLock: false,
 }

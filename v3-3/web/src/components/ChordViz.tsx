@@ -40,6 +40,8 @@ const FILL_LATER = [false, false, true, false, true, true]
 const FILL_IS_ROOT = [true, false, true, false, false, true]
 /** The focus ring's size, relative to a cursor dot. */
 const FOCUS_RING_SCALE = 2.6
+/** The speaker's dot at the particles' centre, relative to a cursor dot. */
+const SPEAKER_SCALE = 2
 /** The outer ring's dots, in the authoring space's units. */
 const RING_DOT_SIZE = 3
 /** How far from its root a chord reaches full width; shorter chords never get there. */
@@ -162,6 +164,11 @@ export interface ChordVizProps {
   traces: Traces
   /** Changes when a new set of digits takes part, so their chords grow in afresh. */
   pickKey: unknown
+  /**
+   * Each participant's pool row. Changing under the same `pickKey` (a speaker set or released), digits still taking
+   * part keep their chords and particles as they were, rather than starting over.
+   */
+  rows: number[]
   playhead: Playhead
   /** slotOf[participant] = its chord's position in the geometry. */
   slotOf: Int32Array
@@ -174,6 +181,8 @@ export interface ChordVizProps {
   /** How far back trails reach, in seconds of playback; further back, not squashed, for longer. */
   trailSeconds: number
   particles: ParticleSettings
+  /** Whether a speaker sits at the particles' centre, pulling on them by valence. */
+  speaker: boolean
   /** Changes when particles should be scattered afresh. */
   particleReset: unknown
   /** Changes when the camera should ease back from wherever it was dragged or zoomed to. */
@@ -274,6 +283,15 @@ export function ChordViz(props: ChordVizProps) {
     focusPoint.frustumCulled = false
     scene.add(focusPoint)
 
+    // The speaker, at the particles' centre.
+    const speakerGeo = new THREE.BufferGeometry()
+    speakerGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3))
+    const speakerMat = new THREE.PointsMaterial({ color: 0xffffff, size: DEFAULT_STYLE.cursorSize * SPEAKER_SCALE, sizeAttenuation: true, transparent: true, depthTest: false, map: dotTex, alphaTest: 0.05 })
+    const speakerPoint = new THREE.Points(speakerGeo, speakerMat)
+    speakerPoint.renderOrder = 9
+    speakerPoint.frustumCulled = false
+    scene.add(speakerPoint)
+
     // Wide lines too, so their width can be set; the buffers are handed over once and written in place.
     // Measured in world units, so trails taper into the distance. They write depth, so nearer, newer
     // segments hide the dark, faded ends of trails behind them rather than being painted over by them;
@@ -371,6 +389,7 @@ export function ChordViz(props: ChordVizProps) {
     let shownSlot = new Float32Array(0)
     let arrival = new Float32Array(0)
     let lastPick: unknown = undefined
+    let lastRows: number[] = []
     type ChordGeo = Exclude<GeoMode, 'particle'>
     const geoTarget: Record<ChordGeo, number> = { radial: 1, diametric: 0, linear: -1, parallel: -2 }
     // The particle geometry has no chords of its own; they keep the last chord geometry's shape.
@@ -441,20 +460,31 @@ export function ChordViz(props: ChordVizProps) {
     let animFrameId = 0
     function animate() {
       animFrameId = requestAnimationFrame(animate)
-      const { traces, pickKey, playhead, slotOf, groupOf, colors, focus, view, geometry, style, trailSeconds, particles, particleReset, cameraReset } = live.current
+      const { traces, pickKey, rows, playhead, slotOf, groupOf, colors, focus, view, geometry, style, trailSeconds, particles, speaker, particleReset, cameraReset } = live.current
       const inParticles = geometry === 'particle'
       // How many moments trails cover, and so how deep they reach.
       const trailMoments = trailSeconds * playhead.speed
 
       // A new set of digits: chords start over from nothing; otherwise each keeps its place and glides.
-      if (pickKey !== lastPick || traces.n !== n) {
+      if (pickKey !== lastPick || (rows === lastRows && traces.n !== n)) {
         lastPick = pickKey
+        lastRows = rows
         n = Math.min(traces.n, MAX_CHORDS)
         shownSlot = Float32Array.from(slotOf.subarray(0, n))
         arrival = new Float32Array(n)
         vNow = new Float32Array(n)
         sim.resize(n)
         if (inParticles) seedParticles(true)
+      } else if (rows !== lastRows) {
+        // The same digits, give or take a speaker: each keeps its slot, growth and particle; one joining grows in from
+        // the centre.
+        const from = Int32Array.from(rows.slice(0, MAX_CHORDS), (r) => lastRows.indexOf(r))
+        lastRows = rows
+        n = from.length
+        shownSlot = Float32Array.from(from, (j, i) => (j >= 0 ? shownSlot[j] : slotOf[i]))
+        arrival = Float32Array.from(from, (j) => (j >= 0 ? arrival[j] : 0))
+        vNow = new Float32Array(n)
+        sim.carryOver(from)
       }
 
       // ── Camera between views ──
@@ -537,7 +567,7 @@ export function ChordViz(props: ChordVizProps) {
       if (inParticles && playhead.playing) {
         const played = Number.isNaN(particleElapsed) ? 0 : Math.max(0, playhead.elapsed - particleElapsed)
         particleStepsOwed = Math.min(MAX_PARTICLE_STEPS, particleStepsOwed + played / MOMENTS_PER_PARTICLE_STEP)
-        for (; particleStepsOwed >= 1; particleStepsOwed--) sim.advance(groupOf, vNow, particles)
+        for (; particleStepsOwed >= 1; particleStepsOwed--) sim.advance(groupOf, vNow, particles, speaker)
         // What's left over is how far playback is into the next step: particles are drawn that far from where the
         // last step started them towards where it left them, so they glide between steps when playback is slow.
         sim.record(elapsed, step, vNow, particleStepsOwed)
@@ -648,6 +678,8 @@ export function ChordViz(props: ChordVizProps) {
         b.geo.attributes.color.needsUpdate = true
       }
       focusPoint.visible = focusShown && style.focusRing
+      speakerPoint.visible = speaker && pb > 0
+      speakerMat.opacity = pb
       traceLines.visible = showTrace
       fillMesh.visible = showTrace && !inParticles
       chordMesh.visible = !inParticles
@@ -658,6 +690,7 @@ export function ChordViz(props: ChordVizProps) {
       // Points shrink with distance but not with the field of view, so they make up for the dolly.
       dotMat.size = style.cursorSize * dolly
       focusMat.size = style.cursorSize * FOCUS_RING_SCALE * dolly
+      speakerMat.size = style.cursorSize * SPEAKER_SCALE * dolly
       ringDotsMat.size = RING_DOT_SIZE * dolly
       traceMat.linewidth = style.traceWidth
 
@@ -747,8 +780,8 @@ export function ChordViz(props: ChordVizProps) {
       orbit.dispose()
       clearInterval(jitter)
       renderer.dispose()
-      for (const g of [chord.geo, dot.geo, traceGeo, fill.geo, focusGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
-      for (const m of [chordMat, dotMat, traceMat, fillMat, focusMat, ringDotsMat, ...guides.map((l) => l.material)]) m.dispose()
+      for (const g of [chord.geo, dot.geo, traceGeo, fill.geo, focusGeo, speakerGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
+      for (const m of [chordMat, dotMat, traceMat, fillMat, focusMat, speakerMat, ringDotsMat, ...guides.map((l) => l.material)]) m.dispose()
       dotTex.dispose()
       ringTex.dispose()
     }
