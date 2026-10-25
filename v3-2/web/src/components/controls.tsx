@@ -56,12 +56,19 @@ export function Slider({ label, value, min, max, step = 1, onChange, format = St
   )
 }
 
-/** A switch, labelled. */
-export function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+/** A switch, labelled; disabled, with `note` saying why, say. */
+export function Toggle({ label, checked, onChange, disabled, note }: {
+  label: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  disabled?: boolean
+  note?: string
+}) {
   return (
-    <label className="flex items-center gap-2 text-sm">
-      <Switch checked={checked} onCheckedChange={onChange} />
+    <label className={cn('flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm', disabled && 'text-muted-foreground')}>
+      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
       {label}
+      {note && <span className="basis-full pl-10 text-xs text-muted-foreground">{note}</span>}
     </label>
   )
 }

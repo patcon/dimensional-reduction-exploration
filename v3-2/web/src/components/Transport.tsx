@@ -116,7 +116,13 @@ export function PlaybackSection({ playhead, traces, speed, onSpeed, loop, onLoop
       <Slider label="speed" value={fromSpeed(speed)} min={0} max={1} step={0.001} onChange={(u) => onSpeed(toSpeed(u))} format={() => `${speed} px/s`} />
       <Slider label="trail" value={trailSeconds} min={5} max={300} step={5} onChange={onTrailSeconds} format={(v) => `${v} s`} />
       <Toggle label="loop" checked={loop} onChange={onLoop} />
-      {canWakeLock && <Toggle label="keep screen awake" checked={wakeLock} onChange={onWakeLock} />}
+      <Toggle
+        label="keep screen awake"
+        checked={canWakeLock && wakeLock}
+        onChange={onWakeLock}
+        disabled={!canWakeLock}
+        note={canWakeLock ? undefined : window.isSecureContext ? "This browser can't keep the screen awake." : 'Needs the page on https (or localhost) to keep the screen awake.'}
+      />
       <p ref={readoutRef} className="num text-xs text-muted-foreground" />
     </Section>
   )
