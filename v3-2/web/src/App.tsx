@@ -245,12 +245,12 @@ function Explorer({ data }: { data: PoolData }) {
         </span>
         <Button
           variant="ghost"
-          size="icon-sm"
-          className="pointer-events-auto absolute right-[3.375rem] bottom-0 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
+          size="icon"
+          className="pointer-events-auto absolute right-[3.75rem] bottom-0 rounded-b-none bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
           onClick={nextGeometry}
           aria-label={`Geometry: ${geometry}. Switch to ${followingGeometry}.`}
         >
-          <GeometryIcon geometry={geometry} />
+          <GeometryIcon geometry={geometry} className="size-5" />
         </Button>
         <Button
           variant="ghost"
