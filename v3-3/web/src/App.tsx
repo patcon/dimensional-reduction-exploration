@@ -34,6 +34,8 @@ const DRAWER_SECONDS = 0.5
 const VIEW_CYCLE: ViewMode[] = ['2d', '2d-ts', '3d']
 /** How long the view and geometry buttons name what they moved to, as phones can't hover for a tooltip. */
 const MODE_LABEL_MS = 1200
+/** Releasing the speaker: the square in front fades out, then the speaker grows back into its place, before it rejoins the digits. */
+const SPEAKER_RELEASE_MS = 800
 
 /** The drawer's tabs, in order. */
 const TABS = [
@@ -131,13 +133,23 @@ function Explorer({ data }: { data: PoolData }) {
   const followed = focus === null ? null : focus < rows.length ? focus : rows.length ? 0 : null
   const shown = hover ?? followed
   // Making the followed digit the speaker leaves no digit followed, so the square in front starts blank; releasing it
-  // follows it again, back among the digits taking part.
-  const toggleSpeaker = () =>
-    setSettings((s) =>
-      s.speaker === null
-        ? followed === null ? s : { ...s, speaker: rows[followed], focus: null }
-        : { ...s, speaker: null, focus: picked.includes(s.speaker) ? picked.indexOf(s.speaker) : s.focus },
-    )
+  // follows it again, back among the digits taking part, once it has grown back into its place.
+  const [releasing, setReleasing] = useState(false)
+  const releaseTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(releaseTimer.current), [])
+  const toggleSpeaker = () => {
+    if (releasing) return
+    if (speaker === null) {
+      if (followed !== null) setSettings((s) => ({ ...s, speaker: rows[followed], focus: null }))
+      return
+    }
+    setReleasing(true)
+    releaseTimer.current = setTimeout(() => {
+      setReleasing(false)
+      setSettings((s) => (s.speaker === null ? s : { ...s, speaker: null, focus: picked.includes(s.speaker) ? picked.indexOf(s.speaker) : s.focus }))
+    }, SPEAKER_RELEASE_MS)
+  }
+  const speaking = speaker !== null && !releasing
 
   // The drawer is always there, at one of two heights: closed, only the playback bar on its top edge shows; open,
   // its tabs show too. The visualiser centres in the rest of the window, above it.
@@ -217,7 +229,8 @@ function Explorer({ data }: { data: PoolData }) {
       >
         {/* The followed (or hovered) digit as it plays, as in the inspect tab, always in sight; with none, the
             window still shows where in the reading the playhead is. With a speaker, it shrinks back behind, to the top
-            left, and the digit reacting to it comes in front. */}
+            left, and the digit reacting to it comes in front. Without one, the speaker's square waits, full size, behind the
+            one in front, so it's already in place as the square in front vanishes. */}
         <div className="pointer-events-auto absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 flex flex-col items-end gap-1.5">
           <div className="relative size-21">
             <DigitImage
@@ -227,17 +240,27 @@ function Explorer({ data }: { data: PoolData }) {
               playhead={playhead}
               windowPixels={windowPixels}
               className={cn(
-                'absolute inset-0 size-21 origin-top-left rounded-sm border-white/90! transition-[translate,scale,opacity] duration-500 motion-reduce:transition-none',
-                speaker === null ? 'pointer-events-none opacity-0' : '-translate-x-8 -translate-y-1.5 scale-60 opacity-70',
+                'absolute inset-0 size-21 origin-top-left rounded-sm border-white/90! motion-reduce:transition-none',
+                speaker === null && 'pointer-events-none',
+                speaking && '-translate-x-8 -translate-y-1.5 scale-60 opacity-70 transition-[translate,scale,opacity] duration-500',
+                // Growing back once the square in front has faded out.
+                releasing && 'transition-[translate,scale,opacity] delay-300 duration-500',
               )}
             />
+            {/* Fresh for each speaker, so it vanishes at once, uncovering the speaker, and fades in once the speaker is
+                behind; releasing, it fades out first. */}
             <DigitImage
+              key={speaker ?? 'none'}
               pixels={pixels}
               poolRow={shown !== null ? rows[shown] : null}
               traces={traces}
               playhead={playhead}
               windowPixels={windowPixels}
-              className="absolute inset-0 size-21 rounded-sm border-white/90! shadow-lg shadow-black/60"
+              className={cn(
+                'absolute inset-0 size-21 rounded-sm border-white/90! shadow-lg shadow-black/60',
+                speaking && 'transition-opacity delay-500 duration-300 starting:opacity-0 motion-reduce:transition-none',
+                releasing && 'opacity-0 transition-opacity duration-300 motion-reduce:transition-none',
+              )}
             />
           </div>
           <div className="flex gap-1.5">
@@ -247,11 +270,11 @@ function Explorer({ data }: { data: PoolData }) {
               size="icon-sm"
               className={cn(
                 'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white',
-                speaker !== null && 'bg-white/90 text-black hover:bg-white hover:text-black',
+                speaking && 'bg-white/90 text-black hover:bg-white hover:text-black',
               )}
               onClick={toggleSpeaker}
-              disabled={speaker === null && followed === null}
-              aria-pressed={speaker !== null}
+              disabled={releasing || (speaker === null && followed === null)}
+              aria-pressed={speaking}
               aria-label={speaker !== null ? 'Release the speaker' : 'Make this digit the speaker'}
               title={speaker !== null ? 'Release the speaker' : 'Make this digit the speaker'}
             >
