@@ -1,10 +1,11 @@
 import { RotateCcw, Shuffle, Sparkles } from 'lucide-react'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { DIGIT_COLORS } from '../palette'
 import type { SettingsEditor } from '../presets'
 import { N_DIGITS, type Grouping } from '../selection'
 import { N_PIXELS, READING_LABELS, type ReadingKey } from '../signal'
-import { ELEMENTS, GEO_MODES, VIEW_LABELS, type ViewMode } from '../vizSettings'
+import { ELEMENTS, GEO_MODES, VIEW_LABELS, type Element, type ViewMode } from '../vizSettings'
 import { Field, Section, Segmented, Slider, Toggle } from './controls'
 import { Button } from './ui/button'
 import { Slider as SliderBase } from './ui/slider'
@@ -187,45 +188,73 @@ export function ViewSection({ settings, set, onView }: SettingsEditor & { onView
   )
 }
 
-/** What each element is coloured by (a button that switches between the two), its opacity, and the sizes of cursors, chords and traces. */
+/** Each element's size setting, where it has one: its key in the style, range and how its value reads. */
+const SIZES: Partial<Record<Element, { key: 'cursorSize' | 'chordWidth' | 'traceWidth'; label: string; min: number; max: number; step: number; format: (v: number) => string }>> = {
+  cursor: { key: 'cursorSize', label: 'cursor size', min: 2, max: 30, step: 1, format: String },
+  chord: { key: 'chordWidth', label: 'chord width', min: 0.5, max: 10, step: 0.5, format: (v) => `${v} px` },
+  trace: { key: 'traceWidth', label: 'trace width', min: 0.5, max: 10, step: 0.5, format: String },
+}
+
+/**
+ * A row per element: what it's coloured by (a button that switches between the two), its opacity and its size. One
+ * readout on the right shows whichever of the row's sliders was touched last.
+ */
 export function StyleSection({ settings, patch }: SettingsEditor) {
   const { style } = settings
+  const [shown, setShown] = useState<Partial<Record<Element, 'opacity' | 'size'>>>({})
   return (
     <Section title="Style">
-      <div className="grid grid-cols-[3.5rem_auto_1fr] items-center gap-x-3 gap-y-2 text-sm">
+      <div className="grid grid-cols-[3rem_auto_1fr_1fr_2.75rem] items-center gap-x-2.5 gap-y-2 text-sm">
         <span />
         <span className="text-xs text-muted-foreground">colour by</span>
         <span className="text-xs text-muted-foreground">opacity</span>
-        {ELEMENTS.map((el) => (
-          <div key={el} className="contents">
-            <span className="text-muted-foreground">{el}</span>
-            {/* One button, showing what it's coloured by now; a press switches to the other. */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-18"
-              aria-label={`${el} coloured by ${style.colorBy[el]}; switch to ${style.colorBy[el] === 'valence' ? 'group' : 'valence'}`}
-              onClick={() => patch('style', { colorBy: { ...style.colorBy, [el]: style.colorBy[el] === 'valence' ? 'group' : 'valence' } })}
-            >
-              {style.colorBy[el]}
-            </Button>
-            <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">size</span>
+        <span />
+        {ELEMENTS.map((el) => {
+          const size = SIZES[el]
+          const showSize = size && shown[el] === 'size'
+          return (
+            <div key={el} className="contents">
+              <span className="text-muted-foreground">{el}</span>
+              {/* One button, showing what it's coloured by now; a press switches to the other. */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-18"
+                aria-label={`${el} coloured by ${style.colorBy[el]}; switch to ${style.colorBy[el] === 'valence' ? 'group' : 'valence'}`}
+                onClick={() => patch('style', { colorBy: { ...style.colorBy, [el]: style.colorBy[el] === 'valence' ? 'group' : 'valence' } })}
+              >
+                {style.colorBy[el]}
+              </Button>
               <SliderBase
                 aria-label={`${el} opacity`}
                 value={[style.opacity[el]]}
                 min={0}
                 max={1}
                 step={0.05}
+                onPointerDown={() => setShown((s) => ({ ...s, [el]: 'opacity' }))}
+                onFocus={() => setShown((s) => ({ ...s, [el]: 'opacity' }))}
                 onValueChange={([v]) => patch('style', { opacity: { ...style.opacity, [el]: v } })}
               />
-              <span className="num w-8 text-right text-xs">{style.opacity[el].toFixed(2)}</span>
+              {size ? (
+                <SliderBase
+                  aria-label={size.label}
+                  value={[style[size.key]]}
+                  min={size.min}
+                  max={size.max}
+                  step={size.step}
+                  onPointerDown={() => setShown((s) => ({ ...s, [el]: 'size' }))}
+                  onFocus={() => setShown((s) => ({ ...s, [el]: 'size' }))}
+                  onValueChange={([v]) => patch('style', { [size.key]: v })}
+                />
+              ) : (
+                <span />
+              )}
+              <span className="num text-right text-xs">{showSize ? size.format(style[size.key]) : style.opacity[el].toFixed(2)}</span>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
-      <Slider label="cursor size" value={style.cursorSize} min={2} max={30} onChange={(v) => patch('style', { cursorSize: v })} />
-      <Slider label="chord width" value={style.chordWidth} min={0.5} max={10} step={0.5} onChange={(v) => patch('style', { chordWidth: v })} format={(v) => `${v} px`} />
-      <Slider label="trace width" value={style.traceWidth} min={0.5} max={10} step={0.5} onChange={(v) => patch('style', { traceWidth: v })} />
       <Toggle label="ring the followed digit" checked={style.focusRing} onChange={(on) => patch('style', { focusRing: on })} />
     </Section>
   )
