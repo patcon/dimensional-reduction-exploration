@@ -1,4 +1,4 @@
-import { Bookmark, Eye, Focus, Gauge, Hash, Megaphone, ScanSearch, Shapes } from 'lucide-react'
+import { Bookmark, Eye, Focus, Gauge, Hash, Megaphone, PencilLine, ScanSearch, Shapes } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ChordViz } from './components/ChordViz'
@@ -6,6 +6,7 @@ import { Section } from './components/controls'
 import { DigitImage, DigitPreview } from './components/DigitPreview'
 import { GroupLegend } from './components/GroupLegend'
 import { Matrix } from './components/Matrix'
+import { PathDrawer } from './components/PathDrawer'
 import { PresetsPanel } from './components/Presets'
 import { DigitPicker, GroupingSection, ParticleSection, ReadingSection, SampleSection, StyleSection, ViewSection } from './components/SettingsPanels'
 import { PlaybackSection, TransportBar } from './components/Transport'
@@ -88,7 +89,16 @@ function Explorer({ data }: { data: PoolData }) {
     () => groupParticipants(rowLabels, points, meta.nPcs, groupBy, { resolution, neighbours, seed }),
     [rowLabels, points, meta.nPcs, groupBy, resolution, neighbours, seed],
   )
-  const traces = useMemo(() => buildTraces(pixels, rows, signal, speaker), [pixels, rows, signal, speaker])
+  // A path drawn across the digit, read in place of the reading order, or null.
+  const [path, setPath] = useState<Int32Array | null>(null)
+  const [drawingPath, setDrawingPath] = useState(false)
+  const traces = useMemo(() => buildTraces(pixels, rows, signal, speaker, path), [pixels, rows, signal, speaker, path])
+  /** Reads along `next` (or, with null, the reading order again) from the start, as the old moments mean nothing along it. */
+  const readAlong = (next: Int32Array | null) => {
+    if (playhead.pin) playhead.unpin()
+    playhead.restart()
+    setPath(next)
+  }
   useEffect(() => playhead.setLength(traces.length), [playhead, traces.length])
   useEffect(() => playhead.resetLaps(), [playhead, traces])
 
@@ -305,6 +315,21 @@ function Explorer({ data }: { data: PoolData }) {
               <Focus />
             </Button>
           </div>
+          {/* Draws a path across the digit to read along instead, looping round it; again, goes back to the reading order. */}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className={cn(
+              'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white',
+              path && 'bg-white/90 text-black hover:bg-white hover:text-black',
+            )}
+            onClick={() => (path ? readAlong(null) : setDrawingPath(true))}
+            aria-pressed={path !== null}
+            aria-label={path ? 'Stop reading along the drawn path' : 'Draw a path to read along'}
+            title={path ? 'Stop reading along the drawn path' : 'Draw a path to read along'}
+          >
+            <PencilLine />
+          </Button>
         </div>
         {/* The digits taking part, along the top as in the digits tab, clear of the corner digit (and the speaker behind it). */}
         <div
@@ -465,6 +490,19 @@ function Explorer({ data }: { data: PoolData }) {
           </div>
         </DrawerContent>
       </Drawer>
+
+      {/* Traced over the speaker, whose strokes the others react to, or else the digit in front. */}
+      <PathDrawer
+        open={drawingPath}
+        onOpenChange={setDrawingPath}
+        pixels={pixels}
+        poolRow={speaker ?? (shown !== null ? rows[shown] : null)}
+        onPath={(p) => {
+          playhead.setPlaying(false)
+          readAlong(p)
+          setDrawingPath(false)
+        }}
+      />
 
       <Sheet open={presetsOpen} onOpenChange={setPresetsOpen}>
         <SheetContent side="right" className="overflow-y-auto">

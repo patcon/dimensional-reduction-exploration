@@ -5,7 +5,7 @@
 import { Playhead } from '../src/playhead.ts'
 import { completeSettings, DEFAULT_SETTINGS } from '../src/presets.ts'
 import { sampleGroups } from '../src/selection.ts'
-import { buildTraces, N_PIXELS, valenceAt, type Traces } from '../src/signal.ts'
+import { buildTraces, N_PIXELS, SIDE, strokePixels, valenceAt, type Traces } from '../src/signal.ts'
 
 const failures: string[] = []
 function check(name: string, actual: unknown, expected: unknown) {
@@ -36,6 +36,14 @@ check('a digit matching the speaker agrees throughout', heard.valence.subarray(0
 check('a digit inverting the speaker disagrees throughout', heard.valence.subarray(heard.length).every((v) => v === -1), true)
 const own = buildTraces(digitPixels, [0], unsmoothed)
 check('with no speaker, ink speaks for itself', [own.valence[own.momentOf[0]], own.valence[own.momentOf[1]]], [1, -1])
+
+// ── strokePixels and drawn paths: gaps between samples filled in, pixels read again where the stroke crosses back ──
+check('a stroke fills in the cells between samples', Array.from(strokePixels([[0.5, 0.5], [3.5, 0.5]])), [0, 1, 2, 3])
+check('a diagonal stroke steps diagonally', Array.from(strokePixels([[0.5, 0.5], [2.5, 2.5]])), [0, SIDE + 1, 2 * SIDE + 2])
+check('samples within one cell read it once', Array.from(strokePixels([[0.2, 0.2], [0.8, 0.8], [1.5, 0.5]])), [0, 1])
+const along = buildTraces(digitPixels, [0], unsmoothed, null, Int32Array.from([0, 1, 0]))
+check('a drawn path is read as drawn', [along.length, Array.from(along.valence)], [3, [1, -1, 1]])
+check('a pixel read twice is found at its first moment', [along.momentOf[0], along.momentOf[1], along.momentOf[2]], [0, 1, -1])
 
 // ── Playhead: laps, and the window ──
 const playhead = new Playhead()

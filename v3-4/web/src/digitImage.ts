@@ -9,18 +9,19 @@ import { N_PIXELS, type Traces } from './signal'
  * ink against paper disagrees (black).
  */
 export function shadeDigit(img: ImageData, pixels: Uint8Array, poolRow: number | null, traces: Traces, playhead: Playhead, windowPixels: number, accent: number[], against: number | null = null) {
-  const head = Math.round(playhead.moment)
-  const ranges = playhead.windowRanges(windowPixels)
+  // By moment rather than by pixel, as a drawn path can read a pixel more than once.
+  const head = traces.pixelAt[Math.min(traces.length - 1, Math.round(playhead.moment))]
+  const inWindow = new Uint8Array(N_PIXELS)
+  for (const [from, to] of playhead.windowRanges(windowPixels))
+    for (let t = Math.max(0, Math.ceil(from)); t <= Math.min(traces.length - 1, to); t++) inWindow[traces.pixelAt[t]] = 1
   for (let p = 0; p < N_PIXELS; p++) {
     const v = poolRow === null ? 0 : pixels[poolRow * N_PIXELS + p]
-    const m = traces.momentOf[p]
-    const inWindow = m >= 0 && ranges.some(([from, to]) => m >= from && m <= to)
     // Agreement runs from black (−1) to white (+1), as ink does from paper to stroke.
     const g = poolRow !== null && against !== null ? 255 - Math.abs(v - pixels[against * N_PIXELS + p]) : v
     let rgb = [g, g, g]
-    if (inWindow) rgb = rgb.map((c, i) => c * 0.7 + accent[i] * 0.3)
+    if (inWindow[p]) rgb = rgb.map((c, i) => c * 0.7 + accent[i] * 0.3)
     else rgb = rgb.map((c) => c * 0.45 + 10)
-    if (m === head) rgb = accent
+    if (p === head) rgb = accent
     img.data.set([rgb[0], rgb[1], rgb[2], 255], p * 4)
   }
 }

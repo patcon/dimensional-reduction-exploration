@@ -90,7 +90,7 @@ export class Playhead {
   }
 
   /** Unpins at once, with `elapsed` carrying on from where it was. */
-  private unpin() {
+  unpin() {
     const elapsed = this.elapsed
     this.pin = null
     this.elapsedOffset += elapsed - this.elapsed
@@ -127,6 +127,8 @@ export class Playhead {
   setLength(length: number) {
     this.length = Math.max(1, length)
     this.moment = Math.min(this.moment, this.length - 1)
+    // A pinned window past the new end (as when a shorter path is drawn) can't be played round.
+    if (this.pin && this.pin.to > this.length - 1) this.unpin()
     this.changed()
     this.frame()
   }

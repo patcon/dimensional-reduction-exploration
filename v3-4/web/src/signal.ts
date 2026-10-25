@@ -117,9 +117,9 @@ export interface Traces {
   n: number
   /** Moments per trace. */
   length: number
-  /** pixelAt[t] = the row-major pixel (0–783) read at moment t. */
+  /** pixelAt[t] = the row-major pixel (0–783) read at moment t. Along a drawn path, a pixel can be read more than once. */
   pixelAt: Int32Array
-  /** momentOf[pixel] = the moment that pixel is read at, or −1 if skipped. */
+  /** momentOf[pixel] = the (first) moment that pixel is read at, or −1 if skipped. */
   momentOf: Int32Array
   /** n × length ink, 0–1, after smoothing. */
   ink: Float32Array
@@ -154,19 +154,21 @@ function smoothInPlace(row: Float32Array, kind: SmoothingKind, amount: number, s
 
 /**
  * Reads each of `rows` (row indices into `pixels`, N × 784) out as a trace; with `speaker` (a row too), as how far
- * each agrees with it.
+ * each agrees with it. With `path` (pixels, as drawn), along that instead of the reading order, blank pixels and all.
  */
-export function buildTraces(pixels: Uint8Array, rows: number[], settings: SignalSettings, speaker: number | null = null): Traces {
-  const reading = READINGS[settings.reading]
+export function buildTraces(pixels: Uint8Array, rows: number[], settings: SignalSettings, speaker: number | null = null, path: Int32Array | null = null): Traces {
+  const reading = path ?? READINGS[settings.reading]
   let pixelAt = reading
-  if (settings.skipBlank) {
+  if (settings.skipBlank && !path) {
     const heard = speaker === null ? rows : [...rows, speaker]
     const kept = Array.from(reading).filter((p) => heard.some((r) => pixels[r * N_PIXELS + p] > 0))
     // Keep at least something to play, even for an all-blank pick.
     if (kept.length > 1) pixelAt = Int32Array.from(kept)
   }
   const momentOf = new Int32Array(N_PIXELS).fill(-1)
-  pixelAt.forEach((p, t) => (momentOf[p] = t))
+  pixelAt.forEach((p, t) => {
+    if (momentOf[p] < 0) momentOf[p] = t
+  })
 
   const n = rows.length
   const L = pixelAt.length
@@ -201,4 +203,27 @@ export function valenceAt(traces: Traces, i: number, moment: number, wrap = fals
   const f = t - t0
   const base = i * L
   return traces.valence[base + t0] * (1 - f) + traces.valence[base + t1] * f
+}
+
+/**
+ * The pixels a stroke passes through, from cell to cell of `points` (as [column, row], fractional), filling in
+ * the cells between samples so consecutive pixels always touch (diagonally too), as a pen would.
+ */
+export function strokePixels(points: [number, number][]) {
+  const cell = (v: number) => Math.min(SIDE - 1, Math.max(0, Math.floor(v)))
+  const path: number[] = []
+  let last: [number, number] | null = null
+  for (const [x, y] of points) {
+    const to: [number, number] = [cell(x), cell(y)]
+    const from = last ?? to
+    const steps = Math.max(Math.abs(to[0] - from[0]), Math.abs(to[1] - from[1]))
+    for (let s = last ? 1 : 0; s <= steps; s++) {
+      const c = Math.round(from[0] + ((to[0] - from[0]) * s) / Math.max(1, steps))
+      const r = Math.round(from[1] + ((to[1] - from[1]) * s) / Math.max(1, steps))
+      const p = r * SIDE + c
+      if (path[path.length - 1] !== p) path.push(p)
+    }
+    last = to
+  }
+  return Int32Array.from(path)
 }
