@@ -30,6 +30,11 @@ interface Props {
   /** The forces now, which style the edges: solid attracting, dashed repelling, left out at no force. */
   weights: Weights
   className?: string
+  /**
+   * How much of the plot's bottom is covered (by a drawer, say), in CSS pixels, read every frame as it may be moving.
+   * The view's middle moves up by half that, as a map's does, so what's covered is the plot's bottom, not its middle.
+   */
+  coveredBottom?: () => number
 }
 
 const PAD = 12
@@ -167,13 +172,15 @@ function background(el: Element) {
  * Clicking a digit selects it and clicking away selects none; the mouse hovers digits, and holding a press still
  * hovers digits picked at random around it (see JITTER_RADIUS), inside a ring drawn there.
  */
-export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, className }: Props) {
+export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, className, coveredBottom }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   /** The rings around the selected and hovered digits, over the points, so they move without redrawing them. */
   const marksRef = useRef<HTMLCanvasElement>(null)
   const holdRingRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
+  /** What `coveredBottom` last read, in whole CSS pixels. */
+  const [covered, setCovered] = useState(0)
   const viewRef = useRef<View>({ ...INITIAL_VIEW })
   /** Bumped whenever the view changes, to redraw. */
   const [viewVersion, setViewVersion] = useState(0)
@@ -278,6 +285,18 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
+
+  // Follow what's covered as it moves.
+  useEffect(() => {
+    if (!coveredBottom) return
+    let frame = 0
+    const tick = () => {
+      setCovered(Math.max(0, Math.round(coveredBottom())))
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [coveredBottom])
 
   // Spin, unless the view is being dragged.
   useEffect(() => {
@@ -385,13 +404,14 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
       drawOrder = sorted
     }
 
-    // Zoom about the plot's centre, then pan.
+    // Zoom about the plot's centre, then pan, then lift the middle clear of what's covered.
     const { zoom, panX, panY } = viewRef.current
-    if (zoom !== 1 || panX || panY) {
+    const lift = (covered * dpr) / 2
+    if (zoom !== 1 || panX || panY || lift) {
       const [cx, cy] = plotCentre(w, h, dpr)
       for (let i = 0; i < n; i++) {
         sx[i] = cx + (sx[i] - cx) * zoom + panX * dpr
-        sy[i] = cy + (sy[i] - cy) * zoom + panY * dpr
+        sy[i] = cy + (sy[i] - cy) * zoom + panY * dpr - lift
       }
     }
 
@@ -411,7 +431,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     }
     ctx.putImageData(image, 0, 0)
     drawMarks.current()
-  }, [Y, dim, labels, shown, order, size, version, viewVersion])
+  }, [Y, dim, labels, shown, order, size, version, viewVersion, covered])
 
   const turnable = dim === 3
   const redraw = () => setViewVersion((v) => v + 1)
@@ -420,7 +440,9 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   const zoomAt = (x: number, y: number, factor: number) => {
     const view = viewRef.current
     const zoom = Math.min(ZOOM_RANGE[1], Math.max(ZOOM_RANGE[0], view.zoom * factor))
-    const [cx, cy] = plotCentre(size.width, size.height, 1)
+    const [cx, centreY] = plotCentre(size.width, size.height, 1)
+    // The middle as drawn, lifted clear of what's covered.
+    const cy = centreY - covered / 2
     const k = zoom / view.zoom
     view.panX = (x - cx) - k * (x - cx - view.panX)
     view.panY = (y - cy) - k * (y - cy - view.panY)
@@ -602,7 +624,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
       {children && <div className="scatter-overlay">{children}</div>}
       {corner && <div className="scatter-corner">{corner}</div>}
       {moved && (
-        <Button variant="outline" size="sm" className="scatter-reset" onClick={resetView} title="Or double-click the plot">
+        <Button variant="outline" size="sm" className="scatter-reset" style={{ bottom: covered + 8 }} onClick={resetView} title="Or double-click the plot">
           Reset view
         </Button>
       )}

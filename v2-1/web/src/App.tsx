@@ -208,7 +208,9 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
   const [infoOpen, setInfoOpen] = useState(false)
   const [barHeight, setBarHeight] = useState(64)
   // A callback ref, as the drawer's portal mounts its content after the page does.
+  const barEl = useRef<HTMLDivElement | null>(null)
   const barRef = useCallback((bar: HTMLDivElement | null) => {
+    barEl.current = bar
     if (!bar) return
     const observer = new ResizeObserver(() => setBarHeight(Math.ceil(bar.getBoundingClientRect().height)))
     observer.observe(bar)
@@ -218,13 +220,20 @@ function Playground({ data, size, dataSize, onSize, loading, loadError }: Playgr
   const panelHeight = Math.round(Math.min(windowHeight * 0.55, 560))
   const closedSnap = `${barHeight}px`
   const openSnap = `${barHeight + panelHeight}px`
+  // Where the drawer's top edge is right now, mid-move or mid-drag too, as the plot centres above it.
+  const drawerCovers = useCallback(() => {
+    const drawer = barEl.current?.parentElement
+    return drawer ? window.innerHeight - drawer.getBoundingClientRect().top : 0
+  }, [])
 
   return (
     <>
-      {/* The plot fills the window above the drawer's bar. */}
-      <div className="fixed inset-x-0 top-0" style={{ bottom: closedSnap }}>
+      {/* The plot fills the window, behind the drawer, and centres in what the drawer leaves (as a map would), so it
+          never resizes as the drawer moves. */}
+      <div className="fixed inset-0">
         <Scatter
           className="h-full"
+          coveredBottom={drawerCovers}
           Y={clock.display}
           dim={dim}
           labels={meta.labels}
