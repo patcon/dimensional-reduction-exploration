@@ -28,6 +28,8 @@ export interface Settings {
   focus: number | null
   /** The digit every other digit reacts to, by its pool row, or null for none: each digit then speaks for itself. */
   speaker: number | null
+  /** A path drawn across the digit, as the row-major pixels it passes through in order, read in place of the reading order; or null. */
+  path: number[] | null
   /** Playback, in pixels per second. */
   speed: number
   /** Keep the screen from dimming or locking while the page is open. */
@@ -53,6 +55,7 @@ export const DEFAULT_SETTINGS: Settings = {
   particles: { ...DEFAULT_PARTICLES, cohesion: 0.2, separation: -0.2, spread: 0.4, radius: 150, damping: 0.7 },
   focus: 0,
   speaker: null,
+  path: null,
   speed: 14,
   wakeLock: false,
 }

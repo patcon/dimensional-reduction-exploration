@@ -66,6 +66,8 @@ function Explorer({ data }: { data: PoolData }) {
   const { settings, setSettings, set, patch, reset } = useSettings()
   const editor = { settings, set, patch }
   const { count, seed, groupBy, resolution, neighbours, clusterOver, clusterRate, windowPixels, order, signal, view, geometry, style, trailSeconds, particles, focus, speaker } = settings
+  // A path drawn across the digit, read in place of the reading order, or null.
+  const path = useMemo(() => (settings.path ? Int32Array.from(settings.path) : null), [settings.path])
   const digits = useMemo(() => new Set(settings.digits), [settings.digits])
   const setFocus = (i: number | null) => set('focus', i)
   const presets = usePresets(settings, setSettings)
@@ -89,15 +91,13 @@ function Explorer({ data }: { data: PoolData }) {
     () => groupParticipants(rowLabels, points, meta.nPcs, groupBy, { resolution, neighbours, seed }),
     [rowLabels, points, meta.nPcs, groupBy, resolution, neighbours, seed],
   )
-  // A path drawn across the digit, read in place of the reading order, or null.
-  const [path, setPath] = useState<Int32Array | null>(null)
   const [drawingPath, setDrawingPath] = useState(false)
   const traces = useMemo(() => buildTraces(pixels, rows, signal, speaker, path), [pixels, rows, signal, speaker, path])
   /** Reads along `next` (or, with null, the reading order again) from the start, as the old moments mean nothing along it. */
   const readAlong = (next: Int32Array | null) => {
     if (playhead.pin) playhead.unpin()
     playhead.restart()
-    setPath(next)
+    set('path', next && Array.from(next))
   }
   useEffect(() => playhead.setLength(traces.length), [playhead, traces.length])
   useEffect(() => playhead.resetLaps(), [playhead, traces])
