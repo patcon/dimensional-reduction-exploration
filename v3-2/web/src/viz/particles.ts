@@ -23,6 +23,9 @@ export class Particles {
   n = 0
   x = new Float32Array(0)
   y = new Float32Array(0)
+  /** Where each particle was before the last step, to draw it partway from there towards where it is now. */
+  prevX = new Float32Array(0)
+  prevY = new Float32Array(0)
   private vx = new Float32Array(0)
   private vy = new Float32Array(0)
   private ax = new Float32Array(0)
@@ -47,7 +50,7 @@ export class Particles {
   /** Starts over with n particles, all at the centre. */
   resize(n: number) {
     this.n = n
-    ;[this.x, this.y, this.vx, this.vy, this.ax, this.ay] = Array.from({ length: 6 }, () => new Float32Array(n))
+    ;[this.x, this.y, this.prevX, this.prevY, this.vx, this.vy, this.ax, this.ay] = Array.from({ length: 8 }, () => new Float32Array(n))
     this.history = new Float32Array(n * this.trailLength * 3)
     this.clearTrails()
   }
@@ -70,12 +73,14 @@ export class Particles {
       }
       this.vx[i] = 0; this.vy[i] = 0
     }
+    this.prevX.set(this.x); this.prevY.set(this.y)
     this.clearTrails()
   }
 
   /** One step of the simulation, with each particle's group and valence now. */
   advance(groupOf: Int32Array, valence: Float32Array, ps: ParticleSettings) {
     const { n, x: px, y: py, vx, vy, ax, ay } = this
+    this.prevX.set(px); this.prevY.set(py)
     ax.fill(0); ay.fill(0)
     const rMax = ps.radius, RR = rMax * rMax
     // Spread scales the centre's reach, so the boundary closes in or opens out with it.
@@ -120,8 +125,17 @@ export class Particles {
     }
   }
 
-  /** Records a trail sample when `moment` reaches the next grid point (every `step` moments); a jump back starts trails over. */
-  record(moment: number, step: number, valence: Float32Array) {
+  /** Where particle i is drawn, `t` of the way from before the last step (0) to after it (1), into `out`. */
+  shownAt(i: number, t: number, out: number[]) {
+    out[0] = this.prevX[i] + (this.x[i] - this.prevX[i]) * t
+    out[1] = this.prevY[i] + (this.y[i] - this.prevY[i]) * t
+  }
+
+  /**
+   * Records a trail sample when `moment` reaches the next grid point (every `step` moments), of where particles are
+   * drawn (`t` as for `shownAt`); a jump back starts trails over.
+   */
+  record(moment: number, step: number, valence: Float32Array, t: number) {
     if (step !== this.step) { this.step = step; this.clearTrails() }
     if (step <= 0) return
     const grid = Math.floor(moment / step)
@@ -131,7 +145,9 @@ export class Particles {
     const L = this.trailLength
     for (let i = 0; i < this.n; i++) {
       const o = (i * L + this.head) * 3
-      this.history[o] = this.x[i]; this.history[o + 1] = this.y[i]; this.history[o + 2] = valence[i]
+      this.history[o] = this.prevX[i] + (this.x[i] - this.prevX[i]) * t
+      this.history[o + 1] = this.prevY[i] + (this.y[i] - this.prevY[i]) * t
+      this.history[o + 2] = valence[i]
     }
     this.grid[this.head] = grid
     this.head = (this.head + 1) % L

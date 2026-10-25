@@ -390,6 +390,7 @@ export function ChordViz(props: ChordVizProps) {
     /** Simulation steps owed for the moments played so far, and `elapsed` when last counted. */
     let particleStepsOwed = 0
     let particleElapsed = NaN
+    const shownParticle = [0, 0]
     const seedParticles = (scatter: boolean) => sim.seed(scatter, live.current.particles.spread, dot.pos)
 
     const morph: Morph = { p1: 0, p2: 0, pp1: 0, pp2: 0, lp1: 0, lp2: 0 }
@@ -538,7 +539,9 @@ export function ChordViz(props: ChordVizProps) {
         const played = Number.isNaN(particleElapsed) ? 0 : Math.max(0, playhead.elapsed - particleElapsed)
         particleStepsOwed = Math.min(MAX_PARTICLE_STEPS, particleStepsOwed + played / MOMENTS_PER_PARTICLE_STEP)
         for (; particleStepsOwed >= 1; particleStepsOwed--) sim.advance(groupOf, vNow, particles)
-        sim.record(elapsed, step, vNow)
+        // What's left over is how far playback is into the next step: particles are drawn that far from where the
+        // last step started them towards where it left them, so they glide between steps when playback is slow.
+        sim.record(elapsed, step, vNow, particleStepsOwed)
       }
       particleElapsed = playhead.elapsed
 
@@ -552,7 +555,10 @@ export function ChordViz(props: ChordVizProps) {
         const [rx, ry] = [pts[0] - CENTER, CENTER - pts[1]]
         chordRoot[i * 2] = rx; chordRoot[i * 2 + 1] = ry
         let [dx, dy] = [pts[2] - CENTER, CENTER - pts[3]]
-        if (pb > 0) { dx += (sim.x[i] - dx) * pb; dy += (sim.y[i] - dy) * pb }
+        if (pb > 0) {
+          sim.shownAt(i, particleStepsOwed, shownParticle)
+          dx += (shownParticle[0] - dx) * pb; dy += (shownParticle[1] - dy) * pb
+        }
         if (!inParticles) {
           colour(by.chord, v, group)
           // Valence is zero at the root, so a valence-coloured chord fades in from the background; a
