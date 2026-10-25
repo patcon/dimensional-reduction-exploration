@@ -298,13 +298,46 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
 export function ParticleSection({ settings, patch, onScatter }: SettingsEditor & { onScatter: () => void }) {
   const { particles, speaker } = settings
   const unheard = speaker === null ? 'With no speaker, nothing at the centre pulls.' : undefined
+  const byNeighbours = particles.forces === 'neighbours'
   return (
     <Section
       title="Particles"
-      description="Groups pull together. With a speaker, it sits at the centre, pulling in the digits agreeing with it now and pushing out those disagreeing."
+      description={
+        (byNeighbours
+          ? 'Each digit is pulled towards the digits it counts among its nearest neighbours, which needn\'t count it back.'
+          : 'Groups pull together.') +
+        ' With a speaker, it sits at the centre, pulling in the digits agreeing with it now and pushing out those disagreeing.'
+      }
     >
-      <Slider label="within groups" value={particles.cohesion} min={-1} max={1} step={0.05} onChange={(v) => patch('particles', { cohesion: v })} format={fixed(2)} />
-      <Slider label="between groups" value={particles.separation} min={-1} max={1} step={0.05} onChange={(v) => patch('particles', { separation: v })} format={fixed(2)} />
+      <Field label="forces">
+        <Segmented options={['groups', 'neighbours'] as const} value={particles.forces} onChange={(v) => patch('particles', { forces: v })} />
+      </Field>
+      <Slider
+        label={byNeighbours ? 'neighbours' : 'within groups'}
+        value={particles.cohesion}
+        min={-1}
+        max={1}
+        step={0.05}
+        onChange={(v) => patch('particles', { cohesion: v })}
+        format={fixed(2)}
+      />
+      <Slider
+        label={byNeighbours ? 'others' : 'between groups'}
+        value={particles.separation}
+        min={-1}
+        max={1}
+        step={0.05}
+        onChange={(v) => patch('particles', { separation: v })}
+        format={fixed(2)}
+      />
+      {byNeighbours && (
+        <Toggle
+          label="one-way neighbours"
+          checked={particles.oneWay}
+          onChange={(on) => patch('particles', { oneWay: on })}
+          note={particles.oneWay ? undefined : 'Symmetrised as Leiden sees them, so forces are equal both ways.'}
+        />
+      )}
       <Slider label="speaker" value={particles.centreForce} min={0} max={6} step={0.1} onChange={(v) => patch('particles', { centreForce: v })} format={fixed(1)} title={unheard} />
       <Slider label="spread" value={particles.spread} min={0.2} max={1.5} step={0.05} onChange={(v) => patch('particles', { spread: v })} format={fixed(2)} />
       <Slider label="reach" value={particles.radius} min={10} max={150} onChange={(v) => patch('particles', { radius: v })} format={fixed(0)} />

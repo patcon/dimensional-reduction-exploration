@@ -29,12 +29,21 @@ export const DEFAULT_STYLE: VizStyle = {
   focusRing: true,
 }
 
+/**
+ * What sets the force between two particles: whether they're in the same group, or how much each counts the other
+ * among its nearest neighbours (which needn't be mutual, so neither need the forces be).
+ */
+export type ForceSource = 'groups' | 'neighbours'
+
 /** Forces in the particle geometry. Positive pulls together, negative pushes apart. */
 export interface ParticleSettings {
-  /** Between particles of the same group. */
+  forces: ForceSource
+  /** Between particles of the same group; with neighbour forces, on a particle towards one it counts fully as a neighbour. */
   cohesion: number
-  /** Between particles of different groups. */
+  /** Between particles of different groups; with neighbour forces, on a particle towards one it doesn't count. */
   separation: number
+  /** With neighbour forces, each particle goes by its own neighbours, rather than UMAP's symmetrised weights. */
+  oneWay: boolean
   /** The speaker's pull on a particle, from the centre, scaled by its valence now; with no speaker, nothing pulls. */
   centreForce: number
   /** Agreement pushes away from the centre and disagreement pulls in, rather than the other way round. */
@@ -48,8 +57,10 @@ export interface ParticleSettings {
 }
 
 export const DEFAULT_PARTICLES: ParticleSettings = {
+  forces: 'groups',
   cohesion: 0.6,
   separation: -0.3,
+  oneWay: true,
   centreForce: 3.4,
   reverseCentre: false,
   spread: 1,
