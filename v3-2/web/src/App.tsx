@@ -21,6 +21,7 @@ import { chordSlots, groupParticipants, pcsOf, pickRows, windowFeatures, type Gr
 import { buildTraces } from './signal'
 import { useData, type PoolData } from './useData'
 import { usePresets } from './usePresets'
+import { useWakeLock } from './useWakeLock'
 import { MAX_CHORDS, VIEW_LABELS, type ViewMode } from './vizSettings'
 
 /** Moments sampled across the window when clustering over it. */
@@ -71,6 +72,7 @@ function Explorer({ data }: { data: PoolData }) {
   const playhead = usePlayhead()
   useEffect(() => playhead.setSpeed(settings.speed), [playhead, settings.speed])
   useEffect(() => playhead.setLoop(settings.loop), [playhead, settings.loop])
+  useWakeLock(settings.wakeLock)
 
   const available = useMemo(() => labels.filter((l) => digits.has(l)).length, [labels, digits])
   const maxCount = Math.min(MAX_CHORDS, available)
@@ -288,6 +290,8 @@ function Explorer({ data }: { data: PoolData }) {
                       onLoop={(v) => set('loop', v)}
                       trailSeconds={trailSeconds}
                       onTrailSeconds={(v) => set('trailSeconds', v)}
+                      wakeLock={settings.wakeLock}
+                      onWakeLock={(v) => set('wakeLock', v)}
                     />
                   </TabsContent>
                   <TabsContent value="digits" className="flex flex-col gap-8">

@@ -6,6 +6,7 @@ import { SIDE, type Traces } from '../signal'
 import { Section, Slider, Toggle } from './controls'
 import { Button } from './ui/button'
 import { useSteadyRelease } from '../useSteadyRelease'
+import { canWakeLock } from '../useWakeLock'
 
 // Speed slider: logarithmic, 0.25–60 pixels per second.
 const SPEED_MIN = 0.25
@@ -86,8 +87,8 @@ export function TransportBar({ playhead, traces, open, onOpen }: {
   )
 }
 
-/** Speed, how far trails reach, looping, and where the playhead is in the digit's pixels. */
-export function PlaybackSection({ playhead, traces, speed, onSpeed, loop, onLoop, trailSeconds, onTrailSeconds }: {
+/** Speed, how far trails reach, looping, keeping the screen awake, and where the playhead is in the digit's pixels. */
+export function PlaybackSection({ playhead, traces, speed, onSpeed, loop, onLoop, trailSeconds, onTrailSeconds, wakeLock, onWakeLock }: {
   playhead: Playhead
   traces: Traces
   speed: number
@@ -96,6 +97,8 @@ export function PlaybackSection({ playhead, traces, speed, onSpeed, loop, onLoop
   onLoop: (loop: boolean) => void
   trailSeconds: number
   onTrailSeconds: (seconds: number) => void
+  wakeLock: boolean
+  onWakeLock: (on: boolean) => void
 }) {
   const readoutRef = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
@@ -113,6 +116,7 @@ export function PlaybackSection({ playhead, traces, speed, onSpeed, loop, onLoop
       <Slider label="speed" value={fromSpeed(speed)} min={0} max={1} step={0.001} onChange={(u) => onSpeed(toSpeed(u))} format={() => `${speed} px/s`} />
       <Slider label="trail" value={trailSeconds} min={5} max={300} step={5} onChange={onTrailSeconds} format={(v) => `${v} s`} />
       <Toggle label="loop" checked={loop} onChange={onLoop} />
+      {canWakeLock && <Toggle label="keep screen awake" checked={wakeLock} onChange={onWakeLock} />}
       <p ref={readoutRef} className="num text-xs text-muted-foreground" />
     </Section>
   )

@@ -29,6 +29,8 @@ export interface Settings {
   /** Playback, in pixels per second. */
   speed: number
   loop: boolean
+  /** Keep the screen from dimming or locking while the page is open. */
+  wakeLock: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -51,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   focus: 0,
   speed: 14,
   loop: true,
+  wakeLock: false,
 }
 
 /** Fills in whatever a saved or imported preset lacks (from an older version, say) with the defaults. */
