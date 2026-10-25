@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { formatMultiplier, toMultiplier, toU, type ForceScale } from '../forceScale'
 import { FORCE_COLORS, FORCE_LABELS } from '../palette'
 import { PAIR_TYPES, type PairType } from '../types'
@@ -13,9 +13,6 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 /** The multipliers PaCMAP's schedule uses for each force, marked on its slider as targets. */
 const PACMAP_MARKS: Record<PairType, number[]> = { nb: [1, 2, 3], mn: [3, 1000], fp: [-1] }
 
-/** A mark's weight, which is always a whole number: +1, +1000, −1. */
-const weightLabel = (w: number) => (w === 0 ? '0' : `${w > 0 ? '+' : '−'}${Math.abs(w)}`)
-
 /** A fader position as MIDI Surf shows it. */
 const percentLabel = (u: number, zero: Zero) => `${Math.round(faderPercent(u, zero))}%`
 
@@ -26,22 +23,6 @@ const percentLabel = (u: number, zero: Zero) => `${Math.round(faderPercent(u, ze
 const posOf = (u: number, split: boolean) => (split ? (1 - u) / 2 : 1 - Math.min(1, Math.abs(u)))
 const pct = (f: number) => `${f * 100}%`
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x))
-
-/** Mark labels' line height, the least they're kept apart (px), and the leader's run. */
-const LABEL_GAP = 13
-const LEADER = 10
-
-/**
- * Where to put each mark's label on a track this tall: at its mark, unless that's too close to
- * the one above, then pushed down (and back up if that runs off the end). ys are top to bottom.
- */
-function spread(ys: number[], height: number) {
-  const out = [...ys]
-  for (let i = 1; i < out.length; i++) out[i] = Math.max(out[i], out[i - 1] + LABEL_GAP)
-  out[out.length - 1] = Math.min(out[out.length - 1], height - LABEL_GAP / 2)
-  for (let i = out.length - 2; i >= 0; i--) out[i] = Math.min(out[i], out[i + 1] - LABEL_GAP)
-  return out
-}
 
 interface SliderProps {
   type: PairType
@@ -54,8 +35,10 @@ interface SliderProps {
   /** Up attracts and down repels (split), or the track is the strength alone with a sign button. */
   split: boolean
   onSplit: (split: boolean) => void
-  /** Set when this force is played from a fader: label positions as that fader's percentage. */
+  /** Set when this force is played from a fader: its position shows as that fader's percentage. */
   faderZero: Zero | null
+  /** Whether to keep room for the sign button under the track, so sliders line up when any is unsplit. */
+  signRow: boolean
   /** Called as a drag or key press starts, before the first onChange. */
   onGrab: () => void
   onChange: (u: number) => void
@@ -67,15 +50,8 @@ interface SliderProps {
  * Spring sliders return to 0 when let go, like a pitch-bend wheel; latch sliders stay put,
  * like a fader. Keys always latch: arrows nudge (shift for bigger steps), 0 zeroes.
  */
-function ForceSlider({ type, u, scale, onScale, spring, onSpring, split, onSplit, faderZero, onGrab, onChange }: SliderProps) {
+function ForceSlider({ type, u, scale, onScale, spring, onSpring, split, onSplit, faderZero, signRow, onGrab, onChange }: SliderProps) {
   const trackRef = useRef<HTMLDivElement>(null)
-  const [height, setHeight] = useState(0)
-  useEffect(() => {
-    const track = trackRef.current!
-    const observer = new ResizeObserver(() => setHeight(track.clientHeight))
-    observer.observe(track)
-    return () => observer.disconnect()
-  }, [])
   // Not split, the sign is kept even at no force (as -0), or as last chosen here, starting as PaCMAP's.
   const [chosenSign, setChosenSign] = useState<1 | -1>(PACMAP_SIGNS[type])
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -96,13 +72,8 @@ function ForceSlider({ type, u, scale, onScale, spring, onSpring, split, onSplit
     onChange(-u || (sign > 0 ? -0 : 0))
   }
 
-  // On a fader, each mark also gives where to put the fader, as MIDI Surf shows it; no force is
-  // marked too, as it's not at the centre of a bottom-zero fader.
-  const marks = (faderZero ? [0, ...PACMAP_MARKS[type]] : PACMAP_MARKS[type])
-    .map((w) => ({ w, u: toU(w, scale) }))
-    .map((mark) => ({ ...mark, y: posOf(mark.u, split) * height }))
-    .sort((a, b) => a.y - b.y)
-  const labelYs = spread(marks.map((mark) => mark.y), height)
+  // On a fader, no force is marked too, as it's not at the centre of a bottom-zero fader.
+  const marks = faderZero ? [0, ...PACMAP_MARKS[type]] : PACMAP_MARKS[type]
 
   const uAt = (e: PointerEvent) => {
     const r = trackRef.current!.getBoundingClientRect()
@@ -135,7 +106,7 @@ function ForceSlider({ type, u, scale, onScale, spring, onSpring, split, onSplit
   }
 
   return (
-    <div className={faderZero ? 'force on-fader' : 'force'}>
+    <div className="force">
       <div className="force-label" style={{ color }}>
         {FORCE_LABELS[type]}
       </div>
@@ -173,26 +144,14 @@ function ForceSlider({ type, u, scale, onScale, spring, onSpring, split, onSplit
               : { background: color, top: pct(posOf(u, false)), bottom: 0 }
           }
         />
-        {height > 0 && (
-          <div className={faderZero ? 'force-marks with-percent' : 'force-marks'} aria-hidden="true">
-            <svg width={LEADER} height={height}>
-              {marks.map((mark, i) => (
-                <path key={mark.w} d={`M0 ${mark.y + 0.5}H3L${LEADER - 3} ${labelYs[i] + 0.5}H${LEADER}`} />
-              ))}
-            </svg>
-            {marks.map((mark, i) => (
-              <div key={mark.w} className="force-mark" style={{ top: labelYs[i] }}>
-                {/* Not split, the track is the strength alone, so its marks take the current sign. */}
-                <span className="force-mark-weight">{weightLabel(split ? mark.w : sign * Math.abs(mark.w))}</span>
-                {faderZero && <span className="force-percent">{percentLabel(mark.u, faderZero)}</span>}
-              </div>
-            ))}
-          </div>
-        )}
+        {/* PaCMAP's values, as lines across the track, unlabelled: the readout above gives the value. */}
+        {marks.map((w) => (
+          <div key={w} className="force-mark" style={{ top: pct(posOf(toU(w, scale), split)) }} aria-hidden />
+        ))}
         <div className="force-thumb" style={{ top: pct(posOf(u, split)), borderColor: color }} />
       </div>
-      {/* The sign keeps its space when split, so sliders line up whichever way each is drawn. */}
-      <div className="flex items-center gap-0.5" style={{ marginRight: 'calc(var(--marks-width) - 36px)' }}>
+      {/* Split, the sign keeps its space while another slider shows one, so they line up. */}
+      {signRow && (
         <Button
           variant="outline"
           size="sm"
@@ -203,10 +162,10 @@ function ForceSlider({ type, u, scale, onScale, spring, onSpring, split, onSplit
         >
           {sign > 0 ? '+ attract' : '− repel'}
         </Button>
-        <Button variant="ghost" size="icon-sm" onClick={() => setOptionsOpen(true)} aria-label={`${FORCE_LABELS[type]} slider options`}>
-          <Settings2 />
-        </Button>
-      </div>
+      )}
+      <Button variant="ghost" size="icon-sm" onClick={() => setOptionsOpen(true)} aria-label={`${FORCE_LABELS[type]} slider options`}>
+        <Settings2 />
+      </Button>
       <Sheet open={optionsOpen} onOpenChange={setOptionsOpen}>
         <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
           <SheetHeader>
@@ -282,6 +241,7 @@ export function ForceSliders({ values, scale, onScale, spring, onSpring, split, 
             split={split[type]}
             onSplit={(s) => onSplit(type, s)}
             faderZero={faderZero[type]}
+            signRow={!PAIR_TYPES.every((t) => split[t])}
             onGrab={onGrab}
             onChange={(u) => onChange(type, u)}
           />
