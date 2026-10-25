@@ -624,7 +624,14 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
       {children && <div className="scatter-overlay">{children}</div>}
       {corner && <div className="scatter-corner">{corner}</div>}
       {moved && (
-        <Button variant="outline" size="sm" className="scatter-reset" style={{ bottom: covered + 2 }} onClick={resetView} title="Or double-click the plot">
+        // Sits on the edge of what covers the plot, as the buttons beside it do.
+        <Button
+          variant="ghost"
+          className="scatter-reset rounded-b-none bg-background/85 px-3 text-muted-foreground hover:text-foreground"
+          style={{ bottom: covered }}
+          onClick={resetView}
+          title="Or double-click the plot"
+        >
           Reset view
         </Button>
       )}
