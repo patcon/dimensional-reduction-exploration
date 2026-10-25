@@ -184,3 +184,28 @@ h1 { margin: 0 0 8px; font-size: 1.6rem; }
   .scatter { flex: none; height: 60vh; }
   .forces { align-items: center; }
 }
+/* Over a digit, a click selects it. */
+.scatter canvas.over-digit { cursor: pointer; }
+/* The rings around the selected and hovered digits, over the points. */
+.scatter .scatter-marks { position: absolute; inset: 0; pointer-events: none; }
+/* Where a held press is hovering digits at random. */
+.scatter-hold {
+  position: absolute; top: 0; left: 0; pointer-events: none; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--fg) 60%, transparent); background: color-mix(in srgb, var(--fg) 5%, transparent);
+}
+/* The picked digit, in the top right corner, below the legend. */
+.scatter-corner { position: absolute; top: 40px; right: 8px; }
+.digit-preview {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border-radius: 6px;
+  font-size: 0.75rem; background: color-mix(in srgb, var(--bg) 85%, transparent);
+}
+/* Outlined, so its black square stands out from a dark page too. */
+.digit-preview canvas {
+  display: block; width: 84px; height: 84px; image-rendering: pixelated; border-radius: 3px; background: #000;
+  outline: 1px solid color-mix(in srgb, var(--fg) 70%, transparent); outline-offset: 1px; cursor: default;
+}
+.digit-preview .muted { color: var(--muted); }
+.digit-preview-loading {
+  display: grid; place-items: center; width: 84px; height: 84px; color: var(--muted);
+  border-radius: 3px; outline: 1px solid var(--border); outline-offset: 1px;
+}

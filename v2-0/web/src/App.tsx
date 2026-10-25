@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { DigitPreview } from './components/DigitPreview'
 import { ForceSliders } from './components/ForceSliders'
 import { MidiPanel } from './components/MidiPanel'
 import { OptimiserPanel } from './components/OptimiserPanel'
@@ -12,7 +13,7 @@ import { DEFAULT_OPTIMISER, OptimiserBank, type OptimiserSettings } from './opti
 import { DIGIT_COLORS } from './palette'
 import { pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
 import { PAIR_TYPES, type Dim, type PairType, type Weights } from './types'
-import { useData, type PacmapData, type SampleSize } from './useData'
+import { useData, useDigits, type PacmapData, type SampleSize } from './useData'
 import { useLoopClock } from './useLoopClock'
 import type { Zero } from './midi'
 import { useMidi } from './useMidi'
@@ -26,6 +27,8 @@ const mapValues = <A, B>(r: Record<PairType, A>, f: (a: A, type: PairType) => B)
 interface PlaygroundProps {
   data: PacmapData
   size: SampleSize
+  /** The size `data` is, which lags `size` while it loads. */
+  dataSize: SampleSize
   /** Switching size swaps `data` once it has loaded, starting over on the new digits. */
   onSize: (size: SampleSize) => void
   /** Whether `size` is still loading (`data` is the previous size's until it arrives). */
@@ -33,10 +36,22 @@ interface PlaygroundProps {
   loadError?: string
 }
 
-function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps) {
+function Playground({ data, size, dataSize, onSize, loading, loadError }: PlaygroundProps) {
   const { meta } = data
   const [dim, setDim] = useState<Dim>(3)
   const [autoRotate, setAutoRotate] = useState(true)
+  // The clicked digit, and the one hovered (by the mouse, or a held press), previewed in the plot's corner.
+  const [selected, setSelected] = useState<number | null>(null)
+  const [hovered, setHovered] = useState<number | null>(null)
+  const pixels = useDigits(dataSize)
+  // Other digits, so whatever was picked is gone.
+  const [pickedIn, setPickedIn] = useState(data)
+  if (pickedIn !== data) {
+    setPickedIn(data)
+    setSelected(null)
+    setHovered(null)
+  }
+  const previewed = hovered ?? selected
   const optimisers = useMemo(() => new OptimiserBank(data.init[dim].length, meta.adam, dim), [data, meta.adam, dim])
   const engine = useMemo(
     () => new Engine(data.pairs, data.init[dim], optimisers.configure(DEFAULT_OPTIMISER), dim),
@@ -166,7 +181,25 @@ function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps)
         onAutoRotate={setAutoRotate}
       />
       <div className="stage">
-        <Scatter Y={clock.display} dim={dim} labels={meta.labels} version={clock.version} autoRotate={autoRotate}>
+        <Scatter
+          Y={clock.display}
+          dim={dim}
+          labels={meta.labels}
+          version={clock.version}
+          autoRotate={autoRotate}
+          selected={selected}
+          hovered={hovered}
+          onSelect={setSelected}
+          onHover={setHovered}
+          corner={
+            <DigitPreview
+              pixels={pixels}
+              index={previewed}
+              label={previewed === null ? null : meta.labels[previewed]}
+              hovering={previewed !== selected}
+            />
+          }
+        >
           <ul className="legend">
             {DIGIT_COLORS.map((color, digit) => (
               <li key={digit}>
@@ -203,7 +236,7 @@ function Playground({ data, size, onSize, loading, loadError }: PlaygroundProps)
 
 export default function App() {
   const [size, setSize] = useState<SampleSize>('20k')
-  const { data, error, loading } = useData(size)
+  const { data, dataSize, error, loading } = useData(size)
 
   return (
     <main>
@@ -216,7 +249,7 @@ export default function App() {
         </p>
       </header>
       {data ? (
-        <Playground data={data} size={size} onSize={setSize} loading={loading} loadError={error} />
+        <Playground data={data} size={size} dataSize={dataSize!} onSize={setSize} loading={loading} loadError={error} />
       ) : (
         <p className="status">{error ?? 'Loading…'}</p>
       )}

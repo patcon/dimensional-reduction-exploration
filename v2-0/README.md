@@ -49,6 +49,10 @@ pnpm dev
   cursor; dragging pans (in 3D, shift- or right-drag, or two fingers). Both hold as the
   layout grows, since they sit on top of the auto-fit. Double-click or **Reset view** to
   go back.
+- **Picking digits.** Click a digit to select it, ringed, and see it in the plot's top right corner; click
+  away from any to select none. The mouse previews whichever digit it's over. Hold a press (or a finger)
+  still for a moment to preview digits picked at random around it, inside a ring that follows it, as if
+  tapping all round it; let go to return to the selected one.
 - **Autopilot** plays PaCMAP's own schedule once and stops. Grabbing a slider, pressing
   Manual or moving a MIDI control takes over from autopilot's current forces.
 - **Schedule graph.** PaCMAP's three weights over one loop (dashed; far pairs below zero,
@@ -115,7 +119,8 @@ or connect over Wi-Fi with a
 - `pipeline/v2-0.py`, for each sample size, runs PaCMAP in 2D and in 3D
   (`save_pairs=True`) and exports to `web/public/data/<size>/` (e.g. `20k/`) their shared
   pairs (`pairs_{nb,mn,fp}.bin`, uint32 i/j), each run's initial layout
-  (`init_{2,3}d.bin`) and the schedule and Adam constants (`meta.json`). Each run's
+  (`init_{2,3}d.bin`), the schedule and Adam constants (`meta.json`), and the digits' pixels, gzipped
+  (`digits.bin.gz`, fetched after the rest, for previewing them). Each run's
   layout every 10 iterations goes to `pipeline/data/v2-0/<size>/reference_{2,3}d.bin`,
   kept out of the site, as a reference for the checks. The pairs are sampled from the
   PCA'd data alone, so both runs draw the same ones.

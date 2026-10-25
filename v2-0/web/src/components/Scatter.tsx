@@ -13,6 +13,14 @@ interface Props {
   autoRotate?: boolean
   /** Overlaid along the top of the plot (e.g. a legend); points are kept clear of it. */
   children?: ReactNode
+  /** Overlaid in the top right corner, below `children` (e.g. a preview of the picked digit). */
+  corner?: ReactNode
+  /** The clicked digit, ringed, and the one under the cursor (or a held finger), ringed more faintly. */
+  selected: number | null
+  hovered: number | null
+  /** A digit was clicked, or nothing was (null), to select none. */
+  onSelect: (i: number | null) => void
+  onHover: (i: number | null) => void
 }
 
 const PAD = 12
@@ -37,6 +45,22 @@ const DRAG_TURN = 0.008
 const ZOOM_RANGE = [0.5, 500]
 /** Zoom per pixel of wheel scroll. */
 const WHEEL_ZOOM = 0.002
+/** How near the cursor, in CSS pixels, a digit has to be to pick it. */
+const PICK_RADIUS = 8
+/** A press that moves further than this, in CSS pixels, is a drag (panning or turning), not a click. */
+const CLICK_SLOP = 5
+/** A press held this long without moving is a hold. */
+const HOLD_MS = 350
+/**
+ * While a press is held, a random spot this many CSS pixels around it is picked every JITTER_MS, as if tapping all
+ * round it, and whichever digit is there is hovered: so many digits nearby can be previewed, as a mouse could.
+ */
+const JITTER_RADIUS = 36
+const JITTER_MS = 110
+/** Spots tried per pick for a digit other than the one hovered, before keeping it. */
+const JITTER_TRIES = 6
+/** The ring around a picked digit, in CSS pixels. */
+const RING_RADIUS = 6
 
 interface View {
   /** 3D: yaw about the vertical axis, then pitch towards the viewer. */
@@ -124,10 +148,16 @@ function background(el: Element) {
  * Zoom and pan sit on top of the auto-fit, so they hold as the layout grows: the wheel (or a
  * trackpad or two-finger pinch) zooms about the cursor, and dragging pans (in 3D, shift- or
  * right-drag, or two fingers). Double-click resets the view.
+ *
+ * Clicking a digit selects it and clicking away selects none; the mouse hovers digits, and holding a press still
+ * hovers digits picked at random around it (see JITTER_RADIUS), inside a ring drawn there.
  */
-export function Scatter({ Y, dim, labels, version, autoRotate = false, children }: Props) {
+export function Scatter({ Y, dim, labels, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  /** The rings around the selected and hovered digits, over the points, so they move without redrawing them. */
+  const marksRef = useRef<HTMLCanvasElement>(null)
+  const holdRingRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const viewRef = useRef<View>({ ...INITIAL_VIEW })
   /** Bumped whenever the view changes, to redraw. */
@@ -142,6 +172,67 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children 
   const order = useMemo(() => shuffledOrder(labels.length), [labels])
   /** Per-point working space for a draw, reused between draws. */
   const scratchRef = useRef<ReturnType<typeof makeScratch>>(null)
+  /** How the last draw was scaled, to find its points again: device pixels per CSS pixel, and the dot's size. */
+  const drawnRef = useRef({ dpr: 1, dot: 1 })
+  /** What the rings and the hold's jitter read, as they run outside a render. */
+  const live = useRef({ selected, hovered, onHover })
+
+  /** The digit nearest a canvas point (CSS pixels) as last drawn, within PICK_RADIUS, or null. */
+  const pickAt = (x: number, y: number): number | null => {
+    const scratch = scratchRef.current
+    if (!scratch) return null
+    const { dpr, dot } = drawnRef.current
+    const px = x * dpr - dot / 2, py = y * dpr - dot / 2
+    let best: number | null = null
+    let bestD2 = (PICK_RADIUS * dpr) ** 2
+    for (let i = 0; i < scratch.sx.length; i++) {
+      const d2 = (scratch.sx[i] - px) ** 2 + (scratch.sy[i] - py) ** 2
+      // In 3D, nearer digits win ties, as they're drawn on top.
+      if (d2 < bestD2 || (d2 === bestD2 && best !== null && scratch.level[i] < scratch.level[best])) {
+        bestD2 = d2
+        best = i
+      }
+    }
+    return best
+  }
+
+  /** Rings the selected and hovered digits where they were last drawn. */
+  const drawMarks = useRef(() => {})
+  const ringDigits = () => {
+    const marks = marksRef.current!
+    const canvas = canvasRef.current!
+    if (marks.width !== canvas.width || marks.height !== canvas.height) {
+      marks.width = canvas.width
+      marks.height = canvas.height
+    }
+    const ctx = marks.getContext('2d')!
+    ctx.clearRect(0, 0, marks.width, marks.height)
+    const scratch = scratchRef.current
+    if (!scratch) return
+    const { dpr, dot } = drawnRef.current
+    const style = getComputedStyle(marks)
+    const ring = (i: number | null, faint: boolean) => {
+      if (i === null || i >= scratch.sx.length) return
+      ctx.beginPath()
+      ctx.arc(scratch.sx[i] + dot / 2, scratch.sy[i] + dot / 2, RING_RADIUS * dpr, 0, 2 * Math.PI)
+      // A halo of the background under the ring, so it shows over dense clusters.
+      ctx.lineWidth = 4 * dpr
+      ctx.strokeStyle = style.getPropertyValue('--bg')
+      ctx.stroke()
+      ctx.lineWidth = (faint ? 1.25 : 2) * dpr
+      ctx.strokeStyle = style.getPropertyValue(faint ? '--muted' : '--fg')
+      ctx.stroke()
+    }
+    const { selected, hovered } = live.current
+    if (hovered !== selected) ring(hovered, true)
+    ring(selected, false)
+  }
+  // First of the effects, so the others see this render's.
+  useEffect(() => {
+    live.current = { selected, hovered, onHover }
+    drawMarks.current = ringDigits
+  })
+  useEffect(() => drawMarks.current(), [selected, hovered])
 
   useEffect(() => {
     const el = wrapRef.current!
@@ -184,6 +275,7 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children 
     const pad = PAD * dpr
     const padTop = PAD_TOP * dpr
     const dot = Math.max(1, Math.round(DOT * dpr))
+    drawnRef.current = { dpr, dot }
     const n = labels.length
     if (scratchRef.current?.sx.length !== n) scratchRef.current = makeScratch(n)
     const scratch = scratchRef.current
@@ -282,6 +374,7 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children 
       for (let dy = 0; dy < dot; dy++) px.fill(c, (y0 + dy) * w + x0, (y0 + dy) * w + x0 + dot)
     }
     ctx.putImageData(image, 0, 0)
+    drawMarks.current()
   }, [Y, dim, labels, order, size, version, viewVersion])
 
   const turnable = dim === 3
@@ -322,16 +415,86 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children 
     const rect = e.currentTarget.getBoundingClientRect()
     return { x: e.clientX - rect.left, y: e.clientY - rect.top }
   }
+
+  /**
+   * A single press, from where it went down: whether it has moved far enough to be a drag, and the view as it was,
+   * to undo what it dragged within CLICK_SLOP if it turns out to be a hold.
+   */
+  const pressRef = useRef<{ x: number; y: number; far: boolean; view: View; moved: boolean } | null>(null)
+  /** The hold, once a press is held: where it is now, and its timers. */
+  const holdRef = useRef<{ timer?: ReturnType<typeof setTimeout>; jitter?: ReturnType<typeof setInterval>; at: { x: number; y: number } | null }>({ at: null })
+
+  const placeHoldRing = (x: number, y: number) => {
+    const ring = holdRingRef.current!
+    ring.style.transform = `translate(${x}px, ${y}px)`
+    ring.hidden = false
+  }
+  const jitterPick = () => {
+    const at = holdRef.current.at
+    if (!at) return
+    for (let t = 0; t < JITTER_TRIES; t++) {
+      const r = JITTER_RADIUS * Math.sqrt(Math.random()), a = Math.random() * 2 * Math.PI
+      const i = pickAt(at.x + r * Math.cos(a), at.y + r * Math.sin(a))
+      if (i !== null && i !== live.current.hovered) return live.current.onHover(i)
+    }
+  }
+  const startHold = () => {
+    const press = pressRef.current
+    if (!press) return
+    // Whatever the press dragged within the slop is undone, and it no longer drags or clicks.
+    viewRef.current = press.view
+    setMoved(press.moved)
+    redraw()
+    const at = [...pointersRef.current.values()][0] ?? press
+    holdRef.current.at = at
+    placeHoldRing(at.x, at.y)
+    jitterPick()
+    holdRef.current.jitter = setInterval(jitterPick, JITTER_MS)
+  }
+  const endHold = () => {
+    const hold = holdRef.current
+    clearTimeout(hold.timer)
+    if (!hold.at) return
+    clearInterval(hold.jitter)
+    hold.at = null
+    holdRingRef.current!.hidden = true
+    live.current.onHover(null)
+  }
+  useEffect(() => endHold, [])
+
   const onPointerDown = (e: PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     pointersRef.current.set(e.pointerId, at(e))
     dragModeRef.current = turnable && e.button === 0 && !e.shiftKey ? 'turn' : 'pan'
+    if (pointersRef.current.size === 1 && e.button === 0) {
+      pressRef.current = { ...at(e), far: false, view: { ...viewRef.current }, moved }
+      holdRef.current.timer = setTimeout(startHold, HOLD_MS)
+    } else {
+      // A second finger (a pinch) or another button: not a click or a hold.
+      pressRef.current = null
+      endHold()
+    }
   }
   const onPointerMove = (e: PointerEvent) => {
     const pointers = pointersRef.current
     const last = pointers.get(e.pointerId)
-    if (!last) return
     const now = at(e)
+    if (!last) {
+      // Nothing pressed: the mouse hovers whichever digit it's over.
+      if (e.pointerType === 'mouse') onHover(pickAt(now.x, now.y))
+      return
+    }
+    if (holdRef.current.at) {
+      holdRef.current.at = now
+      placeHoldRing(now.x, now.y)
+      return
+    }
+    const press = pressRef.current
+    if (press && !press.far && Math.hypot(now.x - press.x, now.y - press.y) > CLICK_SLOP) {
+      press.far = true
+      clearTimeout(holdRef.current.timer)
+      onHover(null)
+    }
     const view = viewRef.current
     if (pointers.size === 1) {
       const dx = now.x - last.x, dy = now.y - last.y
@@ -360,6 +523,18 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children 
     pointersRef.current.delete(e.pointerId)
     // Lifting one of two fingers leaves the other panning, not turning.
     dragModeRef.current = 'pan'
+    const press = pressRef.current
+    const held = holdRef.current.at !== null
+    endHold()
+    pressRef.current = null
+    // A click selects the digit under it, or, away from any, selects none.
+    if (press && !press.far && !held && e.type === 'pointerup') {
+      const { x, y } = at(e)
+      onSelect(pickAt(x, y))
+    }
+  }
+  const onPointerLeave = () => {
+    if (!pointersRef.current.size && !holdRef.current.at) onHover(null)
   }
   const resetView = () => {
     viewRef.current = { ...INITIAL_VIEW }
@@ -376,10 +551,20 @@ export function Scatter({ Y, dim, labels, version, autoRotate = false, children 
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onPointerLeave={onPointerLeave}
         onDoubleClick={resetView}
         onContextMenu={(e) => e.preventDefault()}
+        className={hovered !== null ? 'over-digit' : undefined}
+      />
+      <canvas ref={marksRef} className="scatter-marks" style={{ width: size.width, height: size.height }} />
+      <div
+        ref={holdRingRef}
+        hidden
+        className="scatter-hold"
+        style={{ width: JITTER_RADIUS * 2, height: JITTER_RADIUS * 2, margin: -JITTER_RADIUS }}
       />
       {children && <div className="scatter-overlay">{children}</div>}
+      {corner && <div className="scatter-corner">{corner}</div>}
       {moved && (
         <button type="button" className="scatter-reset" onClick={resetView} title="Or double-click the plot">
           Reset view
