@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { accentOf } from '../digitImage'
 import { N_PIXELS, SIDE, strokePixels } from '../signal'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog'
@@ -21,13 +21,13 @@ export function PathDrawer({
   poolRow: number | null
   onPath: (path: Int32Array) => void
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  // In state, as the dialog mounts it only once open: drawn as soon as it's there, before any stroke.
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null)
   /** The stroke so far, as [column, row] in pixels (fractional), or null while the pen is up. */
   const [points, setPoints] = useState<[number, number][] | null>(null)
 
   // The digit, with the pixels the stroke has passed through tinted.
   useEffect(() => {
-    const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
     const img = ctx.createImageData(SIDE, SIDE)
@@ -40,7 +40,7 @@ export function PathDrawer({
       img.data.set([rgb[0], rgb[1], rgb[2], 255], p * 4)
     }
     ctx.putImageData(img, 0, 0)
-  })
+  }, [canvas, points, pixels, poolRow])
 
   const pointAt = (e: React.PointerEvent<HTMLCanvasElement>): [number, number] => {
     const canvas = e.currentTarget
@@ -68,7 +68,7 @@ export function PathDrawer({
         </DialogHeader>
         <div className="relative size-[min(calc(100vw_-_4rem),calc(100dvh_-_9rem))]">
           <canvas
-            ref={canvasRef}
+            ref={setCanvas}
             className="digit-image size-full rounded-sm"
             width={SIDE}
             height={SIDE}
