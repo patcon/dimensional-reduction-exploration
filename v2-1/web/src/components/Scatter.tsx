@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
-import { DIGIT_COLORS } from '../palette'
-import type { Dim } from '../types'
+import { DIGIT_COLORS, FORCE_COLORS } from '../palette'
+import type { Dim, PairType, Weights } from '../types'
 
 interface Props {
   /** Layout, n x dim row-major. Mutated in place by the engine, so redraws are driven by `version`. */
@@ -23,6 +23,10 @@ interface Props {
   /** A digit was clicked, or nothing was (null), to select none. */
   onSelect: (i: number | null) => void
   onHover: (i: number | null) => void
+  /** The selected digit's partners in each pair type, drawn as edges to it, or null for none. */
+  edges: Record<PairType, Uint32Array> | null
+  /** The forces now, which style the edges: solid attracting, dashed repelling, left out at no force. */
+  weights: Weights
 }
 
 const PAD = 12
@@ -61,6 +65,12 @@ const JITTER_RADIUS = 36
 const JITTER_MS = 110
 /** Spots tried per pick for a digit other than the one hovered, before keeping it. */
 const JITTER_TRIES = 6
+/** Far pairs first, so the nearer pairs' shorter edges are drawn over them. */
+const EDGE_ORDER: PairType[] = ['fp', 'mn', 'nb']
+/** How opaque each pair type's edges are: far pairs, the most numerous and longest, the faintest. */
+const EDGE_ALPHA: Record<PairType, number> = { nb: 0.8, mn: 0.7, fp: 0.35 }
+/** How wide each pair type's edges are, in CSS pixels: neighbours' are short, so they're drawn heavier to show. */
+const EDGE_WIDTH: Record<PairType, number> = { nb: 2, mn: 1, fp: 1 }
 /** The ring around a picked digit, in CSS pixels. */
 const RING_RADIUS = 6
 
@@ -154,7 +164,7 @@ function background(el: Element) {
  * Clicking a digit selects it and clicking away selects none; the mouse hovers digits, and holding a press still
  * hovers digits picked at random around it (see JITTER_RADIUS), inside a ring drawn there.
  */
-export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover }: Props) {
+export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   /** The rings around the selected and hovered digits, over the points, so they move without redrawing them. */
@@ -199,7 +209,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     return best
   }
 
-  /** Rings the selected and hovered digits where they were last drawn. */
+  /** Rings the selected and hovered digits where they were last drawn, with the selected one's edges. */
   const drawMarks = useRef(() => {})
   const ringDigits = () => {
     const marks = marksRef.current!
@@ -227,6 +237,25 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
       ctx.stroke()
     }
     const { selected, hovered } = live.current
+    if (selected !== null && edges && selected < scratch.sx.length) {
+      const x0 = scratch.sx[selected] + dot / 2, y0 = scratch.sy[selected] + dot / 2
+      for (const type of EDGE_ORDER) {
+        if (!weights[type]) continue
+        ctx.beginPath()
+        // To hidden digits too, so their pull on it still shows.
+        for (const j of edges[type]) {
+          ctx.moveTo(x0, y0)
+          ctx.lineTo(scratch.sx[j] + dot / 2, scratch.sy[j] + dot / 2)
+        }
+        ctx.setLineDash(weights[type] < 0 ? [4 * dpr, 3 * dpr] : [])
+        ctx.lineWidth = EDGE_WIDTH[type] * dpr
+        ctx.globalAlpha = EDGE_ALPHA[type]
+        ctx.strokeStyle = FORCE_COLORS[type]
+        ctx.stroke()
+      }
+      ctx.setLineDash([])
+      ctx.globalAlpha = 1
+    }
     if (hovered !== selected) ring(hovered, true)
     ring(selected, false)
   }
@@ -235,7 +264,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     live.current = { selected, hovered, onHover }
     drawMarks.current = ringDigits
   })
-  useEffect(() => drawMarks.current(), [selected, hovered])
+  useEffect(() => drawMarks.current(), [selected, hovered, edges, weights])
 
   useEffect(() => {
     const el = wrapRef.current!
