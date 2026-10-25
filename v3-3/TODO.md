@@ -8,3 +8,9 @@
       greyscale (`traces.ink` in `src/components/Matrix.tsx`), so with a speaker it doesn't show
       agreement at all. Drawing `traces.valence` instead, in the chosen palette (see above), would
       show each digit's agreement with the speaker, and its own ink as now without one.
+- [ ] Investigate a reading order that follows the stroke path, as a pen would draw the digit,
+      rather than a fixed sweep (rows, snake, columns, spiral, Hilbert in `src/signal.ts`). A stroke
+      path belongs to one digit, but every digit is read in the same order (traces share
+      `pixelAt`/`momentOf`), so whose path? The speaker's is a natural choice: the others would be
+      heard along the speaker's own stroke. Paper pixels would still need placing, before, after or
+      between stroke segments.
