@@ -187,7 +187,7 @@ export function ViewSection({ settings, set, onView }: SettingsEditor & { onView
   )
 }
 
-/** What each element is coloured by, its opacity, and the sizes of cursors, chords and traces. */
+/** What each element is coloured by (a button that switches between the two), its opacity, and the sizes of cursors, chords and traces. */
 export function StyleSection({ settings, patch }: SettingsEditor) {
   const { style } = settings
   return (
@@ -199,7 +199,16 @@ export function StyleSection({ settings, patch }: SettingsEditor) {
         {ELEMENTS.map((el) => (
           <div key={el} className="contents">
             <span className="text-muted-foreground">{el}</span>
-            <Segmented options={['valence', 'group'] as const} value={style.colorBy[el]} onChange={(by) => patch('style', { colorBy: { ...style.colorBy, [el]: by } })} />
+            {/* One button, showing what it's coloured by now; a press switches to the other. */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-18"
+              aria-label={`${el} coloured by ${style.colorBy[el]}; switch to ${style.colorBy[el] === 'valence' ? 'group' : 'valence'}`}
+              onClick={() => patch('style', { colorBy: { ...style.colorBy, [el]: style.colorBy[el] === 'valence' ? 'group' : 'valence' } })}
+            >
+              {style.colorBy[el]}
+            </Button>
             <div className="flex items-center gap-2">
               <SliderBase
                 aria-label={`${el} opacity`}
