@@ -40,7 +40,7 @@ cd ../v4-0/web
 pnpm install
 pnpm dev                     # http://localhost:5173/ (remote) and /viz
 
-# 3. Deploy to Cloudflare (after `pnpm wrangler login`)
+# 3. Deploy to Cloudflare (after `pnpm wrangler login`, or with a token in .env: see .env.example)
 pnpm run deploy
 ```
 

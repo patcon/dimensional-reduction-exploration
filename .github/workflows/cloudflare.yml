@@ -1,0 +1,67 @@
+name: Deploy to Cloudflare
+
+# v4-0 has a worker (with a Durable Object room), so it's deployed to Cloudflare rather than GitHub Pages.
+on:
+  push:
+    branches: [main]
+    paths:
+      - v4-0/web/**
+      - pipeline/v4-0.py
+      - pipeline/uv.lock
+      - .github/workflows/cloudflare.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Let an in-progress deploy finish, but skip any queued between it and the latest push.
+concurrency:
+  group: cloudflare
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: [v4-0]
+    steps:
+      - uses: actions/checkout@v4
+
+      # <version>/web/public/data/ is gitignored: regenerate it from MNIST with the pipeline.
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: pipeline/uv.lock
+
+      - name: Cache MNIST download
+        uses: actions/cache@v4
+        with:
+          path: pipeline/data/raw
+          key: mnist-raw
+
+      - name: Process data
+        working-directory: pipeline
+        run: uv run ${{ matrix.version }}.py
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.version }}/web/pnpm-lock.yaml
+
+      # Repository secrets: CLOUDFLARE_API_TOKEN (see <version>/web/.env.example), and CLOUDFLARE_ACCOUNT_ID if the
+      # token can reach more than one account.
+      - name: Build and deploy
+        working-directory: ${{ matrix.version }}/web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run deploy
