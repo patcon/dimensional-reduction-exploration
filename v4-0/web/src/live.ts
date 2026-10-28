@@ -19,8 +19,6 @@ export class LiveRoom {
   /** Each slot's tilt now, −1 … +1. */
   readonly valence = new Float32Array(MAX_PARTICIPANTS)
   roster: Participant[] = []
-  /** The slot touched most recently, of those touching now, or null. */
-  lastTouched: number | null = null
   /** Whether the room has said hello: until it has, settings aren't shared, so as not to override the room's. */
   connected = false
   private byId = new Map<string, Participant>()
@@ -35,14 +33,12 @@ export class LiveRoom {
 
   private changed() {
     this.roster = [...this.byId.values()].sort((a, b) => a.slot - b.slot)
-    if (this.lastTouched !== null && !this.roster.some((p) => p.slot === this.lastTouched && p.touching)) this.lastTouched = null
     this.listeners.forEach((fn) => fn())
   }
 
   private put(p: ParticipantState) {
     this.byId.set(p.id, { id: p.id, slot: p.slot, touching: p.touching })
     this.valence[p.slot] = p.valence
-    if (p.touching) this.lastTouched = p.slot
   }
 
   /** Takes in a message from the room; settings are handed back for the page to apply. */
@@ -71,7 +67,6 @@ export class LiveRoom {
         const p = this.byId.get(msg.id)
         if (!p || p.touching === msg.touching) break
         this.byId.set(p.id, { ...p, touching: msg.touching })
-        if (msg.touching) this.lastTouched = p.slot
         this.changed()
         break
       }

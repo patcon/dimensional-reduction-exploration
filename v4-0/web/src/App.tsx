@@ -203,15 +203,14 @@ function Explorer({ data }: { data: PoolData }) {
 
   // None, once a tap lands on no digit; the first, if the one followed has gone from the sample.
   const followed = focus === null ? null : focus < allRows.length ? focus : allRows.length ? 0 : null
-  // Participants touching their phones are ringed in their colour, and the last of them to touch shows in the corner.
+  // Participants touching their phones are ringed in their colour, on the visualiser and round their own square below.
   const highlights = useMemo(
     () => roster.filter((p) => p.touching).map((p) => ({ participant: participantOf(p.slot), color: hexRgb(participantColor(p.slot)) })),
     // participantOf only changes with rows and liveRows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [roster, rows, liveRows],
   )
-  const touched = room.lastTouched === null ? null : participantOf(room.lastTouched)
-  const shown = touched ?? hover ?? followed
+  const shown = hover ?? followed
   /** A participant's colour, for i of the visualiser's, or null for a digit. */
   const liveColor = (i: number | null): RGB | null => (i === null || i < rows.length ? null : hexRgb(participantColor(allRows[i] - meta.nSamples)))
   const shownColor = liveColor(shown)
@@ -440,6 +439,40 @@ function Explorer({ data }: { data: PoolData }) {
           <Bookmark />
         </Button>
       </main>
+
+      {/* Participants' drawings as they're drawn, one square each, along the bottom just above the closed drawer, so the
+          open drawer covers them. Touching their phone rings theirs in their colour, as on the visualiser; tapping one
+          follows it. */}
+      {roster.length > 0 && (
+        <div
+          className="pointer-events-none fixed inset-x-3 flex flex-wrap-reverse items-end gap-7 px-3.5 pb-3.5"
+          style={{ bottom: `calc(${closedSnap} + 2.25rem + 0.25rem)` }}
+        >
+          {roster.map((p) => {
+            const color = participantColor(p.slot)
+            const i = participantOf(p.slot)
+            return (
+              <div key={p.slot} className="relative size-14">
+                <div
+                  className="pointer-events-none absolute top-1/2 left-1/2 size-21 -translate-1/2 rounded-full border-[3px] transition-[opacity,scale] duration-150 motion-reduce:transition-none"
+                  style={{ borderColor: color, opacity: p.touching ? 1 : 0, scale: p.touching ? 1 : 0.6 }}
+                />
+                <DigitImage
+                  pixels={pixels}
+                  poolRow={allRows[i]}
+                  traces={traces}
+                  playhead={playhead}
+                  windowPixels={windowPixels}
+                  onPress={() => setFocus(i)}
+                  pressLabel="Follow this participant"
+                  style={p.touching ? { borderColor: color, borderWidth: 3 } : undefined}
+                  className={cn('pointer-events-auto absolute inset-0 size-14 rounded-sm shadow-lg shadow-black/60', !p.touching && 'border-white/60!')}
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <Drawer
         open
