@@ -151,11 +151,12 @@ export function Remote() {
   if (!joined)
     return (
       <main className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-black p-8 text-center text-white">
-        <h1 className="text-2xl font-semibold">Be a digit</h1>
-        <p className="max-w-sm text-white/75">
-          Your phone is a pen. Face up is ink, face down is paper. As the playhead sweeps across the big screen, tilt to draw a digit, and
-          watch your cursor find the digits like it. Touch the screen to light up your cursor.
-        </p>
+        <h1 className="text-2xl font-semibold">Draw a digit</h1>
+        <ol className="max-w-sm list-decimal space-y-2 pl-5 text-left text-white/75">
+          <li>The big screen reads a drawing row by row, top to bottom. A click marks the start of each row, a higher one the first.</li>
+          <li>Tilt your phone face up to draw, face down to leave a gap, to trace a digit out row by row.</li>
+          <li>Your cursor moves to the digits your drawing looks like. Touch your screen to highlight it.</li>
+        </ol>
         <button className="rounded-full bg-white px-8 py-3 text-lg font-semibold text-black active:scale-95" onClick={join}>
           Join
         </button>
