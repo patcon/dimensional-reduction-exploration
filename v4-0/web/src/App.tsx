@@ -93,10 +93,14 @@ function Explorer({ data }: { data: PoolData }) {
   const allRows = useMemo(() => [...rows, ...liveRows], [rows, liveRows])
   /** Participant i of the visualiser's, for a participant's slot. */
   const participantOf = (slot: number) => rows.length + liveRows.indexOf(liveRow(meta, slot))
-  // Clustering over the full digit, participants' drawings are projected onto the principal components again, as
-  // often as the window would be clustered, as they change as they're drawn.
+  // What compares digits by their nearest neighbours: Leiden, and neighbour forces, while particles feel them.
+  const byLeiden = groupBy === 'leiden'
+  const affinityOneWay = geometry === 'particle' && particles.forces === 'neighbours' ? particles.oneWay : null
+  const comparing = byLeiden || affinityOneWay !== null
+  // Comparing over the full digit, participants' drawings are projected onto the principal components again, as
+  // often as the window would be compared, as they change as they're drawn.
   const [drawingTick, setDrawingTick] = useState(0)
-  const fullOverDrawings = groupBy === 'leiden' && clusterOver === 'full' && liveRows.length > 0
+  const fullOverDrawings = comparing && clusterOver === 'full' && liveRows.length > 0
   useEffect(() => {
     if (!fullOverDrawings) return
     const id = setInterval(() => {
@@ -117,9 +121,8 @@ function Explorer({ data }: { data: PoolData }) {
     lastFull.current = groupBy === 'leiden' ? grouping : undefined
     return grouping
   }, [rowLabels, points, meta.nPcs, groupBy, resolution, neighbours, seed])
-  // Neighbour forces: how much each digit counts each other as a neighbour, over what Leiden clusters over (the
-  // full digit here; the window below, while clustering over it). Only worked out while particles feel it.
-  const affinityOneWay = geometry === 'particle' && particles.forces === 'neighbours' ? particles.oneWay : null
+  // Neighbour forces: how much each digit counts each other as a neighbour, over what digits are compared over (the
+  // full digit here; the window below, while comparing over it). Only worked out while particles feel it.
   const fullAffinity = useMemo(
     () => (affinityOneWay === null ? null : neighbourAffinity(points, rowLabels.length, meta.nPcs, neighbours, affinityOneWay)),
     [affinityOneWay, points, rowLabels.length, meta.nPcs, neighbours],
@@ -150,14 +153,14 @@ function Explorer({ data }: { data: PoolData }) {
   useMetronome(playhead, traces.length, settings.metronome, settings.beatPixels, settings.beatPattern)
   useEffect(() => playhead.resetLaps(), [playhead, traces])
 
-  // Clustering over the window: re-run `clusterRate` times a second while the playhead moves, each run
-  // starting from the last one's clusters (or the full clustering's, at first) and keeping their ids. Pinned, the
-  // window holds still, so it's clustered once.
-  const windowed = groupBy === 'leiden' && clusterOver === 'window'
+  // Comparing over the window: Leiden and neighbour forces (whichever are in use) are worked out again `clusterRate`
+  // times a second while the playhead moves, each clustering starting from the last one's clusters (or the full
+  // clustering's, at first) and keeping their ids. Pinned, the window holds still, so it's compared once.
+  const windowed = comparing && clusterOver === 'window'
   const pin = playhead.pin
   /** Pinned, and not on the way out (see Playhead.pin). */
   const pinned = pin !== null && !pin.releasing
-  type WindowGrouping = { rows: number[]; grouping: Grouping; affinity: Float32Array | null }
+  type WindowGrouping = { rows: number[]; grouping: Grouping | null; affinity: Float32Array | null }
   // Participants keep drawing over a window that holds still (pinned, or paused), so it's clustered again all the same.
   const drawing = liveRows.length > 0
   const [windowGrouping, setWindowGrouping] = useState<WindowGrouping | null>(null)
@@ -165,9 +168,10 @@ function Explorer({ data }: { data: PoolData }) {
   useEffect(() => {
     if (!windowed) return
     const cluster = (moment: number, span: number, wrap: boolean) => {
-      const previous = lastWindow.current?.rows === allRows ? lastWindow.current.grouping : fullGrouping
+      const previous = (lastWindow.current?.rows === allRows && lastWindow.current.grouping) || fullGrouping
       const { features, dim } = windowFeatures(traces, moment, span, wrap)
-      const grouping = groupParticipants(rowLabels, features, dim, 'leiden', { resolution, neighbours, seed }, previous)
+      // Grouped by label, the window only sets neighbour forces.
+      const grouping = byLeiden ? groupParticipants(rowLabels, features, dim, 'leiden', { resolution, neighbours, seed }, previous) : null
       const affinity = affinityOneWay === null ? null : neighbourAffinity(features, rowLabels.length, dim, neighbours, affinityOneWay)
       lastWindow.current = { rows: allRows, grouping, affinity }
       setWindowGrouping(lastWindow.current)
@@ -188,7 +192,7 @@ function Explorer({ data }: { data: PoolData }) {
     run()
     const id = setInterval(run, 1000 / clusterRate)
     return () => clearInterval(id)
-  }, [windowed, pin, clusterRate, allRows, drawing, rowLabels, traces, playhead, windowPixels, resolution, neighbours, seed, fullGrouping, affinityOneWay])
+  }, [windowed, pin, clusterRate, allRows, drawing, rowLabels, traces, playhead, windowPixels, resolution, neighbours, seed, fullGrouping, byLeiden, affinityOneWay])
   const windowCurrent = windowed && windowGrouping?.rows === allRows ? windowGrouping : null
   const grouping = windowCurrent?.grouping ?? fullGrouping
   // Until the window's first clustering with them, neighbour forces go by the full digit's.

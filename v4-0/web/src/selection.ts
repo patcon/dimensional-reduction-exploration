@@ -39,7 +39,7 @@ export function windowFeatures(traces: Traces, moment: number, span: number, wra
 }
 
 export type GroupBy = 'digit' | 'leiden'
-/** What Leiden clusters on: each whole digit (its principal components), or a window of each trace. */
+/** What digits are compared over, for Leiden and neighbour forces: each whole digit (its principal components), or a window of each trace. */
 export type ClusterOver = 'full' | 'window'
 
 export interface LeidenSettings {

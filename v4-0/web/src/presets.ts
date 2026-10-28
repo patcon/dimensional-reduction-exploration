@@ -15,7 +15,7 @@ export interface Settings {
   neighbours: number
   clusterOver: ClusterOver
   clusterRate: number
-  /** The window clustering over a window compares, and that the digit images and matrix shade, in pixels read. */
+  /** The window that Leiden and neighbour forces compare digits over, comparing over the window, and that the digit images and matrix shade, in pixels read. */
   windowPixels: number
   order: ChordOrder
   signal: SignalSettings

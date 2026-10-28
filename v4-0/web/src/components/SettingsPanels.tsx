@@ -119,41 +119,48 @@ export function ReadingSection({ settings, patch }: SettingsEditor) {
   )
 }
 
-/** How digits are grouped (by label or Leiden cluster), and the order their chords sit in. */
+/**
+ * How digits are grouped (by label or Leiden cluster), and the order their chords sit in. Leiden and neighbour forces
+ * both compare digits by their nearest neighbours, over the full digit or the window; with neither, that's greyed out.
+ */
 export function GroupingSection({ settings, set, grouping }: SettingsEditor & { grouping: Grouping }) {
-  const { groupBy, resolution, neighbours, clusterOver, clusterRate, windowPixels, order } = settings
+  const { groupBy, resolution, neighbours, clusterOver, clusterRate, windowPixels, order, geometry, particles } = settings
+  const byLeiden = groupBy === 'leiden'
+  const byNeighbourForces = geometry === 'particle' && particles.forces === 'neighbours'
+  const unused = !byLeiden && !byNeighbourForces
+  const usedBy = byLeiden && byNeighbourForces ? 'Leiden and neighbour forces' : byLeiden ? 'Leiden' : 'neighbour forces'
+  const why = unused ? 'Only for Leiden, or particles with neighbour forces' : `Used by ${usedBy}`
   return (
     <Section title="Grouping">
       <Field label="group by">
         <Segmented options={['digit', 'leiden'] as const} value={groupBy} onChange={(v) => set('groupBy', v)} labels={{ digit: 'Label', leiden: 'Leiden' }} />
       </Field>
-      {groupBy === 'leiden' && (
-        <>
-          <Slider label="resolution" value={resolution} min={0.1} max={3} step={0.1} onChange={(v) => set('resolution', v)} format={fixed(1)} />
-          <Slider label="neighbours" value={neighbours} min={3} max={30} onChange={(v) => set('neighbours', v)} />
-          <Field label="cluster over">
-            <Segmented options={['full', 'window'] as const} value={clusterOver} onChange={(v) => set('clusterOver', v)} labels={{ full: 'full digit', window: 'window' }} />
-          </Field>
-          {clusterOver === 'window' && (
-            <Slider
-              label="re-cluster"
-              title="How often to re-cluster over the window while playing"
-              value={clusterRate}
-              min={0.25}
-              max={10}
-              step={0.25}
-              onChange={(v) => set('clusterRate', v)}
-              format={(v) => `${v} /s`}
-            />
-          )}
-          <p className="num text-xs text-muted-foreground">
-            {grouping.groups.length} clusters · modularity {grouping.modularity?.toFixed(2)}
-          </p>
-        </>
+      {byLeiden && <Slider label="resolution" value={resolution} min={0.1} max={3} step={0.1} onChange={(v) => set('resolution', v)} format={fixed(1)} />}
+      <Slider label="neighbours" value={neighbours} min={3} max={30} onChange={(v) => set('neighbours', v)} title={why} disabled={unused} />
+      <Field label="compare over" title={why} disabled={unused}>
+        <Segmented options={['full', 'window'] as const} value={clusterOver} onChange={(v) => set('clusterOver', v)} labels={{ full: 'full digit', window: 'window' }} disabled={unused} />
+      </Field>
+      {clusterOver === 'window' && (
+        <Slider
+          label="recompare"
+          title={unused ? why : `How often to compare over the window again while playing (${usedBy})`}
+          value={clusterRate}
+          min={0.25}
+          max={10}
+          step={0.25}
+          onChange={(v) => set('clusterRate', v)}
+          format={(v) => `${v} /s`}
+          disabled={unused}
+        />
+      )}
+      {byLeiden && (
+        <p className="num text-xs text-muted-foreground">
+          {grouping.groups.length} clusters · modularity {grouping.modularity?.toFixed(2)}
+        </p>
       )}
       <Slider
         label="window"
-        title="The stretch of each digit's reading, back from the playhead, that clustering over a window compares and the digit images shade"
+        title="The stretch of each digit's reading, back from the playhead, that digits are compared over, comparing over the window, and that the digit images shade"
         value={windowPixels}
         min={8}
         max={N_PIXELS}

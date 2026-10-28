@@ -7,17 +7,18 @@ import { Switch } from './ui/switch'
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group'
 
 /** One of `options`, each with an icon before it if given. Choosing the one already chosen calls `onChange` with it again (to reset something, say). */
-export function Segmented<T extends string>({ options, value, onChange, labels, icons, className }: {
+export function Segmented<T extends string>({ options, value, onChange, labels, icons, className, disabled }: {
   options: readonly T[]
   value: T
   onChange: (value: T) => void
   labels?: Partial<Record<T, string>>
   icons?: Partial<Record<T, React.ReactNode>>
   className?: string
+  disabled?: boolean
 }) {
   return (
     // An empty value is the chosen item clicked again.
-    <ToggleGroup type="single" value={value} onValueChange={(v) => onChange((v || value) as T)} className={className}>
+    <ToggleGroup type="single" value={value} onValueChange={(v) => onChange((v || value) as T)} className={className} disabled={disabled}>
       {options.map((o) => (
         <ToggleGroupItem key={o} value={o}>
           {icons?.[o]}
@@ -28,18 +29,18 @@ export function Segmented<T extends string>({ options, value, onChange, labels, 
   )
 }
 
-/** A label, and the control it's for beside it (or under it, when `stacked`). */
-export function Field({ label, children, stacked, title }: { label: string; children: React.ReactNode; stacked?: boolean; title?: string }) {
+/** A label, and the control it's for beside it (or under it, when `stacked`); greyed out, when `disabled`. */
+export function Field({ label, children, stacked, title, disabled }: { label: string; children: React.ReactNode; stacked?: boolean; title?: string; disabled?: boolean }) {
   return (
     <div className={cn('flex gap-x-3 gap-y-1.5 text-sm', stacked ? 'flex-col' : 'items-center')} title={title}>
-      <span className={cn('shrink-0 text-muted-foreground', !stacked && 'w-26')}>{label}</span>
+      <span className={cn('shrink-0 text-muted-foreground', !stacked && 'w-26', disabled && 'opacity-50')}>{label}</span>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{children}</div>
     </div>
   )
 }
 
-/** A range slider with its label before it and its value, as `format` shows it, after. */
-export function Slider({ label, value, min, max, step = 1, onChange, format = String, title }: {
+/** A range slider with its label before it and its value, as `format` shows it, after; greyed out, when `disabled`. */
+export function Slider({ label, value, min, max, step = 1, onChange, format = String, title, disabled }: {
   label: string
   value: number
   min: number
@@ -48,12 +49,13 @@ export function Slider({ label, value, min, max, step = 1, onChange, format = St
   onChange: (value: number) => void
   format?: (value: number) => string
   title?: string
+  disabled?: boolean
 }) {
   return (
     <div className="grid grid-cols-[6.5rem_1fr_4.5rem] items-center gap-3 text-sm" title={title}>
-      <span className="text-muted-foreground">{label}</span>
-      <SliderBase aria-label={label} value={[value]} min={min} max={max} step={step} onValueChange={([v]) => onChange(v)} />
-      <span className="num text-right text-xs">{format(value)}</span>
+      <span className={cn('text-muted-foreground', disabled && 'opacity-50')}>{label}</span>
+      <SliderBase aria-label={label} value={[value]} min={min} max={max} step={step} onValueChange={([v]) => onChange(v)} disabled={disabled} />
+      <span className={cn('num text-right text-xs', disabled && 'opacity-50')}>{format(value)}</span>
     </div>
   )
 }
