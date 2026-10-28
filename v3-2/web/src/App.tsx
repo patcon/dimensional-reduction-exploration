@@ -25,8 +25,6 @@ import { usePresets } from './usePresets'
 import { useWakeLock } from './useWakeLock'
 import { GEO_MODES, MAX_CHORDS, VIEW_LABELS, type ViewMode } from './vizSettings'
 
-/** Moments sampled across the window when clustering over it. */
-const WINDOW_SAMPLES = 32
 /** vaul's own easing and duration, so what sits over the visualiser keeps clear of the drawer as it moves. */
 const DRAWER_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const DRAWER_SECONDS = 0.5
@@ -101,8 +99,8 @@ function Explorer({ data }: { data: PoolData }) {
     if (!windowed) return
     const cluster = (moment: number, span: number, wrap: boolean) => {
       const previous = lastWindow.current?.rows === rows ? lastWindow.current.grouping : fullGrouping
-      const features = windowFeatures(traces, moment, span, WINDOW_SAMPLES, wrap)
-      const grouping = groupParticipants(rowLabels, features, WINDOW_SAMPLES, 'leiden', { resolution, neighbours, seed }, previous)
+      const { features, dim } = windowFeatures(traces, moment, span, wrap)
+      const grouping = groupParticipants(rowLabels, features, dim, 'leiden', { resolution, neighbours, seed }, previous)
       lastWindow.current = { rows, grouping }
       setWindowGrouping(lastWindow.current)
     }

@@ -22,17 +22,20 @@ export function pcsOf(pcs: Float32Array, dim: number, rows: number[]) {
 }
 
 /**
- * Each participant's valence over the window [moment − span, moment], sampled at `samples` evenly
- * spaced moments: what clustering over a window compares, packed n × samples. With `wrap` (playback
- * loops), a window reaching back past the start takes in the end.
+ * Each participant's valence at each whole moment (each pixel read) in the window [moment − span, moment]: what
+ * clustering over a window compares, packed n × dim. Whole moments, rather than a fixed number spread across the
+ * window, so a moving window keeps comparing the same pixels, and a window as long as the digit sees all of it. With
+ * `wrap` (playback loops), a window reaching back past the start takes in the end, but no pixel twice.
  */
-export function windowFeatures(traces: Traces, moment: number, span: number, samples: number, wrap = false) {
-  const out = new Float32Array(traces.n * samples)
-  for (let s = 0; s < samples; s++) {
-    const t = moment - span + (span * s) / (samples - 1)
-    for (let i = 0; i < traces.n; i++) out[i * samples + s] = valenceAt(traces, i, t, wrap)
-  }
-  return out
+export function windowFeatures(traces: Traces, moment: number, span: number, wrap = false) {
+  const to = Math.floor(moment)
+  // A loop is length − 1 moments long: its end is its start again.
+  const earliest = wrap ? to - traces.length + 2 : 0
+  const from = Math.min(to, Math.max(earliest, Math.ceil(moment - span)))
+  const dim = to - from + 1
+  const features = new Float32Array(traces.n * dim)
+  for (let s = 0; s < dim; s++) for (let i = 0; i < traces.n; i++) features[i * dim + s] = valenceAt(traces, i, from + s, wrap)
+  return { features, dim }
 }
 
 export type GroupBy = 'digit' | 'leiden'

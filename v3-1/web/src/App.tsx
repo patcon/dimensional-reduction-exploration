@@ -15,8 +15,6 @@ import { buildTraces } from './signal'
 import { useData, type PoolData } from './useData'
 import { GEO_MODES, MAX_CHORDS, VIEW_LABELS } from './vizSettings'
 
-/** Moments sampled across the trail's window when clustering over it. */
-const WINDOW_SAMPLES = 32
 
 function Explorer({ data }: { data: PoolData }) {
   const { meta, pixels, pcs } = data
@@ -63,8 +61,8 @@ function Explorer({ data }: { data: PoolData }) {
       if (playhead.moment === lastMoment) return
       lastMoment = playhead.moment
       const previous = lastWindow.current?.rows === rows ? lastWindow.current.grouping : fullGrouping
-      const features = windowFeatures(traces, playhead.moment, trailPixels, WINDOW_SAMPLES, playhead.wraps)
-      const grouping = groupParticipants(rowLabels, features, WINDOW_SAMPLES, 'leiden', { resolution, neighbours, seed }, previous)
+      const { features, dim } = windowFeatures(traces, playhead.moment, trailPixels, playhead.wraps)
+      const grouping = groupParticipants(rowLabels, features, dim, 'leiden', { resolution, neighbours, seed }, previous)
       lastWindow.current = { rows, grouping }
       setWindowGrouping(lastWindow.current)
     }
