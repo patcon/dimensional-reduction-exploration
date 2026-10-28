@@ -18,6 +18,9 @@ UMAP / PaCMAP / LocalMAP projections. Each version builds on the last:
   of one digit broadcasting itself, the others heard by how far they agree
 - [v3.4](v3-4/) — valence particles (drawn paths): a fresh copy of v3.3, to read digits along
   their drawn paths
+- [v4.0](v4-0/) — MNIST valence participation: v3.3 with live participants, who draw a digit by
+  tilting their phones and watch their cursor join the digits like it (a Cloudflare Worker, so not on
+  GitHub Pages)
 
 Data for each comes from `pipeline/v<n>.py` (e.g. `pipeline/v2-0.py`); each app lives in
 `v<n>/web`. GitHub Pages serves a landing page (`site/index.html`) with every version
