@@ -41,6 +41,15 @@ check('a digit inverting the speaker disagrees throughout', heard.valence.subarr
 const own = buildTraces(digitPixels, [0], unsmoothed)
 check('with no speaker, ink speaks for itself', [own.valence[own.momentOf[0]], own.valence[own.momentOf[1]]], [1, -1])
 
+// ── Line starts: each row's first pixel read, past any skipped ──
+const startsOf = (t: Traces) => [...t.lineStart.keys()].filter((i) => t.lineStart[i])
+check('every row starts a line', [startsOf(own).length, ...startsOf(own).slice(0, 3)], [28, 0, 28, 56])
+// Ink only in columns 1 and 2: each row's start (column 0) is skipped, so it lands on column 1.
+const stripes = new Uint8Array(N_PIXELS)
+for (let r = 0; r < 28; r++) stripes[r * 28 + 1] = stripes[r * 28 + 2] = 255
+const skipping = buildTraces(stripes, [0], { ...unsmoothed, skipBlank: true })
+check('skipped starts carry onto the next pixel read', startsOf(skipping).slice(0, 3), [0, 2, 4])
+
 // ── Playhead: laps, and the window ──
 const playhead = new Playhead()
 playhead.setLength(101)
@@ -58,6 +67,7 @@ playhead.restart()
 check('restart forgets laps', [playhead.moment, playhead.laps, playhead.wraps], [0, 0, false])
 
 // ── completeSettings: an old or partial preset gets defaults for whatever it lacks ──
+check('an old preset\'s reading order is dropped', 'reading' in completeSettings({ signal: { reading: 'spiral' } as never }).signal, false)
 const partial = completeSettings({ resolution: 0.5, style: { traceWidth: 3 } as never, particles: { cohesion: 0.65 } as never })
 check('given settings kept', [partial.resolution, partial.style.traceWidth, partial.particles.cohesion], [0.5, 3, 0.65])
 check('missing top-level settings filled', partial.digits, DEFAULT_SETTINGS.digits)

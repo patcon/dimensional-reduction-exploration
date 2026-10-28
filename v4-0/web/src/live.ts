@@ -1,7 +1,7 @@
 /** The visualiser's view of its room: the participants there now, their tilt and touch, and the settings it shares. */
 
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
-import { completeSettings, type Settings } from './presets'
+import { completeSettings, LOCAL_SETTINGS, type Settings } from './presets'
 import { MAX_PARTICIPANTS, type ParticipantState, type ToViz, type VizMessage } from './protocol'
 import { connectRoom, type RoomSocket } from './room'
 
@@ -89,11 +89,15 @@ export class LiveRoom {
 /** This page, to tell its own settings from others' as the room relays them. */
 const SELF = Math.random().toString(36).slice(2)
 
-/** What's shared of the settings: all of them but whether this screen stays awake. */
+/** What's shared of the settings: all of them but this page's own (whether its screen stays awake, say). */
 function shared(settings: Settings) {
-  const { wakeLock: _, ...rest } = settings
+  const rest: Partial<Settings> = { ...settings }
+  for (const key of LOCAL_SETTINGS) delete rest[key]
   return JSON.stringify(rest)
 }
+
+/** This page's own settings, kept as they are when the room's come in. */
+const localOf = (settings: Settings) => Object.fromEntries(LOCAL_SETTINGS.map((key) => [key, settings[key]])) as Partial<Settings>
 
 /**
  * Connects the visualiser to its room: the participants there, and the settings, shared with every other visualiser
@@ -124,7 +128,7 @@ export function useLiveRoom(settings: Settings, setSettings: (settings: Settings
 
   useEffect(() => {
     const take = (incoming: unknown) => {
-      const next = completeSettings({ ...(incoming as Partial<Settings>), wakeLock: latest.current.wakeLock })
+      const next = completeSettings({ ...(incoming as Partial<Settings>), ...localOf(latest.current) })
       const json = shared(next)
       synced.current = json
       if (json === shared(latest.current)) return

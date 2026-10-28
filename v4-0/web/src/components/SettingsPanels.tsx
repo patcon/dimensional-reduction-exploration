@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { DIGIT_COLORS } from '../palette'
 import type { SettingsEditor } from '../presets'
 import { N_DIGITS, type Grouping } from '../selection'
-import { N_PIXELS, READING_LABELS, type ReadingKey } from '../signal'
+import { N_PIXELS } from '../signal'
 import { ELEMENTS, GEO_MODES, VIEW_LABELS, type Element, type ViewMode } from '../vizSettings'
 import { Field, Section, Segmented, Slider, Toggle } from './controls'
 import { Button } from './ui/button'
@@ -93,10 +93,7 @@ export function SampleSection({ settings, set, available, shownCount, maxCount }
 export function ReadingSection({ settings, patch }: SettingsEditor) {
   const { signal } = settings
   return (
-    <Section title="Reading" description="How a digit's pixels, read in order, become its valence over time.">
-      <Field label="pixel order" stacked>
-        <Segmented options={Object.keys(READING_LABELS) as ReadingKey[]} value={signal.reading} onChange={(v) => patch('signal', { reading: v })} labels={READING_LABELS} />
-      </Field>
+    <Section title="Reading" description="How a digit's pixels, read row by row, become its valence over time.">
       <Toggle label="skip pixels blank in every digit" checked={signal.skipBlank} onChange={(on) => patch('signal', { skipBlank: on })} />
       <Field label="smoothing">
         <Segmented options={['blur', 'lag'] as const} value={signal.smoothing} onChange={(v) => patch('signal', { smoothing: v })} />

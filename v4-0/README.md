@@ -16,8 +16,12 @@ other versions it isn't on GitHub Pages.
 - **`/viz`, the visualiser.** Everything in v3.3, plus every participant in the room as a cursor
   beside the digits. A participant's tilt is the ink of the pixel being read right now, and of every
   pixel the playhead passed since the last frame. What they've drawn so far is read as a trace, just
-  as a digit's pixels are (same reading order, smoothing and mapping), so it's grouped and clustered
-  over the window the same way. Touching participants get a pulsing ring in their colour. The most
+  as a digit's pixels are (same smoothing and mapping), so it's grouped and clustered over the window
+  the same way.
+- **Rows only.** Every digit, and every drawing, is read row by row, left to right, as a pen writes:
+  v3.3's other reading orders (snake, columns, spiral, Hilbert) are gone. The visualiser clicks as
+  each row starts, higher for the first, so participants can hear where they are in the digit
+  (Play tab, "click at each line"; on by default, and kept to each screen rather than shared). Touching participants get a pulsing ring in their colour. The most
   recent of them shows in the corner square, bordered in that colour. Following one shows their
   drawing in the inspect tab.
 - **Settings are shared** between every visualiser in the room, so a phone with `/viz` open can

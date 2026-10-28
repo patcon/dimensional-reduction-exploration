@@ -10,7 +10,7 @@
     "clusterOver": "window",
     "clusterRate": 1,
     "order": "grouped",
-    "signal": { "reading": "rows", "skipBlank": false, "smoothing": "blur", "smoothingPixels": 1.5, "mapping": "ink" },
+    "signal": { "skipBlank": false, "smoothing": "blur", "smoothingPixels": 1.5, "mapping": "ink" },
     "view": "3d",
     "geometry": "particle",
     "style": {

@@ -1,5 +1,5 @@
 /**
- * Each digit read out as a trace over time: its pixels, in some reading order, become one
+ * Each digit read out as a trace over time: its pixels, read row by row, become one
  * value per moment, smoothed, then mapped to valence (−1 disagree … +1 agree). With a speaker, a
  * digit's valence is how far it agrees with the speaker at each pixel, rather than its own ink.
  */
@@ -7,92 +7,8 @@
 export const SIDE = 28
 export const N_PIXELS = SIDE * SIDE
 
-/** The order a digit's pixels are read in. */
-export type ReadingKey = 'rows' | 'snake' | 'columns' | 'spiral' | 'hilbert'
-
-export const READING_LABELS: Record<ReadingKey, string> = {
-  rows: 'rows',
-  snake: 'snake',
-  columns: 'columns',
-  spiral: 'spiral',
-  hilbert: 'Hilbert',
-}
-
-function rowsOrder() {
-  return Int32Array.from({ length: N_PIXELS }, (_, i) => i)
-}
-
-/** Rows, alternating direction, so consecutive pixels always touch. */
-function snakeOrder() {
-  const order = new Int32Array(N_PIXELS)
-  for (let r = 0; r < SIDE; r++)
-    for (let c = 0; c < SIDE; c++) order[r * SIDE + c] = r * SIDE + (r % 2 ? SIDE - 1 - c : c)
-  return order
-}
-
-function columnsOrder() {
-  const order = new Int32Array(N_PIXELS)
-  for (let c = 0; c < SIDE; c++) for (let r = 0; r < SIDE; r++) order[c * SIDE + r] = r * SIDE + c
-  return order
-}
-
-/** Clockwise from the top-left corner, inwards: the blank border first, the middle of the digit last. */
-function spiralOrder() {
-  const order: number[] = []
-  let top = 0
-  let bottom = SIDE - 1
-  let left = 0
-  let right = SIDE - 1
-  while (top <= bottom && left <= right) {
-    for (let c = left; c <= right; c++) order.push(top * SIDE + c)
-    for (let r = top + 1; r <= bottom; r++) order.push(r * SIDE + right)
-    if (top < bottom) for (let c = right - 1; c >= left; c--) order.push(bottom * SIDE + c)
-    if (left < right) for (let r = bottom - 1; r > top; r--) order.push(r * SIDE + left)
-    top++
-    bottom--
-    left++
-    right--
-  }
-  return Int32Array.from(order)
-}
-
-/** A Hilbert curve over 32×32 with the digit centred in it: nearby moments are nearby pixels, in both directions. */
-function hilbertOrder() {
-  const n = 32
-  const pad = (n - SIDE) / 2
-  const order: number[] = []
-  for (let d = 0; d < n * n; d++) {
-    let x = 0
-    let y = 0
-    let t = d
-    for (let s = 1; s < n; s *= 2) {
-      const rx = 1 & (t / 2)
-      const ry = 1 & (t ^ rx)
-      if (ry === 0) {
-        if (rx === 1) {
-          x = s - 1 - x
-          y = s - 1 - y
-        }
-        ;[x, y] = [y, x]
-      }
-      x += s * rx
-      y += s * ry
-      t = Math.floor(t / 4)
-    }
-    const c = x - pad
-    const r = y - pad
-    if (c >= 0 && c < SIDE && r >= 0 && r < SIDE) order.push(r * SIDE + c)
-  }
-  return Int32Array.from(order)
-}
-
-export const READINGS: Record<ReadingKey, Int32Array> = {
-  rows: rowsOrder(),
-  snake: snakeOrder(),
-  columns: columnsOrder(),
-  spiral: spiralOrder(),
-  hilbert: hilbertOrder(),
-}
+/** A digit's pixels, in the order they're read: row by row, each left to right, as a pen writes. */
+const ROWS = Int32Array.from({ length: N_PIXELS }, (_, i) => i)
 
 /** blur: a centred Gaussian. lag: an exponential moving average, which trails the input. */
 export type SmoothingKind = 'blur' | 'lag'
@@ -103,7 +19,6 @@ export type SmoothingKind = 'blur' | 'lag'
 export type ValenceMapping = 'ink' | 'ink-only'
 
 export interface SignalSettings {
-  reading: ReadingKey
   /** Leave out pixels that are blank in every digit taking part: the dead air at the edges. */
   skipBlank: boolean
   smoothing: SmoothingKind
@@ -121,6 +36,8 @@ export interface Traces {
   pixelAt: Int32Array
   /** momentOf[pixel] = the moment that pixel is read at, or −1 if skipped. */
   momentOf: Int32Array
+  /** lineStart[t] = 1 where a new row starts at moment t (on its first pixel read, if blank ones are skipped). */
+  lineStart: Uint8Array
   /** n × length ink, 0–1, after smoothing. */
   ink: Float32Array
   /** n × length valence, −1–1. */
@@ -160,21 +77,22 @@ function smoothInPlace(row: Float32Array, kind: SmoothingKind, amount: number, s
  * which pixels are blank, and can be read again as they change (see `rereadTraces`).
  */
 export function buildTraces(pixels: Uint8Array, rows: number[], settings: SignalSettings, speaker: number | null = null, liveFrom = rows.length): Traces {
-  const reading = READINGS[settings.reading]
-  let pixelAt = reading
+  let pixelAt = ROWS
   if (settings.skipBlank) {
     const digits = rows.slice(0, liveFrom)
     const heard = speaker === null ? digits : [...digits, speaker]
-    const kept = Array.from(reading).filter((p) => heard.some((r) => pixels[r * N_PIXELS + p] > 0))
+    const kept = Array.from(ROWS).filter((p) => heard.some((r) => pixels[r * N_PIXELS + p] > 0))
     // Keep at least something to play, even for an all-blank pick.
     if (kept.length > 1) pixelAt = Int32Array.from(kept)
   }
   const momentOf = new Int32Array(N_PIXELS).fill(-1)
   pixelAt.forEach((p, t) => (momentOf[p] = t))
 
+  const lineStart = Uint8Array.from(pixelAt, (p, t) => (t === 0 || Math.floor(p / SIDE) !== Math.floor(pixelAt[t - 1] / SIDE) ? 1 : 0))
+
   const n = rows.length
   const L = pixelAt.length
-  const traces: Traces = { n, length: L, pixelAt, momentOf, ink: new Float32Array(n * L), valence: new Float32Array(n * L), spoken: null }
+  const traces: Traces = { n, length: L, pixelAt, momentOf, lineStart, ink: new Float32Array(n * L), valence: new Float32Array(n * L), spoken: null }
   if (speaker !== null) readInk(pixels, speaker, traces, settings, (traces.spoken = new Float32Array(L)))
   rereadTraces(traces, pixels, rows, settings, 0)
   return traces

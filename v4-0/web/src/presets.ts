@@ -32,7 +32,12 @@ export interface Settings {
   speed: number
   /** Keep the screen from dimming or locking while the page is open. */
   wakeLock: boolean
+  /** Click as each line of the reading starts, while playing. */
+  lineClicks: boolean
 }
+
+/** Settings each page keeps to itself, rather than sharing with the room's other visualisers. */
+export const LOCAL_SETTINGS = ['wakeLock', 'lineClicks'] as const
 
 export const DEFAULT_SETTINGS: Settings = {
   digits: [0, 1],
@@ -45,7 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   clusterRate: 1,
   windowPixels: 140,
   order: 'grouped',
-  signal: { reading: 'rows', skipBlank: false, smoothing: 'blur', smoothingPixels: 1.5, mapping: 'ink' },
+  signal: { skipBlank: false, smoothing: 'blur', smoothingPixels: 1.5, mapping: 'ink' },
   view: '3d',
   geometry: 'particle',
   style: { ...DEFAULT_STYLE, colorBy: { ...DEFAULT_STYLE.colorBy, chord: 'group' } },
@@ -55,6 +60,12 @@ export const DEFAULT_SETTINGS: Settings = {
   speaker: null,
   speed: 14,
   wakeLock: false,
+  lineClicks: true,
+}
+
+const withoutReading = (signal?: Partial<SignalSettings> & { reading?: unknown }) => {
+  const { reading: _, ...rest } = signal ?? {}
+  return rest
 }
 
 /** Fills in whatever a saved or imported preset lacks (from an older version, say) with the defaults. */
@@ -64,7 +75,8 @@ export function completeSettings(partial: Partial<Settings>): Settings {
   return {
     ...d,
     ...partial,
-    signal: { ...d.signal, ...partial.signal },
+    // Dropping what an older version read in, `reading`: only rows are read now.
+    signal: { ...d.signal, ...withoutReading(partial.signal) },
     style: { ...d.style, ...style, colorBy: { ...d.style.colorBy, ...style.colorBy }, opacity: { ...d.style.opacity, ...style.opacity } },
     particles: { ...d.particles, ...partial.particles },
   }

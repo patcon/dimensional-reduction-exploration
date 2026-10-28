@@ -87,8 +87,8 @@ export function TransportBar({ playhead, traces, open, onOpen }: {
   )
 }
 
-/** Speed, how far trails reach, keeping the screen awake, and where the playhead is in the digit's pixels. */
-export function PlaybackSection({ playhead, traces, speed, onSpeed, trailSeconds, onTrailSeconds, wakeLock, onWakeLock }: {
+/** Speed, how far trails reach, keeping the screen awake, clicking at each line, and where the playhead is in the digit's pixels. */
+export function PlaybackSection({ playhead, traces, speed, onSpeed, trailSeconds, onTrailSeconds, wakeLock, onWakeLock, lineClicks, onLineClicks }: {
   playhead: Playhead
   traces: Traces
   speed: number
@@ -97,6 +97,8 @@ export function PlaybackSection({ playhead, traces, speed, onSpeed, trailSeconds
   onTrailSeconds: (seconds: number) => void
   wakeLock: boolean
   onWakeLock: (on: boolean) => void
+  lineClicks: boolean
+  onLineClicks: (on: boolean) => void
 }) {
   const readoutRef = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
@@ -120,6 +122,7 @@ export function PlaybackSection({ playhead, traces, speed, onSpeed, trailSeconds
         disabled={!canWakeLock}
         note={canWakeLock ? undefined : window.isSecureContext ? 'not supported here' : 'requires https'}
       />
+      <Toggle label="click at each line" checked={lineClicks} onChange={onLineClicks} note="on this screen only" />
       <p ref={readoutRef} className="num text-xs text-muted-foreground" />
     </Section>
   )
