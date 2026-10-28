@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { ChordOrder, ClusterOver, GroupBy } from './selection.ts'
 import type { SignalSettings } from './signal.ts'
+import type { BeatPattern } from './useMetronome.ts'
 import { DEFAULT_PARTICLES, DEFAULT_STYLE, type GeoMode, type ParticleSettings, type ViewMode, type VizStyle } from './vizSettings.ts'
 
 export interface Settings {
@@ -32,12 +33,14 @@ export interface Settings {
   speed: number
   /** Keep the screen from dimming or locking while the page is open. */
   wakeLock: boolean
-  /** Click as each line of the reading starts, while playing. */
-  lineClicks: boolean
+  /** Beep on each beat while playing: every `beatPixels` pixels read, accented by `beatPattern`. */
+  metronome: boolean
+  beatPixels: number
+  beatPattern: BeatPattern
 }
 
 /** Settings each page keeps to itself, rather than sharing with the room's other visualisers. */
-export const LOCAL_SETTINGS = ['wakeLock', 'lineClicks'] as const
+export const LOCAL_SETTINGS = ['wakeLock', 'metronome', 'beatPixels', 'beatPattern'] as const
 
 export const DEFAULT_SETTINGS: Settings = {
   digits: [0, 1],
@@ -60,7 +63,10 @@ export const DEFAULT_SETTINGS: Settings = {
   speaker: null,
   speed: 14,
   wakeLock: false,
-  lineClicks: true,
+  metronome: true,
+  // A beat a row, and a bar every four.
+  beatPixels: 28,
+  beatPattern: '2111',
 }
 
 const withoutReading = (signal?: Partial<SignalSettings> & { reading?: unknown }) => {
@@ -69,8 +75,12 @@ const withoutReading = (signal?: Partial<SignalSettings> & { reading?: unknown }
 }
 
 /** Fills in whatever a saved or imported preset lacks (from an older version, say) with the defaults. */
-export function completeSettings(partial: Partial<Settings>): Settings {
+export function completeSettings(partial: Partial<Settings> & { lineClicks?: boolean }): Settings {
   const d = DEFAULT_SETTINGS
+  // What an older version called clicking at each line.
+  const { lineClicks, ...rest } = partial
+  if (lineClicks !== undefined) rest.metronome ??= lineClicks
+  partial = rest
   const style = partial.style ?? d.style
   return {
     ...d,

@@ -25,7 +25,7 @@ import { participantColor } from './protocol'
 import { buildTraces, N_PIXELS, rereadTraces } from './signal'
 import { liveRow, projectDrawings, useData, type PoolData } from './useData'
 import { usePresets } from './usePresets'
-import { useLineClicks } from './useLineClicks'
+import { useMetronome } from './useMetronome'
 import { useWakeLock } from './useWakeLock'
 import { GEO_MODES, MAX_CHORDS, VIEW_LABELS, type ViewMode } from './vizSettings'
 
@@ -147,7 +147,7 @@ function Explorer({ data }: { data: PoolData }) {
     return () => cancelAnimationFrame(id)
   }, [liveRows, allRows, rows.length, traces, pixels, signal, room, playhead, meta.nSamples])
   useEffect(() => playhead.setLength(traces.length), [playhead, traces.length])
-  useLineClicks(playhead, traces, settings.lineClicks)
+  useMetronome(playhead, traces.length, settings.metronome, settings.beatPixels, settings.beatPattern)
   useEffect(() => playhead.resetLaps(), [playhead, traces])
 
   // Clustering over the window: re-run `clusterRate` times a second while the playhead moves, each run
@@ -473,8 +473,12 @@ function Explorer({ data }: { data: PoolData }) {
                       onTrailSeconds={(v) => set('trailSeconds', v)}
                       wakeLock={settings.wakeLock}
                       onWakeLock={(v) => set('wakeLock', v)}
-                      lineClicks={settings.lineClicks}
-                      onLineClicks={(v) => set('lineClicks', v)}
+                      metronome={settings.metronome}
+                      onMetronome={(v) => set('metronome', v)}
+                      beatPixels={settings.beatPixels}
+                      onBeatPixels={(v) => set('beatPixels', v)}
+                      beatPattern={settings.beatPattern}
+                      onBeatPattern={(v) => set('beatPattern', v)}
                     />
                   </TabsContent>
                   <TabsContent value="digits" className="flex flex-col gap-8">

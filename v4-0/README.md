@@ -19,9 +19,10 @@ other versions it isn't on GitHub Pages.
   as a digit's pixels are (same smoothing and mapping), so it's grouped and clustered over the window
   the same way.
 - **Rows only.** Every digit, and every drawing, is read row by row, left to right, as a pen writes:
-  v3.3's other reading orders (snake, columns, spiral, Hilbert) are gone. The visualiser clicks as
-  each row starts, higher for the first, so participants can hear where they are in the digit
-  (Play tab, "click at each line"; on by default, and kept to each screen rather than shared). Touching participants get a pulsing ring in their colour. The most
+  v3.3's other reading orders (snake, columns, spiral, Hilbert) are gone. The visualiser keeps a
+  metronome, so participants can hear where they are in the digit: a beep every so many pixels (a
+  row, 28, by default), the first of each bar higher (4 beats a bar by default; or 3, 2, or 1, which
+  accents none). Play tab; on by default, and kept to each screen rather than shared. Touching participants get a pulsing ring in their colour. The most
   recent of them shows in the corner square, bordered in that colour. Following one shows their
   drawing in the inspect tab.
 - **Settings are shared** between every visualiser in the room, so a phone with `/viz` open can

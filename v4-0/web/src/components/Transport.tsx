@@ -3,7 +3,8 @@ import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import type { Playhead } from '../playhead'
 import { SIDE, type Traces } from '../signal'
-import { Section, Slider, Toggle } from './controls'
+import { BEAT_PATTERN_LABELS, BEAT_PATTERNS, type BeatPattern } from '../useMetronome'
+import { Field, Section, Segmented, Slider, Toggle } from './controls'
 import { Button } from './ui/button'
 import { useSteadyRelease } from '../useSteadyRelease'
 import { canWakeLock } from '../useWakeLock'
@@ -87,8 +88,8 @@ export function TransportBar({ playhead, traces, open, onOpen }: {
   )
 }
 
-/** Speed, how far trails reach, keeping the screen awake, clicking at each line, and where the playhead is in the digit's pixels. */
-export function PlaybackSection({ playhead, traces, speed, onSpeed, trailSeconds, onTrailSeconds, wakeLock, onWakeLock, lineClicks, onLineClicks }: {
+/** Speed, how far trails reach, keeping the screen awake, the metronome, and where the playhead is in the digit's pixels. */
+export function PlaybackSection({ playhead, traces, speed, onSpeed, trailSeconds, onTrailSeconds, wakeLock, onWakeLock, metronome, onMetronome, beatPixels, onBeatPixels, beatPattern, onBeatPattern }: {
   playhead: Playhead
   traces: Traces
   speed: number
@@ -97,8 +98,12 @@ export function PlaybackSection({ playhead, traces, speed, onSpeed, trailSeconds
   onTrailSeconds: (seconds: number) => void
   wakeLock: boolean
   onWakeLock: (on: boolean) => void
-  lineClicks: boolean
-  onLineClicks: (on: boolean) => void
+  metronome: boolean
+  onMetronome: (on: boolean) => void
+  beatPixels: number
+  onBeatPixels: (pixels: number) => void
+  beatPattern: BeatPattern
+  onBeatPattern: (pattern: BeatPattern) => void
 }) {
   const readoutRef = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
@@ -122,7 +127,15 @@ export function PlaybackSection({ playhead, traces, speed, onSpeed, trailSeconds
         disabled={!canWakeLock}
         note={canWakeLock ? undefined : window.isSecureContext ? 'not supported here' : 'requires https'}
       />
-      <Toggle label="click at each line" checked={lineClicks} onChange={onLineClicks} note="on this screen only" />
+      <Toggle label="metronome" checked={metronome} onChange={onMetronome} note="on this screen only" />
+      {metronome && (
+        <>
+          <Slider label="beat" value={beatPixels} min={1} max={112} onChange={onBeatPixels} format={(v) => `${v} px`} title="How long each beat is, in pixels read (a row is 28)" />
+          <Field label="beats a bar" title="The first beat of each bar is accented, higher">
+            <Segmented options={Object.keys(BEAT_PATTERNS) as BeatPattern[]} value={beatPattern} onChange={onBeatPattern} labels={BEAT_PATTERN_LABELS} />
+          </Field>
+        </>
+      )}
       <p ref={readoutRef} className="num text-xs text-muted-foreground" />
     </Section>
   )

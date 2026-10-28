@@ -153,7 +153,7 @@ export function Remote() {
       <main className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-black p-8 text-center text-white">
         <h1 className="text-2xl font-semibold">Draw a digit</h1>
         <ol className="max-w-sm list-decimal space-y-2 pl-5 text-left text-white/75">
-          <li>The big screen reads a drawing row by row, top to bottom. A click marks the start of each row, a higher one the first.</li>
+          <li>The big screen reads a drawing row by row, top to bottom, to the beat of a metronome.</li>
           <li>Tilt your phone face up to draw, face down to leave a gap, to trace a digit out row by row.</li>
           <li>Your cursor moves to the digits your drawing looks like. Touch your screen to highlight it.</li>
         </ol>
