@@ -157,6 +157,20 @@ export class Particles {
     while (this.count > 0 && moment / step - this.grid[this.slot(0)] > L - 1) this.count--
   }
 
+  /**
+   * Forgets samples recorded past `moment` (on the grid of `step` moments), as after playback jumps back while paused
+   * (restarting, say), when `record` doesn't run: they'd be drawn ahead of the playhead. The samples before it stay.
+   */
+  dropAhead(moment: number, step: number) {
+    if (step !== this.step || step <= 0) return
+    const grid = Math.floor(moment / step)
+    while (this.count > 0 && this.grid[this.slot(this.count - 1)] > grid) {
+      this.count--
+      this.head = (this.head - 1 + this.trailLength) % this.trailLength
+    }
+    if (this.lastGrid > grid) this.lastGrid = this.count > 0 ? this.grid[this.slot(this.count - 1)] : -Infinity
+  }
+
   /** The ring slot of the k-th recorded sample, oldest first. */
   slot(k: number) {
     return (this.head - this.count + k + this.trailLength) % this.trailLength

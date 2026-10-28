@@ -572,6 +572,8 @@ export function ChordViz(props: ChordVizProps) {
       wasParticle = inParticles
       particleBlend = inParticles ? 1 : Math.max(0, particleBlend - 1 / PARTICLE_EXIT_FRAMES)
       const pb = ease(particleBlend)
+      // Playback jumping back while paused (restarting, say) leaves no trail ahead of it.
+      if (inParticles) sim.dropAhead(elapsed, step)
       // Frozen while paused (scrubbing included), so a paused frame holds still. Playing, steps as many times as the
       // moments played since the last frame owe; playback jumping back (restarting, say) owes none.
       if (inParticles && playhead.playing) {
