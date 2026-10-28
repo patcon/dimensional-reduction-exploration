@@ -1,10 +1,11 @@
-import { Bookmark, Eye, Focus, Gauge, Hash, Megaphone, ScanSearch, Shapes } from 'lucide-react'
+import { Bookmark, Eye, Focus, Gauge, Hash, Megaphone, QrCode, ScanSearch, Shapes } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ChordViz } from './components/ChordViz'
 import { Section } from './components/controls'
 import { DigitImage, DigitPreview } from './components/DigitPreview'
 import { GroupLegend } from './components/GroupLegend'
+import { JoinDialog } from './components/JoinDialog'
 import { Matrix } from './components/Matrix'
 import { PresetsPanel } from './components/Presets'
 import { DigitPicker, GroupingSection, ParticleSection, ReadingSection, SampleSection, StyleSection, ViewSection } from './components/SettingsPanels'
@@ -244,6 +245,7 @@ function Explorer({ data }: { data: PoolData }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [tab, setTab] = useState<string>('playback')
   const [presetsOpen, setPresetsOpen] = useState(false)
+  const [joinOpen, setJoinOpen] = useState(false)
   // The view or geometry last moved to, named for a moment over the buttons.
   const [modeLabel, setModeLabel] = useState<{ text: string; shown: boolean }>({ text: '', shown: false })
   const modeLabelTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -394,14 +396,25 @@ function Explorer({ data }: { data: PoolData }) {
             </Button>
           </div>
         </div>
-        {/* The digits taking part, along the top as in the digits tab, clear of the corner digit (and the speaker behind it). */}
+        {/* The digits taking part, along the top as in the digits tab, clear of the corner digit (and the speaker behind
+            it), and below them, a QR code for phones to join by. */}
         <div
           className={cn(
-            'pointer-events-none absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 [&_button]:pointer-events-auto',
+            'pointer-events-none absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 flex flex-col items-start gap-1.5 [&_button]:pointer-events-auto',
             speaker === null ? 'right-[calc(5.25rem+1.5rem)]' : 'right-[calc(5.25rem+3.5rem)]',
           )}
         >
           <DigitPicker digits={settings.digits} onDigits={(v) => set('digits', v)} compact />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
+            onClick={() => setJoinOpen(true)}
+            aria-label="Join with a phone"
+            title="Join with a phone"
+          >
+            <QrCode />
+          </Button>
         </div>
         {/* The buttons sit on the drawer's top edge, so they rise and fall with it. */}
         <span
@@ -594,6 +607,8 @@ function Explorer({ data }: { data: PoolData }) {
           </div>
         </DrawerContent>
       </Drawer>
+
+      <JoinDialog open={joinOpen} onOpenChange={setJoinOpen} />
 
       <Sheet open={presetsOpen} onOpenChange={setPresetsOpen}>
         <SheetContent side="right" className="overflow-y-auto">
