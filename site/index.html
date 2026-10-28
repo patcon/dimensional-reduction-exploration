@@ -52,7 +52,7 @@
         Each v1 version flattens MNIST digits into rows of pixels, clusters the rows scanpy-style (PCA → kNN graph →
         Leiden), and links the original and sorted pixel matrices to UMAP, PaCMAP and LocalMAP projections in 2D and 3D.
         Each builds on the one before. v2 turns to how PaCMAP gets there, running its optimisation live for you to play.
-        v3 uses the digits as stand-in data for a valence visualisation.
+        v3 uses the digits as stand-in data for a valence visualisation. v4 lets people take part from their phones.
       </p>
       <ol>
         <li>
@@ -133,6 +133,16 @@
             <h2><span>v3.4</span>Valence particles (drawn paths)</h2>
             <p>
               Valence particles (drawn paths): a fresh copy of v3.3, to read digits along their drawn paths.
+            </p>
+          </a>
+        </li>
+        <li>
+          <!-- v4 has a worker, so it's on Cloudflare (.github/workflows/cloudflare.yml) rather than beside the others. -->
+          <a class="card" href="https://mnist-valence-participation.patcon.workers.dev/">
+            <h2><span>v4.0</span>Valence participation</h2>
+            <p>
+              Phones draw a digit by tilting, and appear as cursors among v3.3's digits. Open this on a phone, and
+              /viz on the big screen.
             </p>
           </a>
         </li>
