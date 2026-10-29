@@ -19,5 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "scripts/check-leiden.ts", "src/knn.ts", "src/leiden.ts", "src/rng.ts"]
+  "include": ["vite.config.ts", "scripts/check-leiden.ts", "scripts/dev.ts", "src/knn.ts", "src/leiden.ts", "src/rng.ts"]
 }

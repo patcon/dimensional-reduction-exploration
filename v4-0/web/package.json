@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.ts",
     "dev:share": "vite dev --mode share",
     "build": "wrangler types && tsc -b && vite build",
     "lint": "oxlint",
@@ -37,6 +37,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@types/three": "^0.180.0",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
     "tailwindcss": "4.3.3",
