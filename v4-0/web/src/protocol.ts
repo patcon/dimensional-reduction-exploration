@@ -18,7 +18,7 @@ export const participantColor = (slot: number) => PARTICIPANT_COLORS[slot % PART
 export interface ParticipantState {
   id: string
   slot: number
-  /** Their phone's tilt: −1 face down (paper) … +1 face up (ink). */
+  /** Their phone's tilt, as the room's detection reads it: −1 paper … +1 ink. */
   valence: number
   /** A finger is on their screen. */
   touching: boolean
@@ -33,8 +33,22 @@ export const REMOTE_SILENCE_MS = 15_000
 /** A visualiser → the room: its settings, tagged with who sent them and their count, to tell its own echo. */
 export type VizMessage = { type: 'settings'; settings: unknown; from: string; seq: number }
 
-/** The room → a remote. */
-export type ToRemote = { type: 'welcome'; slot: number }
+/**
+ * Which way of turning a phone reads as valence, set for the whole room by its visualisers: the axis it turns about.
+ * Flip: face up +1, face down −1. Invert: upright +1, upside down −1. Spin, as a steering wheel with
+ * the screen to you: upright +1, landscape 0, upside down −1.
+ */
+export type Detection = 'flip' | 'invert' | 'spin'
+export const DETECTIONS: readonly Detection[] = ['flip', 'invert', 'spin']
+
+/** The detection in a visualiser's settings, or flip for none (or one from a version before there was a choice). */
+export function detectionOf(settings: unknown): Detection {
+  const d = (settings as { detection?: unknown } | null)?.detection
+  return DETECTIONS.includes(d as Detection) ? (d as Detection) : 'flip'
+}
+
+/** The room → a remote: its slot on joining, and the room's detection then and whenever it changes. */
+export type ToRemote = { type: 'welcome'; slot: number; detection: Detection } | { type: 'detection'; detection: Detection }
 
 /** The room → a visualiser. Settings go to every visualiser, the one that sent them included. */
 export type ToViz =

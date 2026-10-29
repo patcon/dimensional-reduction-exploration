@@ -8,9 +8,12 @@ drawing a different digit, their cursor moves to a different group.
 It's a Cloudflare Worker (`mnist-valence-participation`) with a Durable Object room, so unlike the
 other versions it isn't on GitHub Pages.
 
-- **`/`, the participant remote.** The phone is a pen. Face up is ink (+1), face down is paper (−1),
-  and edge on is in between: cos β · cos γ, the reaction canvas's horizontal mode. The screen shows
-  the tilt, black face up and white face down. Touching anywhere on the screen rings this
+- **`/`, the participant remote.** The phone is a pen, turned one way for ink (+1) and the other for
+  paper (−1), as the room's valence detection says (set on the visualiser, under Digits → Phones):
+  flip, face up to face down (cos β · cos γ, the reaction canvas's horizontal mode); invert, upright to
+  upside down (sin β); or spin, as a steering wheel with the screen to you, upright to upside down through landscape (the roll in
+  the screen's plane, evenly with the angle, however far it leans back). The screen
+  shows the tilt as the visualiser draws digits, white for ink on black paper. Touching anywhere on the screen rings this
   participant's cursor on the visualiser, in their own colour (which the phone also shows around its
   edge). The phone keeps its screen awake while joined.
 - **`/viz`, the visualiser.** Everything in v3.3, plus every participant in the room as a cursor

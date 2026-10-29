@@ -2,6 +2,7 @@ import { Blend, RotateCcw, Shuffle, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { DIGIT_COLORS } from '../palette'
+import { DETECTIONS } from '../protocol'
 import type { SettingsEditor } from '../presets'
 import { N_DIGITS, type Grouping } from '../selection'
 import { N_PIXELS } from '../signal'
@@ -118,6 +119,24 @@ export function ReadingSection({ settings, patch }: SettingsEditor) {
     </Section>
   )
 }
+
+/** How every participant's phone reads as valence: the axis it's turned about, ink one way and paper the other. */
+export function PhonesSection({ settings, set }: SettingsEditor) {
+  return (
+    <Section title="Phones" description="How participants turn their phones to draw: ink one way, paper the other. The same for everyone in the room.">
+      <Field label="valence detection" stacked>
+        <Segmented options={DETECTIONS} value={settings.detection} onChange={(v) => set('detection', v)} />
+      </Field>
+      <p className="text-xs text-muted-foreground">{DETECTION_HOW[settings.detection]}.</p>
+    </Section>
+  )
+}
+
+const DETECTION_HOW = {
+  flip: 'Face up for ink, face down for paper, edge on between',
+  invert: 'Upright for ink, upside down for paper, on its side between',
+  spin: 'As a steering wheel, screen to you: upright for ink, upside down for paper, landscape between',
+} as const
 
 /**
  * How digits are grouped (by label or Leiden cluster), and the order their chords sit in. Leiden and neighbour forces

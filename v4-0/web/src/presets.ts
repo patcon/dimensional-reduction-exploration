@@ -1,6 +1,7 @@
 /** Every setting on the page as one plain object, remembered in the browser, and named presets of it kept there or in files. */
 
 import { useEffect, useState } from 'react'
+import type { Detection } from './protocol.ts'
 import type { ChordOrder, ClusterOver, GroupBy } from './selection.ts'
 import type { SignalSettings } from './signal.ts'
 import type { BeatPattern } from './useMetronome.ts'
@@ -31,6 +32,8 @@ export interface Settings {
   speaker: number | null
   /** Playback, in pixels per second. */
   speed: number
+  /** How participants' phones read their turning as valence, the same for everyone in the room. */
+  detection: Detection
   /** Keep the screen from dimming or locking while the page is open. */
   wakeLock: boolean
   /** Beep on each beat while playing: every `beatPixels` pixels read, accented by `beatPattern`. */
@@ -62,6 +65,7 @@ export const DEFAULT_SETTINGS: Settings = {
   focus: 0,
   speaker: null,
   speed: 14,
+  detection: 'flip',
   wakeLock: false,
   metronome: true,
   // A beat a row, and a bar every four.

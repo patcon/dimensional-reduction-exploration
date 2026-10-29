@@ -8,7 +8,7 @@ import { GroupLegend } from './components/GroupLegend'
 import { JoinDialog } from './components/JoinDialog'
 import { Matrix } from './components/Matrix'
 import { PresetsPanel } from './components/Presets'
-import { DigitPicker, GroupingSection, ParticleSection, ReadingSection, SampleSection, StyleSection, ViewSection } from './components/SettingsPanels'
+import { DigitPicker, GroupingSection, ParticleSection, PhonesSection, ReadingSection, SampleSection, StyleSection, ViewSection } from './components/SettingsPanels'
 import { PlaybackSection, TransportBar } from './components/Transport'
 import { GeometryIcon } from './components/GeometryIcons'
 import { ViewIcon } from './components/ViewIcons'
@@ -534,6 +534,7 @@ function Explorer({ data }: { data: PoolData }) {
                   <TabsContent value="digits" className="flex flex-col gap-8">
                     <SampleSection {...editor} available={available} shownCount={shownCount} maxCount={maxCount} />
                     <ReadingSection {...editor} />
+                    <PhonesSection {...editor} />
                   </TabsContent>
                   <TabsContent value="groups" className="flex flex-col gap-8">
                     <GroupingSection {...editor} grouping={grouping} />
@@ -617,7 +618,7 @@ function Explorer({ data }: { data: PoolData }) {
             <SheetDescription>
               Valence particles from MNIST, with live participants: each digit's pixels, read in order, are one participant's valence over time
               (paper −1, ink +1), and people with their phones open at this site's front page draw their own as the playhead reads, by tilting
-              them (face up ink, face down paper). Make a digit the speaker and the others react to it instead: matching it agrees, differing
+              them (face up ink, face down paper, or as the Phones setting says). Make a digit the speaker and the others react to it instead: matching it agrees, differing
               disagrees. Settings are shared with every visualiser open in the room, so a phone can change the big screen's. Save the settings
               you've arrived at, or carry them between browsers as files.
             </SheetDescription>
