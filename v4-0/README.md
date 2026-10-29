@@ -12,7 +12,9 @@ other versions it isn't on GitHub Pages.
   paper (−1), as the room's valence detection says (set on the visualiser, under Digits → Phones):
   flip, face up to face down (cos β · cos γ, the reaction canvas's horizontal mode); invert, upright to
   upside down (sin β); or spin, as a steering wheel with the screen to you, upright to upside down through landscape (the roll in
-  the screen's plane, evenly with the angle, however far it leans back). The screen
+  the screen's plane, evenly with the angle, however far it leans back). Set high and set low, beside it,
+  calibrate every phone at once: each takes where it's turned now as its +1 or −1 (reset goes back),
+  keeping its own for each detection. The screen
   shows the tilt as the visualiser draws digits, white for ink on black paper. Touching anywhere on the screen rings this
   participant's cursor on the visualiser, in their own colour (which the phone also shows around its
   edge). The phone keeps its screen awake while joined.

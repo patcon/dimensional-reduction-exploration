@@ -73,7 +73,7 @@ function Explorer({ data }: { data: PoolData }) {
   const setFocus = (i: number | null) => set('focus', i)
   const presets = usePresets(settings, setSettings)
   // The room: participants' phones, and the settings every visualiser in it shares.
-  const { room, roster } = useLiveRoom(settings, setSettings)
+  const { room, roster, calibrate } = useLiveRoom(settings, setSettings)
 
   const [particleReset, setParticleReset] = useState(0)
   const [cameraReset, setCameraReset] = useState(0)
@@ -534,7 +534,7 @@ function Explorer({ data }: { data: PoolData }) {
                   <TabsContent value="digits" className="flex flex-col gap-8">
                     <SampleSection {...editor} available={available} shownCount={shownCount} maxCount={maxCount} />
                     <ReadingSection {...editor} />
-                    <PhonesSection {...editor} />
+                    <PhonesSection {...editor} onCalibrate={calibrate} />
                   </TabsContent>
                   <TabsContent value="groups" className="flex flex-col gap-8">
                     <GroupingSection {...editor} grouping={grouping} />

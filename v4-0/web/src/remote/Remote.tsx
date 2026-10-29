@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { participantColor, type Detection, type RemoteMessage, type ToRemote } from '../protocol'
+import { participantColor, type Calibration, type Detection, type RemoteMessage, type ToRemote } from '../protocol'
 import { connectRoom, type RoomSocket } from '../room'
 import { canWakeLock, useWakeLock } from '../useWakeLock'
 
@@ -19,6 +19,7 @@ const SEND_EPSILON = 0.004
 const NO_SENSOR_MS = 2500
 
 const ID_KEY = 'mnist-valence-participation:id'
+const RANGES_KEY = 'mnist-valence-participation:ranges'
 
 /** This phone's participant id, kept across reloads so it keeps its slot and colour. */
 function participantId() {
@@ -71,6 +72,32 @@ function detector(detection: Detection) {
   }
 }
 
+/** Where this phone reads −1 and +1, in its detection's own terms: by default, −1 and +1 themselves. */
+type Range = { low: number; high: number }
+const FULL_RANGE: Range = { low: -1, high: 1 }
+/** A range narrower than this would make the slightest turn swing from paper to ink: such a calibration is ignored. */
+const MIN_SPAN = 0.1
+
+/** This phone's range for each detection, set by calibrating, kept across reloads. */
+function storedRanges(): Partial<Record<Detection, Range>> {
+  try {
+    return JSON.parse(localStorage.getItem(RANGES_KEY) ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
+/** The range after calibrating, with `raw` the reading now; unchanged if there's no reading, or the range would be too narrow. */
+function calibrated(range: Range, set: Calibration, raw: number | null): Range {
+  if (set === 'reset') return FULL_RANGE
+  if (raw === null) return range
+  const next = set === 'high' ? { ...range, high: raw } : { ...range, low: raw }
+  return Math.abs(next.high - next.low) < MIN_SPAN ? range : next
+}
+
+/** A reading stretched from its range to −1–1, clamped. */
+const inRange = (raw: number, { low, high }: Range) => Math.max(-1, Math.min(1, -1 + (2 * (raw - low)) / (high - low)))
+
 /** What to do, as the remote says it once joined. */
 const HOW: Record<Detection, string> = {
   flip: 'Face up to draw, face down for a gap',
@@ -89,6 +116,10 @@ export function Remote() {
   const screenRef = useRef<HTMLDivElement>(null)
   const readoutRef = useRef<HTMLSpanElement>(null)
   const socket = useRef<RoomSocket | null>(null)
+  /** The latest reading, before calibration, and the detection it's in, for a calibration to take. */
+  const raw = useRef<number | null>(null)
+  const rawDetection = useRef<Detection>(detection)
+  const ranges = useRef(storedRanges())
   useWakeLock(joined)
 
   const join = async () => {
@@ -112,6 +143,15 @@ export function Remote() {
         const m = msg as ToRemote
         if (m.type === 'welcome') setSlot(m.slot)
         if (m.type === 'welcome' || m.type === 'detection') setDetection(m.detection)
+        if (m.type === 'calibrate') {
+          const d = rawDetection.current
+          ranges.current = { ...ranges.current, [d]: calibrated(ranges.current[d] ?? FULL_RANGE, m.set, raw.current) }
+          try {
+            localStorage.setItem(RANGES_KEY, JSON.stringify(ranges.current))
+          } catch {
+            // Kept until the page reloads.
+          }
+        }
       },
       setStatus,
     )
@@ -129,6 +169,8 @@ export function Remote() {
   useEffect(() => {
     if (!joined || permission !== 'granted') return
     const tiltValence = detector(detection)
+    raw.current = null
+    rawDetection.current = detection
     let valence: number | null = null
     let sent: number | null = null
     let sentAt = 0
@@ -141,8 +183,10 @@ export function Remote() {
       sentAt = now
     }
     const onOrientation = (e: DeviceOrientationEvent) => {
-      const v = tiltValence(e)
-      if (v === null) return
+      const r = tiltValence(e)
+      if (r === null) return
+      raw.current = r
+      const v = inRange(r, ranges.current[detection] ?? FULL_RANGE)
       valence = v
       setNoSensor(false)
       // As the visualiser draws this participant's digit: ink white, paper black.

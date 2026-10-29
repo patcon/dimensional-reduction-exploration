@@ -1,8 +1,8 @@
 /** The visualiser's view of its room: the participants there now, their tilt and touch, and the settings it shares. */
 
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { completeSettings, LOCAL_SETTINGS, type Settings } from './presets'
-import { MAX_PARTICIPANTS, type ParticipantState, type ToViz, type VizMessage } from './protocol'
+import { MAX_PARTICIPANTS, type Calibration, type ParticipantState, type ToViz, type VizMessage } from './protocol'
 import { connectRoom, type RoomSocket } from './room'
 
 export interface Participant {
@@ -170,5 +170,8 @@ export function useLiveRoom(settings: Settings, setSettings: (settings: Settings
     socket.current?.send({ type: 'settings', settings: JSON.parse(json), from: SELF, seq: ++sent.current } satisfies VizMessage)
   }, [settings, connected, roster])
 
-  return { room, roster, connected }
+  /** Calibrates every phone in the room, from where each is turned now. */
+  const calibrate = useCallback((set: Calibration) => socket.current?.send({ type: 'calibrate', set } satisfies VizMessage), [])
+
+  return { room, roster, connected, calibrate }
 }

@@ -1,8 +1,8 @@
-import { Blend, RotateCcw, Shuffle, Sparkles } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, Blend, RotateCcw, Shuffle, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { DIGIT_COLORS } from '../palette'
-import { DETECTIONS } from '../protocol'
+import { DETECTIONS, type Calibration } from '../protocol'
 import type { SettingsEditor } from '../presets'
 import { N_DIGITS, type Grouping } from '../selection'
 import { N_PIXELS } from '../signal'
@@ -120,14 +120,32 @@ export function ReadingSection({ settings, patch }: SettingsEditor) {
   )
 }
 
-/** How every participant's phone reads as valence: the axis it's turned about, ink one way and paper the other. */
-export function PhonesSection({ settings, set }: SettingsEditor) {
+/**
+ * How every participant's phone reads as valence: the axis it's turned about, ink one way and paper the other; and
+ * calibrating them all at once, each from where it's turned now.
+ */
+export function PhonesSection({ settings, set, onCalibrate }: SettingsEditor & { onCalibrate: (set: Calibration) => void }) {
   return (
     <Section title="Phones" description="How participants turn their phones to draw: ink one way, paper the other. The same for everyone in the room.">
       <Field label="valence detection" stacked>
         <Segmented options={DETECTIONS} value={settings.detection} onChange={(v) => set('detection', v)} />
       </Field>
       <p className="text-xs text-muted-foreground">{DETECTION_HOW[settings.detection]}.</p>
+      <Field label="calibrate" stacked>
+        <Button variant="outline" size="sm" onClick={() => onCalibrate('high')} title="Every phone takes where it's turned now as +1">
+          <ArrowUpToLine /> Set high
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onCalibrate('low')} title="Every phone takes where it's turned now as −1">
+          <ArrowDownToLine /> Set low
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onCalibrate('reset')} title="Every phone goes back to the detection's own range">
+          <RotateCcw /> Reset
+        </Button>
+      </Field>
+      <p className="text-xs text-muted-foreground">
+        Have everyone hold their phone as far towards ink as they mean to go, then set high; towards paper, then set low. Each phone keeps
+        its own, for each detection.
+      </p>
     </Section>
   )
 }

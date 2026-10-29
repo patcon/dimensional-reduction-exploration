@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
-import { CLOSE_REPLACED, detectionOf, MAX_PARTICIPANTS, REMOTE_SILENCE_MS, type ParticipantState, type RemoteMessage, type ToRemote, type ToViz, type VizMessage } from '../src/protocol'
+import { CALIBRATIONS, CLOSE_REPLACED, detectionOf, MAX_PARTICIPANTS, REMOTE_SILENCE_MS, type ParticipantState, type RemoteMessage, type ToRemote, type ToViz, type VizMessage } from '../src/protocol'
 
 /**
  * Serves the pages (the participant remote at /, the visualiser at /viz) from static assets, and hands /ws to a room:
@@ -27,7 +27,7 @@ const MAX_SETTINGS_BYTES = 64 * 1024
 
 /**
  * A room: participants' remotes send their phone's tilt and touches, which go on to every visualiser; visualisers
- * share their settings, kept here for whichever opens next, and the detection in them goes on to every remote. Live tilt and touch are only held in memory, as remotes
+ * share their settings, kept here for whichever opens next, and the detection in them goes on to every remote, as do calibrations. Live tilt and touch are only held in memory, as remotes
  * resend them many times a second.
  */
 export class Room extends DurableObject<Env> {
@@ -88,6 +88,8 @@ export class Room extends DurableObject<Env> {
       await this.ctx.storage.put('settings', msg.settings)
       this.toViz({ type: 'settings', settings: msg.settings, from: String(msg.from), seq: Number(msg.seq) })
       if (changed) this.toRemotes({ type: 'detection', detection })
+    } else if (msg.type === 'calibrate' && CALIBRATIONS.includes(msg.set)) {
+      this.toRemotes({ type: 'calibrate', set: msg.set })
     }
   }
 
