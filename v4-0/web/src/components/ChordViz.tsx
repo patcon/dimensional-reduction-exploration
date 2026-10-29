@@ -3,8 +3,9 @@ import * as THREE from 'three'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
-import type { RGB } from '../palette'
+import { gradientRGB, type RGB } from '../palette'
 import type { Playhead } from '../playhead'
+import type { Gradient } from '../protocol'
 import { valenceAt, type Traces } from '../signal'
 import { CLICK_SLOP, Orbit, type Offsets } from '../viz/orbit'
 import { Particles } from '../viz/particles'
@@ -85,15 +86,14 @@ const JITTER_MS = 110
 /** Spots tried per pick for a digit other than the one hovered, before keeping it. */
 const JITTER_TRIES = 6
 
-const COLORS = { pos: [80, 255, 140] as RGB, neg: [255, 80, 60] as RGB, neutral: BG }
 
 function ease(t: number) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t }
 function clamp01(t: number) { return Math.min(1, Math.max(0, t)) }
 
-function valenceRGB(v: number, out: number[], at: number) {
-  const t = Math.pow(Math.abs(v), 0.55)
-  const src = v >= 0 ? COLORS.pos : COLORS.neg
-  for (let c = 0; c < 3; c++) out[at + c] = (BG[c] + (src[c] - BG[c]) * t) / 255
+function valenceRGB(v: number, gradient: Gradient, out: number[], at: number) {
+  // Eased away from 0, so a little valence already shows.
+  gradientRGB(gradient, Math.sign(v) * Math.pow(Math.abs(v), 0.55), out, at)
+  for (let c = 0; c < 3; c++) out[at + c] /= 255
 }
 
 // Chord root and tip in canvas space for the four chord geometries (ported as is), blended in morph phases.
@@ -188,6 +188,8 @@ export interface ChordVizProps {
   view: ViewMode
   geometry: GeoMode
   style: VizStyle
+  /** The colours valence runs through. */
+  gradient: Gradient
   /** How far back trails reach, in seconds of playback; further back, not squashed, for longer. */
   trailSeconds: number
   particles: ParticleSettings
@@ -443,7 +445,7 @@ export function ChordViz(props: ChordVizProps) {
     const rgb = [0, 0, 0]
     // An element's colour at valence v, by valence or by group, into rgb (0–1).
     function colour(by: 'valence' | 'group', v: number, group: RGB) {
-      if (by === 'valence') valenceRGB(v, rgb, 0)
+      if (by === 'valence') valenceRGB(v, live.current.gradient, rgb, 0)
       else for (let c = 0; c < 3; c++) rgb[c] = group[c] / 255
     }
     const bg = BG.map((c) => c / 255)
@@ -574,6 +576,8 @@ export function ChordViz(props: ChordVizProps) {
       const step = trailMoments / TRACE_SEGS
       const zStep = step * TRACE_Z_PER_MOMENT
       const by = style.colorBy
+      /** The gradient's middle, where valence-coloured chords start. */
+      const zero = gradientRGB(live.current.gradient, 0).map((c) => c / 255)
       for (let i = 0; i < n; i++) {
         arrival[i] = Math.min(1, arrival[i] + 1 / 30)
         vNow[i] = valenceAt(traces, i, moment) * arrival[i] * arrival[i]
@@ -621,9 +625,9 @@ export function ChordViz(props: ChordVizProps) {
         }
         if (!inParticles) {
           colour(by.chord, v, group)
-          // Valence is zero at the root, so a valence-coloured chord fades in from the background; a
+          // Valence is zero at the root, so a valence-coloured chord runs from the gradient's middle; a
           // group-coloured one is its group's colour all along.
-          writeChord(i, rx, ry, dx, dy, by.chord === 'valence' ? bg : rgb, rgb, style.chordWidth)
+          writeChord(i, rx, ry, dx, dy, by.chord === 'valence' ? zero : rgb, rgb, style.chordWidth)
         }
         dot.pos.set([dx, dy, 0], i * 3)
         colour(by.cursor, v, group)

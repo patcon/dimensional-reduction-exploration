@@ -51,16 +51,30 @@ export type VizMessage = { type: 'settings'; settings: unknown; from: string; se
 export type Detection = 'flip' | 'invert' | 'spin'
 export const DETECTIONS: readonly Detection[] = ['flip', 'invert', 'spin']
 
-/** The detection in a visualiser's settings, or flip for none (or one from a version before there was a choice). */
-export function detectionOf(settings: unknown): Detection {
-  const d = (settings as { detection?: unknown } | null)?.detection
-  return DETECTIONS.includes(d as Detection) ? (d as Detection) : 'flip'
+/** The colours valence runs through, −1 to +1, everywhere it's shown: the visualiser, digits, matrix and phones. */
+export type Gradient = 'black-white' | 'white-black' | 'red-black-green' | 'red-white-green'
+export const GRADIENTS: readonly Gradient[] = ['black-white', 'white-black', 'red-black-green', 'red-white-green']
+export const DEFAULT_GRADIENT: Gradient = 'red-black-green'
+
+/** What a phone takes from the room's settings: how it reads, and how it shows what it reads. */
+export interface PhoneSettings {
+  detection: Detection
+  gradient: Gradient
 }
 
-/** The room → a remote: its slot on joining, the room's detection then and whenever it changes, and calibrations. */
+/** A phone's settings from a visualiser's, each defaulting when missing (from a version before there was a choice, say). */
+export function phoneSettingsOf(settings: unknown): PhoneSettings {
+  const s = settings as { detection?: unknown; gradient?: unknown } | null
+  return {
+    detection: DETECTIONS.includes(s?.detection as Detection) ? (s!.detection as Detection) : 'flip',
+    gradient: GRADIENTS.includes(s?.gradient as Gradient) ? (s!.gradient as Gradient) : DEFAULT_GRADIENT,
+  }
+}
+
+/** The room → a remote: its slot on joining, the room's phone settings then and whenever they change, and calibrations. */
 export type ToRemote =
-  | { type: 'welcome'; slot: number; detection: Detection }
-  | { type: 'detection'; detection: Detection }
+  | { type: 'welcome'; slot: number; phone: PhoneSettings }
+  | { type: 'phone'; phone: PhoneSettings }
   | { type: 'calibrate'; set: Calibration }
 
 /** The room → a visualiser. Settings go to every visualiser, the one that sent them included. */

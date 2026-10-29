@@ -1,8 +1,8 @@
 import { ArrowDownToLine, ArrowUpToLine, Blend, RotateCcw, Shuffle, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { DIGIT_COLORS } from '../palette'
-import { DETECTIONS, type Calibration } from '../protocol'
+import { DIGIT_COLORS, GRADIENT_LABELS, gradientCss } from '../palette'
+import { DETECTIONS, GRADIENTS, type Calibration } from '../protocol'
 import type { SettingsEditor } from '../presets'
 import { N_DIGITS, type Grouping } from '../selection'
 import { N_PIXELS } from '../signal'
@@ -143,8 +143,8 @@ export function PhonesSection({ settings, set, onCalibrate }: SettingsEditor & {
         </Button>
       </Field>
       <p className="text-xs text-muted-foreground">
-        Have everyone hold their phone as far towards ink as they mean to go, then set high; towards paper, then set low. Each phone keeps
-        its own, for each detection.
+        Have everyone hold their phone where they mean −1 to be, then set low; where +1 is, then set high. Any turn works, held any way
+        (leaning back and forward, say): valence then runs between the two. Each phone keeps its own, for each detection.
       </p>
     </Section>
   )
@@ -255,18 +255,26 @@ const SIZES: Partial<Record<Element, { key: 'cursorSize' | 'chordWidth' | 'trace
   trace: { key: 'traceWidth', label: 'trace width', min: 0.5, max: 10, step: 0.5 },
 }
 
+/** Each gradient, as a little bar, −1 on the left. */
+const GRADIENT_SWATCHES = Object.fromEntries(
+  GRADIENTS.map((g) => [g, <span key={g} className="h-3 w-5 shrink-0 rounded-sm ring-1 ring-border" style={{ background: gradientCss(g) }} />]),
+)
+
 /**
  * A row per element: what it's coloured by (a button that switches between the two), its opacity and its size. The
  * readouts on the right all show opacity or all show size, whichever kind of slider was touched last, as the icon
  * at the column's top says. Rows for what isn't drawn now are greyed out: the trace and fill in the time slice, which
  * has no depth, and the chord and fill in the particle geometry.
  */
-export function StyleSection({ settings, patch }: SettingsEditor) {
+export function StyleSection({ settings, set, patch }: SettingsEditor) {
   const { style } = settings
   const [shown, setShown] = useState<'opacity' | 'size'>('opacity')
   const hidden = new Set<Element>([...(settings.view === '2d' ? ['trace', 'fill'] as const : []), ...(settings.geometry === 'particle' ? ['chord', 'fill'] as const : [])])
   return (
     <Section title="Style">
+      <Field label="gradient" stacked title="The colours valence runs through, −1 to +1, everywhere it's shown: here, the digits, the matrix and phones">
+        <Segmented options={GRADIENTS} value={settings.gradient} onChange={(v) => set('gradient', v)} labels={GRADIENT_LABELS} icons={GRADIENT_SWATCHES} />
+      </Field>
       <div className="grid grid-cols-[3rem_auto_1fr_1fr_2.5rem] items-center gap-x-2.5 gap-y-2 text-sm">
         <span />
         <span className="text-xs text-muted-foreground">colour by</span>

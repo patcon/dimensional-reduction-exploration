@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { rgbCss, type RGB } from '../palette'
+import { use, useEffect, useMemo, useRef } from 'react'
+import { GradientContext, gradientRGB, rgbCss, type RGB } from '../palette'
 import type { Playhead } from '../playhead'
 import { sampleGroups, type Group } from '../selection'
 import { accentOf, shadeDigit } from '../digitImage'
@@ -24,18 +24,19 @@ interface ThumbProps {
 /** One digit, small, read as it plays (as the followed digit is); click to follow it. */
 function Thumb({ pixels, poolRow, traces, playhead, windowPixels, hovered, onClick, onHover }: ThumbProps) {
   const ref = useRef<HTMLCanvasElement>(null)
+  const gradient = use(GradientContext)
   useEffect(() => {
     const canvas = ref.current!
     const ctx = canvas.getContext('2d')!
     const img = ctx.createImageData(SIDE, SIDE)
     const accent = accentOf(canvas)
     const draw = () => {
-      shadeDigit(img, pixels, poolRow, traces, playhead, windowPixels, accent)
+      shadeDigit(img, pixels, poolRow, traces, playhead, windowPixels, accent, gradient)
       ctx.putImageData(img, 0, 0)
     }
     draw()
     return playhead.onFrame(draw)
-  }, [pixels, poolRow, traces, playhead, windowPixels])
+  }, [pixels, poolRow, traces, playhead, windowPixels, gradient])
   return (
     <canvas
       ref={ref}
@@ -86,6 +87,7 @@ export function GroupLegend({
   onHover: (participant: number | null) => void
 }) {
   const barRefs = useRef<(HTMLDivElement | null)[]>([])
+  const gradient = use(GradientContext)
 
   // Drawn afresh for each sample of digits, and kept as re-clustering regroups them.
   const order = useMemo(() => shuffle(rows.map((_, i) => i), Math.random), [rows])
@@ -102,12 +104,13 @@ export function GroupLegend({
         const mean = sums[gi] / g.size
         bar.style.left = `${50 + Math.min(0, mean) * 50}%`
         bar.style.width = `${Math.abs(mean) * 50}%`
-        bar.style.background = mean >= 0 ? 'var(--agree)' : 'var(--disagree)'
+        // Its end of the gradient, outlined, as an end that's black or white may be the page's own colour.
+        bar.style.background = rgbCss(gradientRGB(gradient, mean >= 0 ? 1 : -1))
       })
     }
     draw()
     return playhead.onFrame(draw)
-  }, [groups, groupOf, traces, playhead])
+  }, [groups, groupOf, traces, playhead, gradient])
 
   return (
     <ul className="group-legend">

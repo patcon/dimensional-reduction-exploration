@@ -145,7 +145,7 @@
 .group-name { font-weight: 600; }
 .group-mean { position: relative; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
 .group-mean-zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--muted-foreground); }
-.group-mean-bar { position: absolute; top: 0; bottom: 0; }
+.group-mean-bar { position: absolute; top: 0; bottom: 0; box-shadow: inset 0 0 0 1px var(--border); }
 .group-legend li.on { background: color-mix(in srgb, var(--highlight) 14%, transparent); border-radius: 3px; }
 .group-thumbs { display: flex; gap: 2px; flex-wrap: wrap; }
 .group-thumbs canvas { width: 16px; height: 16px; image-rendering: pixelated; background: #000; color: var(--highlight); cursor: pointer; }

@@ -17,7 +17,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHandle, DrawerTitle } f
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { useLiveRoom } from './live'
-import { groupColors, hexRgb, type RGB } from './palette'
+import { GradientContext, groupColors, hexRgb, type RGB } from './palette'
 import { usePlayhead } from './playhead'
 import { useSettings } from './presets'
 import { chordSlots, groupParticipants, pcsOf, pickRows, windowFeatures, type Grouping } from './selection'
@@ -286,7 +286,8 @@ function Explorer({ data }: { data: PoolData }) {
   }, [])
 
   return (
-    <>
+    // The gradient valence is shown in, wherever it's drawn.
+    <GradientContext value={settings.gradient}>
       {/* The visualiser fills the window, behind the drawer, and centres in what the drawer leaves (as a map
           would), so it never resizes as the drawer moves. */}
       <div className="fixed inset-0 overflow-hidden bg-viz">
@@ -303,6 +304,7 @@ function Explorer({ data }: { data: PoolData }) {
           view={view}
           geometry={geometry}
           style={style}
+          gradient={settings.gradient}
           trailSeconds={trailSeconds}
           particles={particles}
           highlights={highlights}
@@ -626,7 +628,7 @@ function Explorer({ data }: { data: PoolData }) {
           <PresetsPanel store={presets} onReset={reset} />
         </SheetContent>
       </Sheet>
-    </>
+    </GradientContext>
   )
 }
 

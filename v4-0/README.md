@@ -13,16 +13,20 @@ other versions it isn't on GitHub Pages.
   flip, face up to face down (cos β · cos γ, the reaction canvas's horizontal mode); invert, upright to
   upside down (sin β); or spin, as a steering wheel with the screen to you, upright to upside down through landscape (the roll in
   the screen's plane, evenly with the angle, however far it leans back). Set high and set low, beside it,
-  calibrate every phone at once: each takes where it's turned now as its +1 or −1 (reset goes back),
-  keeping its own for each detection. The screen
-  shows the tilt as the visualiser draws digits, white for ink on black paper. Touching anywhere on the screen rings this
+  calibrate every phone at once: each takes which way it's held now as its +1 or −1 (reset goes back),
+  keeping its own for each detection. Valence then runs between the two along whatever turn joins
+  them, held any way, rather than as the detection reads it (the detection's own end stands in for
+  one not set). The screen
+  shows the tilt as the visualiser draws digits, in the room's gradient. Touching anywhere on the screen rings this
   participant's cursor on the visualiser, in their own colour (which the phone also shows around its
   edge). The phone keeps its screen awake while joined.
 - **`/viz`, the visualiser.** Everything in v3.3, plus every participant in the room as a cursor
   beside the digits. A participant's tilt is the ink of the pixel being read right now, and of every
   pixel the playhead passed since the last frame. What they've drawn so far is read as a trace, just
   as a digit's pixels are (same smoothing and mapping), so it's grouped and clustered over the window
-  the same way.
+  the same way. One gradient (View → Style) colours valence everywhere it's shown, −1 to +1: the
+  visualiser, digit images, matrix, legend and phones. Black/white, white/black, red/black/green
+  (the default, as the visualiser was) or red/white/green.
 - **Rows only.** Every digit, and every drawing, is read row by row, left to right, as a pen writes:
   v3.3's other reading orders (snake, columns, spiral, Hilbert) are gone. The visualiser keeps a
   metronome, so participants can hear where they are in the digit: a beep every so many pixels (a

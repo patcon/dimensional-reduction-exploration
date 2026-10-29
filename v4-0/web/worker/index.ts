@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
-import { CALIBRATIONS, CLOSE_REPLACED, detectionOf, MAX_PARTICIPANTS, REMOTE_SILENCE_MS, type ParticipantState, type RemoteMessage, type ToRemote, type ToViz, type VizMessage } from '../src/protocol'
+import { CALIBRATIONS, CLOSE_REPLACED, phoneSettingsOf, MAX_PARTICIPANTS, REMOTE_SILENCE_MS, type ParticipantState, type RemoteMessage, type ToRemote, type ToViz, type VizMessage } from '../src/protocol'
 
 /**
  * Serves the pages (the participant remote at /, the visualiser at /viz) from static assets, and hands /ws to a room:
@@ -27,7 +27,7 @@ const MAX_SETTINGS_BYTES = 64 * 1024
 
 /**
  * A room: participants' remotes send their phone's tilt and touches, which go on to every visualiser; visualisers
- * share their settings, kept here for whichever opens next, and the detection in them goes on to every remote, as do calibrations. Live tilt and touch are only held in memory, as remotes
+ * share their settings, kept here for whichever opens next, and what of them phones need (detection and gradient) goes on to every remote, as do calibrations. Live tilt and touch are only held in memory, as remotes
  * resend them many times a second.
  */
 export class Room extends DurableObject<Env> {
@@ -56,7 +56,7 @@ export class Room extends DurableObject<Env> {
       // Tilt carries over from a socket this one replaces; a touch is resent by the remote if it's still held.
       this.live.set(id, { valence: this.live.get(id)?.valence ?? 0, touching: false, heard: Date.now() })
       if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + SILENCE_CHECK_MS)
-      send(server, { type: 'welcome', slot, detection: detectionOf(await this.ctx.storage.get('settings')) } satisfies ToRemote)
+      send(server, { type: 'welcome', slot, phone: phoneSettingsOf(await this.ctx.storage.get('settings')) } satisfies ToRemote)
       this.toViz({ type: 'join', participant: this.participant(id, slot) })
     }
     return new Response(null, { status: 101, webSocket: client })
@@ -83,11 +83,11 @@ export class Room extends DurableObject<Env> {
         this.toViz({ type: 'touch', id: at.id, touching: state.touching })
       }
     } else if (msg.type === 'settings' && message.length <= MAX_SETTINGS_BYTES) {
-      const detection = detectionOf(msg.settings)
-      const changed = detection !== detectionOf(await this.ctx.storage.get('settings'))
+      const phone = phoneSettingsOf(msg.settings)
+      const changed = JSON.stringify(phone) !== JSON.stringify(phoneSettingsOf(await this.ctx.storage.get('settings')))
       await this.ctx.storage.put('settings', msg.settings)
       this.toViz({ type: 'settings', settings: msg.settings, from: String(msg.from), seq: Number(msg.seq) })
-      if (changed) this.toRemotes({ type: 'detection', detection })
+      if (changed) this.toRemotes({ type: 'phone', phone })
     } else if (msg.type === 'calibrate' && CALIBRATIONS.includes(msg.set)) {
       this.toRemotes({ type: 'calibrate', set: msg.set })
     }

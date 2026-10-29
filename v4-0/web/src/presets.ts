@@ -1,7 +1,7 @@
 /** Every setting on the page as one plain object, remembered in the browser, and named presets of it kept there or in files. */
 
 import { useEffect, useState } from 'react'
-import type { Detection } from './protocol.ts'
+import { DEFAULT_GRADIENT, type Detection, type Gradient } from './protocol.ts'
 import type { ChordOrder, ClusterOver, GroupBy } from './selection.ts'
 import type { SignalSettings } from './signal.ts'
 import type { BeatPattern } from './useMetronome.ts'
@@ -34,6 +34,8 @@ export interface Settings {
   speed: number
   /** How participants' phones read their turning as valence, the same for everyone in the room. */
   detection: Detection
+  /** The colours valence runs through, everywhere it's shown, phones included. */
+  gradient: Gradient
   /** Keep the screen from dimming or locking while the page is open. */
   wakeLock: boolean
   /** Beep on each beat while playing: every `beatPixels` pixels read, accented by `beatPattern`. */
@@ -66,6 +68,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speaker: null,
   speed: 14,
   detection: 'flip',
+  gradient: DEFAULT_GRADIENT,
   wakeLock: false,
   metronome: true,
   // A beat a row, and a bar every four.

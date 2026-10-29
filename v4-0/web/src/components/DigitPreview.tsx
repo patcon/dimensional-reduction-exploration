@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { use, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
-import { rgbCss, type RGB } from '../palette'
+import { GradientContext, gradientCss, rgbCss, type RGB } from '../palette'
 import type { Playhead } from '../playhead'
 import { accentOf, shadeDigit } from '../digitImage'
 import { SIDE, valenceAt, type Traces } from '../signal'
@@ -37,6 +37,7 @@ export function DigitImage({
   style?: React.CSSProperties
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
+  const gradient = use(GradientContext)
   /** While pressed: whether playback was going, to carry on once released (as the scrubber does). */
   const scrubbing = useRef<{ wasPlaying: boolean } | null>(null)
 
@@ -59,12 +60,12 @@ export function DigitImage({
     const img = ctx.createImageData(SIDE, SIDE)
     const accent = accentOf(canvas)
     const draw = () => {
-      shadeDigit(img, pixels, poolRow, traces, playhead, windowPixels, accent, against)
+      shadeDigit(img, pixels, poolRow, traces, playhead, windowPixels, accent, gradient, against)
       ctx.putImageData(img, 0, 0)
     }
     draw()
     return playhead.onFrame(draw)
-  }, [pixels, poolRow, against, traces, playhead, windowPixels])
+  }, [pixels, poolRow, against, traces, playhead, windowPixels, gradient])
 
   if (onPress)
     return (
@@ -136,6 +137,7 @@ export function DigitPreview({
   liveColor?: RGB | null
 }) {
   const meterRef = useRef<HTMLDivElement>(null)
+  const gradient = use(GradientContext)
   const readoutRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
@@ -176,7 +178,7 @@ export function DigitPreview({
         </div>
         <div className="valence-meter" aria-label="Valence now">
           <span className="valence-end">−1</span>
-          <div className="valence-track">
+          <div className="valence-track" style={{ background: gradientCss(gradient) }}>
             <div className="valence-zero" />
             <div className="valence-mark" ref={meterRef} />
           </div>

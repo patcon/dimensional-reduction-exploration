@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { rgbCss, type RGB } from '../palette'
+import { use, useEffect, useMemo, useRef, useState } from 'react'
+import { GradientContext, gradientRGB, rgbCss, type RGB } from '../palette'
 import type { Playhead } from '../playhead'
 import type { Traces } from '../signal'
 
@@ -8,7 +8,7 @@ const MATRIX_HEIGHT = 360
 
 /**
  * v1's matrix with a playhead: one row per digit taking part (in chord order, so a
- * grouped order shows each group as a band), one column per moment, in grey as it's played
+ * grouped order shows each group as a band), one column per moment, along the gradient as it's played
  * (smoothed). The playhead sweeps across it, with the clustering window shaded behind.
  */
 export function Matrix({
@@ -38,6 +38,7 @@ export function Matrix({
   windowPixels: number
 }) {
   const imageRef = useRef<HTMLCanvasElement>(null)
+  const gradient = use(GradientContext)
   const stripRef = useRef<HTMLCanvasElement>(null)
   const overlayRef = useRef<HTMLCanvasElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -68,8 +69,9 @@ export function Matrix({
     for (let row = 0; row < n; row++) {
       const p = participantAt[row]
       for (let t = 0; t < length; t++) {
-        const v = Math.round(traces.ink[p * length + t] * 255)
-        img.data.set([v, v, v, 255], (row * length + t) * 4)
+        const at = (row * length + t) * 4
+        gradientRGB(gradient, traces.ink[p * length + t] * 2 - 1, img.data, at)
+        img.data[at + 3] = 255
       }
     }
     ctx.putImageData(img, 0, 0)
@@ -78,7 +80,7 @@ export function Matrix({
       strip.fillStyle = rgbCss(colors[groupOf[participantAt[row]]])
       strip.fillRect(0, row, 1, 1)
     }
-  }, [traces, participantAt, groupOf, colors, n, length])
+  }, [traces, participantAt, groupOf, colors, n, length, gradient])
 
   // The playhead, the window behind it, group boundaries and the followed/hovered rows.
   useEffect(() => {
