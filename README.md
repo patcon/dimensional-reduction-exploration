@@ -24,7 +24,10 @@ UMAP / PaCMAP / LocalMAP projections. Each version builds on the last:
 - [v4.1](v4-1/) — MNIST valence music: v4.0 with music, a random walk through the digits' nearest
   neighbours over the window, its harmony set by their broad clusters and its melody by their small ones
   (a Cloudflare Worker too)
+- [v5.0](v5-0/) — MNIST walk music: "Density clusters on deskewed digits" with the drawer UI of
+  the versions before it, a random walk through a fixed map of digits, harmonised by their broad
+  groups and given a melody by their small ones
 
 Data for each comes from `pipeline/v<n>.py` (e.g. `pipeline/v2-0.py`); each app lives in
 `v<n>/web`. GitHub Pages serves a landing page (`site/index.html`) with every version
-beneath it at `/v1-0/`, `/v1-1/`, `/v1-2/`, `/v2-0/`, `/v2-1/`, `/v3-0/`, `/v3-1/`, `/v3-2/`, `/v3-3/` and `/v3-4/`.
+beneath it at `/v1-0/`, `/v1-1/`, `/v1-2/`, `/v2-0/`, `/v2-1/`, `/v3-0/`, `/v3-1/`, `/v3-2/`, `/v3-3/`, `/v3-4/` and `/v5-0/`.
