@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mnist-valence-music",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  // The pages, built by Vite (the Cloudflare plugin points this at its client build); /ws goes to the worker.
+  "assets": { "binding": "ASSETS", "not_found_handling": "none" },
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM", "class_name": "Room" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  "observability": { "enabled": true },
+}

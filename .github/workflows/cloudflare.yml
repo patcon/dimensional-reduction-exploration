@@ -1,12 +1,14 @@
 name: Deploy to Cloudflare
 
-# v4-0 has a worker (with a Durable Object room), so it's deployed to Cloudflare rather than GitHub Pages.
+# v4-0 and v4-1 each have a worker (with a Durable Object room), so they're deployed to Cloudflare rather than GitHub Pages.
 on:
   push:
     branches: [main]
     paths:
       - v4-0/web/**
       - pipeline/v4-0.py
+      - v4-1/web/**
+      - pipeline/v4-1.py
       - pipeline/uv.lock
       - .github/workflows/cloudflare.yml
   workflow_dispatch:
@@ -24,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        version: [v4-0]
+        version: [v4-0, v4-1]
     steps:
       - uses: actions/checkout@v4
 

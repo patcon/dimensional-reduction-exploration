@@ -1,0 +1,29 @@
+{
+  "name": "leiden window particles",
+  "settings": {
+    "digits": [0, 1],
+    "count": 100,
+    "seed": 0,
+    "groupBy": "leiden",
+    "resolution": 0.5,
+    "neighbours": 30,
+    "clusterOver": "window",
+    "clusterRate": 1,
+    "order": "grouped",
+    "signal": { "skipBlank": false, "smoothing": "blur", "smoothingPixels": 1.5, "mapping": "ink" },
+    "view": "3d",
+    "geometry": "particle",
+    "style": {
+      "colorBy": { "cursor": "valence", "chord": "group", "trace": "valence", "fill": "valence" },
+      "opacity": { "cursor": 1, "chord": 1, "trace": 0.8, "fill": 0.45 },
+      "cursorSize": 12,
+      "chordWidth": 8,
+      "traceWidth": 3
+    },
+    "trailSeconds": 10,
+    "particles": { "cohesion": 0.65, "separation": -0.2, "centreForce": 0, "reverseCentre": false, "spread": 0.2, "radius": 150, "damping": 0.67 },
+    "focus": 0,
+    "speed": 14,
+    "loop": true
+  }
+}
