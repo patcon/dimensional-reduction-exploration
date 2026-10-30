@@ -252,7 +252,8 @@ function Explorer({ data }: { data: PoolData }) {
   const syncMusic = settings.musicOn && settings.music.syncGroups
   useEffect(() => {
     if (!syncMusic) return
-    const clusters = grouping.groups.flatMap((g, i) => (g.noise ? [] : [i]))
+    // Only groups with digits in: with none, Leiden still gives one, empty, and the music would have nothing to walk.
+    const clusters = grouping.groups.flatMap((g, i) => (g.noise || !g.size ? [] : [i]))
     const numberOf = new Int32Array(grouping.groups.length).fill(-1)
     clusters.forEach((i, c) => (numberOf[i] = c))
     walk.setShared({
