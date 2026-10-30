@@ -21,8 +21,8 @@ const fixed = (places: number) => (v: number) => v.toFixed(places)
  * dark to sit over the visualiser, with "*" for all, or once all are chosen, "∅" to clear them for picking afresh.
  */
 export function DigitPicker({ digits, onDigits, compact = false }: { digits: number[]; onDigits: (digits: number[]) => void; compact?: boolean }) {
-  // At least one label stays chosen.
-  const setDigits = (values: string[]) => values.length && onDigits(values.map(Number).sort((a, b) => a - b))
+  // Turning off the last label leaves none (only participants, if there are any).
+  const setDigits = (values: string[]) => onDigits(values.map(Number).sort((a, b) => a - b))
   const all = () => onDigits(Array.from({ length: N_DIGITS }, (_, d) => d))
   const allChosen = digits.length === N_DIGITS
   return (

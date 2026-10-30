@@ -35,8 +35,7 @@ export function MusicPanel({ settings, set, patch, walk, pixels, rows, labels, t
   const music = settings.music
   const on = settings.musicOn
   const current = w && w.rows === rows ? w : null
-  const groups = current ? Math.max(1, current.broadCount) : 0
-  const tones = chordSize(groups)
+  const tones = chordSize(current?.broadCount ?? 0)
   const here = current && node !== null && node < rows.length ? node : null
 
   // Each broad group's digits, by label (participants as their own), and noise last.
@@ -59,7 +58,7 @@ export function MusicPanel({ settings, set, patch, walk, pixels, rows, labels, t
         <Toggle label="music" checked={on} onChange={(v) => {
             unlockAudio()
             set('musicOn', v)
-          }} note="on this screen only; plays while playback does" />
+          }} note="on this screen only; plays while paused too" />
         {on && (
           <div className="flex items-center gap-3">
             <DigitImage
@@ -73,8 +72,12 @@ export function MusicPanel({ settings, set, patch, walk, pixels, rows, labels, t
             <p className="text-sm text-muted-foreground">
               {!current ? (
                 'Finding the window’s groups…'
+              ) : !current.rows.length ? (
+                'No digits or participants: keeping time with a metronome.'
+              ) : current.broadCount === 0 ? (
+                'Every digit is left as noise, so there are no groups to harmonise: keeping time with a metronome.'
               ) : here === null ? (
-                'The walk starts as playback does.'
+                'The walk starts with the first press on the page.'
               ) : (
                 <>
                   On {labels[rows[here]] < 0 ? 'a participant' : <>a <strong className="text-foreground">{labels[rows[here]]}</strong></>}
@@ -96,11 +99,11 @@ export function MusicPanel({ settings, set, patch, walk, pixels, rows, labels, t
           <div className="flex items-baseline gap-2">
             <strong className="num text-3xl leading-none">{current.broadCount}</strong>
             <span className="text-sm text-muted-foreground">
-              broad group{current.broadCount === 1 ? '' : 's'}: {CHORD_NAMES[tones - 1]}
+              broad group{current.broadCount === 1 ? '' : 's'}: {current.broadCount ? CHORD_NAMES[tones - 1] : 'a metronome, no chord'}
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5" aria-label="Chord tones">
-            {TONE_NAMES.slice(0, tones).map((name, i) => (
+            {TONE_NAMES.slice(0, current.broadCount ? tones : 0).map((name, i) => (
               <span
                 key={name}
                 className={cn(

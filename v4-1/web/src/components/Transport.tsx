@@ -98,12 +98,13 @@ export function PlaybackSection({ playhead, traces, speed, onSpeed, trailSeconds
   onTrailSeconds: (seconds: number) => void
   wakeLock: boolean
   onWakeLock: (on: boolean) => void
-  metronome: boolean
-  onMetronome: (on: boolean) => void
-  beatPixels: number
-  onBeatPixels: (pixels: number) => void
-  beatPattern: BeatPattern
-  onBeatPattern: (pattern: BeatPattern) => void
+  /** The metronome's settings; without them (it's off for now), it isn't shown. */
+  metronome?: boolean
+  onMetronome?: (on: boolean) => void
+  beatPixels?: number
+  onBeatPixels?: (pixels: number) => void
+  beatPattern?: BeatPattern
+  onBeatPattern?: (pattern: BeatPattern) => void
 }) {
   const readoutRef = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
@@ -127,8 +128,8 @@ export function PlaybackSection({ playhead, traces, speed, onSpeed, trailSeconds
         disabled={!canWakeLock}
         note={canWakeLock ? undefined : window.isSecureContext ? 'not supported here' : 'requires https'}
       />
-      <Toggle label="metronome" checked={metronome} onChange={onMetronome} note="on this screen only" />
-      {metronome && (
+      {onMetronome && <Toggle label="metronome" checked={!!metronome} onChange={onMetronome} note="on this screen only" />}
+      {metronome && beatPixels !== undefined && beatPattern && onBeatPixels && onBeatPattern && (
         <>
           <Slider label="beat" value={beatPixels} min={1} max={112} onChange={onBeatPixels} format={(v) => `${v} px`} title="How long each beat is, in pixels read (a row is 28)" />
           <Field label="beats a bar" title="The first beat of each bar is accented, higher">

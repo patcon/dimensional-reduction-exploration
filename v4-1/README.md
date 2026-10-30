@@ -37,7 +37,8 @@ other versions it isn't on GitHub Pages.
   v3.3's other reading orders (snake, columns, spiral, Hilbert) are gone. The visualiser keeps a
   metronome, so participants can hear where they are in the digit: a beep every so many pixels (a
   row, 28, by default), the first of each bar higher (4 beats a bar by default; or 3, 2, or 1, which
-  accents none). Play tab; on by default, and kept to each screen rather than shared. Touching participants get a pulsing ring in their colour. The most
+  accents none). Play tab; on by default, and kept to each screen rather than shared. In v4.1 it's
+  off for now (its controls hidden, its code kept): with no groups, the music keeps time instead. Touching participants get a pulsing ring in their colour. The most
   recent of them shows in the corner square, bordered in that colour. Following one shows their
   drawing in the inspect tab.
 - **Music** (the note button, under the digits at the top left, or the music tab). A walker steps
@@ -53,11 +54,13 @@ other versions it isn't on GitHub Pages.
   - *Small groups set the melody.* Leiden at a high resolution on the same neighbours; each small
     group is given a note of the chord, so the tune changes as the walker crosses from one to the
     next, louder on a new one.
+  - *No groups, a metronome.* With no digits or participants, or every one left as noise, there's
+    nothing to harmonise, so the walk keeps time with a click instead, at its tempo and swing.
   - The music tab shows what the walker is on, the chord, and what each broad group holds, with
     HDBSCAN's minimum group size and samples, the neighbours and resolution, steps a second and swing,
     and a mix of chord, bass and melody. The groups are worked out again as often as the window is
     clustered (Grouping's rate), whatever the visualiser's own grouping compares over. Music plays
-    while playback does, and is on or off for each screen; its settings are shared.
+    while paused too (over the window where the playhead stopped), and is on or off for each screen; its settings are shared.
 - **Settings are shared** between every visualiser in the room, so a phone with `/viz` open can
   change the big screen's settings. The drawer and its tabs, playback, and wake lock stay local to
   each page.

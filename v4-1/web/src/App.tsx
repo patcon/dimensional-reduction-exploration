@@ -28,7 +28,6 @@ import { participantColor } from './protocol'
 import { buildTraces, N_PIXELS, rereadTraces } from './signal'
 import { liveRow, projectDrawings, useData, type PoolData } from './useData'
 import { usePresets } from './usePresets'
-import { useMetronome } from './useMetronome'
 import { useMusic } from './useMusic'
 import { useWakeLock } from './useWakeLock'
 import { GEO_MODES, MAX_CHORDS, VIEW_LABELS, type ViewMode } from './vizSettings'
@@ -155,7 +154,8 @@ function Explorer({ data }: { data: PoolData }) {
     return () => cancelAnimationFrame(id)
   }, [liveRows, allRows, rows.length, traces, pixels, signal, room, playhead, meta.nSamples])
   useEffect(() => playhead.setLength(traces.length), [playhead, traces.length])
-  useMetronome(playhead, traces.length, settings.metronome, settings.beatPixels, settings.beatPattern)
+  // v4.0's metronome, a beep every so many pixels read, is off for now: with no groups, the music keeps time instead
+  // (see music.ts). useMetronome and its settings are kept, to bring it back.
   useEffect(() => playhead.resetLaps(), [playhead, traces])
 
   // Comparing over the window: Leiden and neighbour forces (whichever are in use) are worked out again `clusterRate`
@@ -572,12 +572,6 @@ function Explorer({ data }: { data: PoolData }) {
                       onTrailSeconds={(v) => set('trailSeconds', v)}
                       wakeLock={settings.wakeLock}
                       onWakeLock={(v) => set('wakeLock', v)}
-                      metronome={settings.metronome}
-                      onMetronome={(v) => set('metronome', v)}
-                      beatPixels={settings.beatPixels}
-                      onBeatPixels={(v) => set('beatPixels', v)}
-                      beatPattern={settings.beatPattern}
-                      onBeatPattern={(v) => set('beatPattern', v)}
                     />
                   </TabsContent>
                   <TabsContent value="digits" className="flex flex-col gap-8">

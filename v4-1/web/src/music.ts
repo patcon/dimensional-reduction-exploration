@@ -232,7 +232,29 @@ class Synth {
     }
   }
 
-  /** Fades everything out, for music turned off; the next chord starts afresh. */
+  /** A metronome's click: a burst of filtered noise, brighter and louder on the first beat of a bar of 8, and on the beat. */
+  click(beat: number) {
+    const ctx = this.ctx
+    const t = ctx.currentTime + 0.01
+    const length = Math.floor(ctx.sampleRate * 0.03)
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 4)
+    const source = ctx.createBufferSource()
+    source.buffer = buffer
+    const bar = beat % 8 === 0
+    const on = beat % 2 === 0
+    const bandpass = ctx.createBiquadFilter()
+    bandpass.type = 'bandpass'
+    bandpass.frequency.value = bar ? 2600 : on ? 1800 : 1200
+    bandpass.Q.value = 4
+    const gain = ctx.createGain()
+    gain.gain.value = bar ? 0.9 : on ? 0.55 : 0.28
+    source.connect(bandpass).connect(gain).connect(this.master)
+    source.start(t)
+  }
+
+  /** Fades everything out, for music turned off, or no groups to play; the next chord starts afresh. */
   silence() {
     this.fadePad(0.6)
     this.bassOff()
@@ -243,7 +265,7 @@ class Synth {
 
 // ── The walk ──
 
-/** How often a walk waiting (for playback, or the window's groups) looks again, in ms. */
+/** How often a walk waiting (for sound to start, or the window's groups) looks again, in ms. */
 const WAIT_MS = 150
 
 export interface WalkSnapshot {
@@ -292,7 +314,7 @@ export class MusicWalk {
   }
 
   /** Takes in the window's groups, carrying the walker over to the same digit if it's still there. */
-  setWindow(next: WindowMusic, settings: MusicSettings, playing: boolean) {
+  setWindow(next: WindowMusic, settings: MusicSettings) {
     const previous = this.window
     if (previous && previous.rows !== next.rows && this.node !== null) {
       const at = next.rows.indexOf(previous.rows[this.node])
@@ -303,8 +325,10 @@ export class MusicWalk {
     const synth = this.ready
     if (synth) {
       synth.mix(settings)
-      if (synth.groups !== Math.max(1, next.broadCount)) {
-        synth.setChord(Math.max(1, next.broadCount), synth.groups > 0 && playing)
+      // No groups: the walk keeps time with a metronome instead (see step).
+      if (next.broadCount === 0) synth.silence()
+      else if (synth.groups !== next.broadCount) {
+        synth.setChord(next.broadCount, synth.groups > 0)
         this.lastBroad = -2
         synth.padLevels(this.node === null ? -1 : next.broad[this.node], this.sounding, true)
       }
@@ -332,29 +356,26 @@ export class MusicWalk {
   }
 
   /**
-   * One step, if `playing`: to a neighbour, at random by how strongly they're linked, playing its small group's note
+   * One step: to a neighbour, at random by how strongly they're linked, playing its small group's note
    * (louder on a new one, or on the beat) over the pad, and the bass when it crosses into another broad group. `pan` is
-   * where in the stereo field digit i sits. Returns how long until the next step, in ms.
+   * where in the stereo field digit i sits. With no groups (no digits, or every one left as noise), there's nothing to
+   * harmonise, so it clicks as a metronome would, in the walk's time. Returns how long until the next step, in ms.
    */
-  step(settings: MusicSettings, playing: boolean, pan: (i: number) => number) {
+  step(settings: MusicSettings, pan: (i: number) => number) {
     const synth = this.ready
     const w = this.window
     if (synth) synth.mix(settings)
-    if (!synth || !w || !w.rows.length) return WAIT_MS
-    if (!playing) {
-      if (this.sounding) {
-        this.sounding = false
-        synth.padLevels(-1, false)
-        synth.bassOff()
-        this.lastBroad = -2
-      }
-      return WAIT_MS
-    }
-    if (synth.groups === 0) synth.setChord(Math.max(1, w.broadCount), false)
+    if (!synth || !w) return WAIT_MS
     if (!this.sounding) {
       this.sounding = true
       this.lastBroad = -2
     }
+    if (w.broadCount === 0) {
+      synth.click(this.beat)
+      this.tone = -1
+      return this.nextStep(settings)
+    }
+    if (synth.groups === 0) synth.setChord(w.broadCount, false)
     let v = this.node ?? Math.floor(Math.random() * w.rows.length)
     if (this.node !== null) {
       const { offsets, nbrs, weights } = w.graph
@@ -385,8 +406,13 @@ export class MusicWalk {
     const quiet = broad < 0 ? 0.45 : 1
     synth.strike(t, ROOT * 8 * Math.pow(2, semitones / 12), quiet * (fresh ? 0.2 : strong ? 0.09 : 0.05), fresh ? 0.9 : 0.45, w.broadCount === 1 ? 0 : pan(v))
     this.tone = CHORD_TONES.slice(0, chordSize(w.broadCount)).findIndex((s) => s % 12 === semitones % 12)
-    this.beat++
     this.changed()
+    return this.nextStep(settings)
+  }
+
+  /** The time till the next step, in ms, swung long-short. */
+  private nextStep(settings: MusicSettings) {
+    this.beat++
     const swing = settings.swing ? (this.beat % 2 ? 1.34 : 0.66) : 1
     return (1000 / settings.stepsPerSecond) * swing
   }

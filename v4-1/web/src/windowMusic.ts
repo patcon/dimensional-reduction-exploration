@@ -55,6 +55,7 @@ export interface WindowMusic {
   graph: Graph
   /** Each digit's broad group, largest first, or −1 for noise. */
   broad: Int32Array
+  /** None, with no digits, or every one left as noise. */
   broadCount: number
   fine: Int32Array
   fineCount: number
@@ -81,5 +82,5 @@ export function analyseWindow(rows: number[], features: Float32Array, dim: numbe
     // A window where every digit reads alike can leave UMAP nothing to go on.
     if (flat.every(Number.isFinite)) broad = hdbscan(flat, n, embedding[0].length, settings)
   }
-  return { rows, graph, broad, broadCount: Math.max(0, ...broad) + 1, fine, fineCount: Math.max(0, ...fine) + 1 }
+  return { rows, graph, broad, broadCount: Math.max(-1, ...broad) + 1, fine, fineCount: Math.max(-1, ...fine) + 1 }
 }

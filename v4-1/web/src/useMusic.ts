@@ -46,7 +46,7 @@ class WindowAnalyser {
 /**
  * While `on`, the walk's music: the window's broad and small groups worked out again `clusterRate` times a second as
  * the playhead moves (or, pinned, over the pinned window; participants drawing, even while it holds still), and the
- * walker stepping through them while playing. Following a digit moves the walker to it.
+ * walker stepping through them, playing or paused. Following a digit moves the walker to it.
  */
 export function useMusic({ on, settings, seed, playhead, traces, rows, windowPixels, clusterRate, drawing, slotOf, followed }: {
   on: boolean
@@ -90,7 +90,7 @@ export function useMusic({ on, settings, seed, playhead, traces, rows, windowPix
     const analyse = (moment: number, span: number, wrap: boolean) => {
       const { features, dim } = windowFeatures(traces, moment, span, wrap)
       const current = latest.current.settings
-      analyser.current?.request({ rows, features, dim, settings: current, seed }, (w) => walk.setWindow(w, latest.current.settings, playhead.playing))
+      analyser.current?.request({ rows, features, dim, settings: current, seed }, (w) => walk.setWindow(w, latest.current.settings))
     }
     if (pin) {
       const runPinned = () => analyse(pin.to, pin.to - pin.from, false)
@@ -120,7 +120,7 @@ export function useMusic({ on, settings, seed, playhead, traces, rows, windowPix
       const n = slotOf.length
       // Panned by the chord's position, left to right.
       const pan = (i: number) => (n > 1 ? (slotOf[i] / (n - 1)) * 1.4 - 0.7 : 0)
-      id = setTimeout(tick, walk.step(settings, playhead.playing, pan))
+      id = setTimeout(tick, walk.step(settings, pan))
     }
     tick()
     return () => {
