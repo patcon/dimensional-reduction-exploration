@@ -132,8 +132,10 @@ export function ValenceSquare({
   useEffect(() => {
     const draw = () => {
       const v = valence()
-      ref.current!.style.backgroundColor = rgbCss(gradientRGB(gradient, v) as RGB)
-      readoutRef.current!.textContent = `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`
+      // Its refs go before its listener does, when it unmounts.
+      if (!ref.current || !readoutRef.current) return
+      ref.current.style.backgroundColor = rgbCss(gradientRGB(gradient, v) as RGB)
+      readoutRef.current.textContent = `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`
     }
     draw()
     return playhead.onFrame(draw)
@@ -192,8 +194,10 @@ export function DigitPreview({
   useEffect(() => {
     const draw = () => {
       const valence = valenceAt(traces, participant, playhead.moment)
-      meterRef.current!.style.left = `${((valence + 1) / 2) * 100}%`
-      readoutRef.current!.textContent = `${valence >= 0 ? '+' : '−'}${Math.abs(valence).toFixed(2)}`
+      // Its refs go before its listener does, when it unmounts.
+      if (!meterRef.current || !readoutRef.current) return
+      meterRef.current.style.left = `${((valence + 1) / 2) * 100}%`
+      readoutRef.current.textContent = `${valence >= 0 ? '+' : '−'}${Math.abs(valence).toFixed(2)}`
     }
     draw()
     return playhead.onFrame(draw)

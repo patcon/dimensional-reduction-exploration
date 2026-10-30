@@ -121,7 +121,14 @@ export class Playhead {
   }
 
   frame() {
-    this.frameListeners.forEach((fn) => fn())
+    // One listener failing (say, a view caught mid-unmount) mustn't stop the others, or the frame loop.
+    this.frameListeners.forEach((fn) => {
+      try {
+        fn()
+      } catch (e) {
+        reportError(e)
+      }
+    })
   }
 
   setLength(length: number) {
@@ -175,10 +182,11 @@ export function usePlayhead() {
   useEffect(() => {
     let last = performance.now()
     let id = requestAnimationFrame(function step(now) {
+      // The next frame first, so nothing thrown below can stop playback.
+      id = requestAnimationFrame(step)
       // Cap the step so a backgrounded tab doesn't jump ahead on return.
       playhead.tick(Math.min(0.1, (now - last) / 1000))
       last = now
-      id = requestAnimationFrame(step)
     })
     return () => cancelAnimationFrame(id)
   }, [playhead])
