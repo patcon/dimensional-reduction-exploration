@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { runningAudio, unlockOnInteraction } from './audio'
 import type { Playhead } from './playhead'
 
 /** A beep, dying away fast: higher on an accented beat (the downbeat) than on the rest. */
@@ -17,18 +18,9 @@ export const BEAT_PATTERNS = {
 export type BeatPattern = keyof typeof BEAT_PATTERNS
 export const BEAT_PATTERN_LABELS: Record<BeatPattern, string> = { '2111': '4', '211': '3', '21': '2', '1': '1' }
 
-/**
- * Browsers only let a page make sound once someone has interacted with it, so the audio starts on the first press or
- * key anywhere (pressing play, say), and is made then.
- */
-let audio: AudioContext | null = null
-function unlockAudio() {
-  audio ??= new AudioContext()
-  if (audio.state === 'suspended') void audio.resume()
-}
-
 function beep(hz: number) {
-  if (!audio || audio.state !== 'running') return
+  const audio = runningAudio()
+  if (!audio) return
   const t = audio.currentTime
   const osc = audio.createOscillator()
   osc.frequency.value = hz
@@ -48,8 +40,7 @@ function beep(hz: number) {
 export function useMetronome(playhead: Playhead, length: number, on: boolean, beatPixels: number, pattern: BeatPattern) {
   useEffect(() => {
     if (!on) return
-    window.addEventListener('pointerdown', unlockAudio)
-    window.addEventListener('keydown', unlockAudio)
+    const stopUnlocking = unlockOnInteraction()
     const beats = BEAT_PATTERNS[pattern]
     let last = Math.round(playhead.moment)
     const off = playhead.onFrame(() => {
@@ -68,8 +59,7 @@ export function useMetronome(playhead: Playhead, length: number, on: boolean, be
     })
     return () => {
       off()
-      window.removeEventListener('pointerdown', unlockAudio)
-      window.removeEventListener('keydown', unlockAudio)
+      stopUnlocking()
     }
   }, [playhead, length, on, beatPixels, pattern])
 }

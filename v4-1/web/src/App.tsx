@@ -1,4 +1,4 @@
-import { Bookmark, Eye, Focus, Gauge, Hash, Megaphone, QrCode, ScanSearch, Shapes } from 'lucide-react'
+import { Bookmark, Eye, Focus, Gauge, Hash, Megaphone, Music, QrCode, ScanSearch, Shapes } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ChordViz } from './components/ChordViz'
@@ -7,6 +7,7 @@ import { DigitImage, DigitPreview, ValenceSquare } from './components/DigitPrevi
 import { GroupLegend } from './components/GroupLegend'
 import { JoinDialog } from './components/JoinDialog'
 import { Matrix } from './components/Matrix'
+import { MusicPanel } from './components/MusicPanel'
 import { PresetsPanel } from './components/Presets'
 import { DigitPicker, GroupingSection, ParticleSection, PhonesSection, ReadingSection, SampleSection, StyleSection, ViewSection } from './components/SettingsPanels'
 import { PlaybackSection, TransportBar } from './components/Transport'
@@ -16,6 +17,7 @@ import { Button } from './components/ui/button'
 import { Drawer, DrawerContent, DrawerDescription, DrawerHandle, DrawerTitle } from './components/ui/drawer'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
+import { unlockAudio } from './audio'
 import { useLiveRoom } from './live'
 import { GradientContext, groupColors, hexRgb, type RGB } from './palette'
 import { usePlayhead } from './playhead'
@@ -27,6 +29,7 @@ import { buildTraces, N_PIXELS, rereadTraces } from './signal'
 import { liveRow, projectDrawings, useData, type PoolData } from './useData'
 import { usePresets } from './usePresets'
 import { useMetronome } from './useMetronome'
+import { useMusic } from './useMusic'
 import { useWakeLock } from './useWakeLock'
 import { GEO_MODES, MAX_CHORDS, VIEW_LABELS, type ViewMode } from './vizSettings'
 
@@ -49,6 +52,7 @@ const TABS = [
   { value: 'groups', label: 'Groups', icon: Shapes },
   { value: 'view', label: 'View', icon: Eye },
   { value: 'inspect', label: 'Inspect', icon: ScanSearch },
+  { value: 'music', label: 'Music', icon: Music },
 ] as const
 
 /** The window's height, kept up to date. */
@@ -204,6 +208,9 @@ function Explorer({ data }: { data: PoolData }) {
 
   // None, once a tap lands on no digit; the first, if the one followed has gone from the sample.
   const followed = focus === null ? null : focus < allRows.length ? focus : allRows.length ? 0 : null
+  // The walk's music, over the window, whatever digits are compared over.
+  const walk = useMusic({ on: settings.musicOn, settings: settings.music, seed, playhead, traces, rows: allRows, windowPixels, clusterRate, drawing, slotOf, followed })
+  const walker = useCallback(() => walk.node, [walk])
   // Participants touching their phones are ringed in their colour, on the visualiser and round their own square below.
   const highlights = useMemo(
     () => roster.filter((p) => p.touching).map((p) => ({ participant: participantOf(p.slot), color: hexRgb(participantColor(p.slot)) })),
@@ -316,6 +323,7 @@ function Explorer({ data }: { data: PoolData }) {
           trailSeconds={trailSeconds}
           particles={particles}
           highlights={highlights}
+          walker={settings.musicOn ? walker : undefined}
           speaker={speaker}
           particleReset={particleReset}
           cameraReset={cameraReset}
@@ -415,16 +423,36 @@ function Explorer({ data }: { data: PoolData }) {
           )}
         >
           <DigitPicker digits={settings.digits} onDigits={(v) => set('digits', v)} compact />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
-            onClick={() => setJoinOpen(true)}
-            aria-label="Join with a phone"
-            title="Join with a phone"
-          >
-            <QrCode />
-          </Button>
+          <div className="flex gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
+              onClick={() => setJoinOpen(true)}
+              aria-label="Join with a phone"
+              title="Join with a phone"
+            >
+              <QrCode />
+            </Button>
+            {/* The walk's music, on this screen (see the music tab). */}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={cn(
+                'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white',
+                settings.musicOn && 'bg-white/90 text-black hover:bg-white hover:text-black',
+              )}
+              onClick={() => {
+                unlockAudio()
+                set('musicOn', !settings.musicOn)
+              }}
+              aria-pressed={settings.musicOn}
+              aria-label={settings.musicOn ? 'Turn music off' : 'Turn music on'}
+              title={settings.musicOn ? 'Turn music off' : 'Turn music on'}
+            >
+              <Music />
+            </Button>
+          </div>
         </div>
         {/* The buttons sit on the drawer's top edge, so they rise and fall with it. */}
         <span
@@ -614,6 +642,18 @@ function Explorer({ data }: { data: PoolData }) {
                         windowPixels={windowPixels}
                       />
                     </Section>
+                  </TabsContent>
+                  <TabsContent value="music">
+                    <MusicPanel
+                      {...editor}
+                      walk={walk}
+                      pixels={pixels}
+                      rows={allRows}
+                      labels={labels}
+                      traces={traces}
+                      playhead={playhead}
+                      windowPixels={windowPixels}
+                    />
                   </TabsContent>
                 </div>
                 {/* A menu bar along the bottom. */}

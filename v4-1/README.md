@@ -1,7 +1,8 @@
 # v4.1 — MNIST valence music
 
-A fresh copy of [v4.0](../v4-0/) to build on, to add music: a random walk through the digits'
-nearest neighbours over the window, as the playhead reads.
+Built on [v4.0](../v4-0/), with music: a random walk through the digits' nearest neighbours over
+the window, as the playhead reads. After "Density clusters on deskewed digits", which walked a fixed
+map of 2,000 digits; here the map is the window, so it changes as the playhead moves.
 
 v4.0 was built on [v3.3](../v3-3/), with live participants among the digits. People open the site's front
 page on their phones and "pretend to be" a digit: tilting the phone draws one as the playhead reads
@@ -39,6 +40,24 @@ other versions it isn't on GitHub Pages.
   accents none). Play tab; on by default, and kept to each screen rather than shared. Touching participants get a pulsing ring in their colour. The most
   recent of them shows in the corner square, bordered in that colour. Following one shows their
   drawing in the inspect tab.
+- **Music** (the note button, under the digits at the top left, or the music tab). A walker steps
+  through the digits (and participants) at random, along their nearest neighbours over the window,
+  each step to a neighbour as likely as it's strongly linked, and is ringed in white on the
+  visualiser. Tapping a digit moves the walker to it.
+  - *Broad groups set the harmony.* The window is embedded by UMAP (10 dimensions), and HDBSCAN finds
+    its dense regions, deciding how many there are itself and leaving stragglers as noise. One chord
+    tone per group: a single tone for one, an open fifth for two, a triad for three, up to a dense
+    cluster at twelve, its timbre fuller and its voices spread wider the more there are. A change in
+    how many is announced with an arpeggio. The walker's group's tone is louder, and the bass plays
+    it; on noise, the bass drops out and the melody softens.
+  - *Small groups set the melody.* Leiden at a high resolution on the same neighbours; each small
+    group is given a note of the chord, so the tune changes as the walker crosses from one to the
+    next, louder on a new one.
+  - The music tab shows what the walker is on, the chord, and what each broad group holds, with
+    HDBSCAN's minimum group size and samples, the neighbours and resolution, steps a second and swing,
+    and a mix of chord, bass and melody. The groups are worked out again as often as the window is
+    clustered (Grouping's rate), whatever the visualiser's own grouping compares over. Music plays
+    while playback does, and is on or off for each screen; its settings are shared.
 - **Settings are shared** between every visualiser in the room, so a phone with `/viz` open can
   change the big screen's settings. The drawer and its tabs, playback, and wake lock stay local to
   each page.
@@ -84,5 +103,10 @@ to the dev server). Over plain http on a LAN, the remote says so.
 - Clustering over the full digit uses principal components. The pipeline now also exports the PCA
   (`pca.bin`: means, then loadings), and participants' drawings are projected onto it as often as
   the window would be clustered.
+- `src/windowMusic.ts`: the window's neighbours and groups for the music, in a worker
+  (`src/windowMusic.worker.ts`), as UMAP takes a few hundred milliseconds. UMAP is `umap-js`, given
+  the same nearest neighbours; HDBSCAN (`src/hdbscan.ts`) is a port of the inspiration's.
+  `src/music.ts` is the walker and the synth (Web Audio), which shares the page's AudioContext with
+  the metronome (`src/audio.ts`).
 - Participants can't be the speaker, because their drawing changes as they draw. They don't count
   towards "skip blank pixels" either.

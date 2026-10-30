@@ -46,6 +46,8 @@ const FOCUS_RING_SCALE = 2.6
 const TOUCH_RING_SCALE = 4
 /** How far touch rings swell and shrink, and how fast, in radians a second. */
 const TOUCH_PULSE = 0.18
+/** The music's walker's ring. */
+const WALKER_COLOR: RGB = [255, 255, 255]
 const TOUCH_PULSE_RATE = 7
 /** The speaker's dot at the particles' centre, relative to a cursor dot. */
 const SPEAKER_SCALE = 2
@@ -195,6 +197,8 @@ export interface ChordVizProps {
   particles: ParticleSettings
   /** Participants touching their phone now: a ring of their colour round their cursor. */
   highlights: { participant: number; color: RGB }[]
+  /** The digit the music's walker is on, read every frame, ringed in white; or none. */
+  walker?: () => number | null
   /** The speaker's pool row, or null for none: with one, the particles' field centres on it, and it pulls on them by valence. */
   speaker: number | null
   /** Changes when particles should be scattered afresh. */
@@ -486,7 +490,7 @@ export function ChordViz(props: ChordVizProps) {
     let animFrameId = 0
     function animate() {
       animFrameId = requestAnimationFrame(animate)
-      const { traces, pickKey, rows, playhead, slotOf, groupOf, affinity, colors, focus, view, geometry, style, trailSeconds, particles, highlights, speaker, particleReset, cameraReset } = live.current
+      const { traces, pickKey, rows, playhead, slotOf, groupOf, affinity, colors, focus, view, geometry, style, trailSeconds, particles, highlights, walker, speaker, particleReset, cameraReset } = live.current
       const inParticles = geometry === 'particle'
       // How many moments trails cover, and so how deep they reach.
       const trailMoments = trailSeconds * playhead.speed
@@ -713,7 +717,8 @@ export function ChordViz(props: ChordVizProps) {
         b.geo.attributes.color.needsUpdate = true
       }
       let touched = 0
-      for (const { participant, color } of highlights) {
+      const walking = walker?.() ?? null
+      for (const { participant, color } of walking === null ? highlights : [...highlights, { participant: walking, color: WALKER_COLOR }]) {
         if (participant >= n) continue
         touchPos.setXYZ(touched, dot.pos[participant * 3], dot.pos[participant * 3 + 1], 2)
         touchCol.setXYZ(touched, color[0] / 255, color[1] / 255, color[2] / 255)

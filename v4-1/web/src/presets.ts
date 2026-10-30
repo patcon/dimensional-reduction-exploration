@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { DEFAULT_GRADIENT, type Detection, type Gradient } from './protocol.ts'
+import { DEFAULT_MUSIC, type MusicSettings } from './windowMusic.ts'
 import type { ChordOrder, ClusterOver, GroupBy } from './selection.ts'
 import type { SignalSettings } from './signal.ts'
 import type { BeatPattern } from './useMetronome.ts'
@@ -42,10 +43,13 @@ export interface Settings {
   metronome: boolean
   beatPixels: number
   beatPattern: BeatPattern
+  /** Play the walk's music (see music.ts) while playing. */
+  musicOn: boolean
+  music: MusicSettings
 }
 
 /** Settings each page keeps to itself, rather than sharing with the room's other visualisers. */
-export const LOCAL_SETTINGS = ['wakeLock', 'metronome', 'beatPixels', 'beatPattern'] as const
+export const LOCAL_SETTINGS = ['wakeLock', 'metronome', 'beatPixels', 'beatPattern', 'musicOn'] as const
 
 export const DEFAULT_SETTINGS: Settings = {
   digits: [0, 1],
@@ -74,6 +78,8 @@ export const DEFAULT_SETTINGS: Settings = {
   // A beat a row, and a bar every four.
   beatPixels: 28,
   beatPattern: '2111',
+  musicOn: false,
+  music: DEFAULT_MUSIC,
 }
 
 const withoutReading = (signal?: Partial<SignalSettings> & { reading?: unknown }) => {
@@ -96,11 +102,12 @@ export function completeSettings(partial: Partial<Settings> & { lineClicks?: boo
     signal: { ...d.signal, ...withoutReading(partial.signal) },
     style: { ...d.style, ...style, colorBy: { ...d.style.colorBy, ...style.colorBy }, opacity: { ...d.style.opacity, ...style.opacity } },
     particles: { ...d.particles, ...partial.particles },
+    music: { ...d.music, ...partial.music },
   }
 }
 
 /** Settings that are objects of their own, changed a field at a time. */
-type Nested = 'signal' | 'style' | 'particles'
+type Nested = 'signal' | 'style' | 'particles' | 'music'
 
 const SETTINGS_KEY = 'mnist-valence-participation:settings'
 
