@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ChordViz } from './components/ChordViz'
 import { Section } from './components/controls'
-import { DigitImage, DigitPreview } from './components/DigitPreview'
+import { DigitImage, DigitPreview, ValenceSquare } from './components/DigitPreview'
 import { GroupLegend } from './components/GroupLegend'
 import { JoinDialog } from './components/JoinDialog'
 import { Matrix } from './components/Matrix'
@@ -246,6 +246,14 @@ function Explorer({ data }: { data: PoolData }) {
   const [tab, setTab] = useState<string>('playback')
   const [presetsOpen, setPresetsOpen] = useState(false)
   const [joinOpen, setJoinOpen] = useState(false)
+  // Participants whose square along the bottom shows their valence now, rather than their drawing, by slot.
+  const [valenceSlots, setValenceSlots] = useState<ReadonlySet<number>>(new Set())
+  const toggleValenceSlot = (slot: number) =>
+    setValenceSlots((slots) => {
+      const next = new Set(slots)
+      if (!next.delete(slot)) next.add(slot)
+      return next
+    })
   // The view or geometry last moved to, named for a moment over the buttons.
   const [modeLabel, setModeLabel] = useState<{ text: string; shown: boolean }>({ text: '', shown: false })
   const modeLabelTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -457,7 +465,7 @@ function Explorer({ data }: { data: PoolData }) {
 
       {/* Participants' drawings as they're drawn, one square each, along the bottom just above the closed drawer, so the
           open drawer covers them. Touching their phone rings theirs in their colour, as on the visualiser; tapping one
-          follows it. */}
+          switches it between their drawing and their valence now, as their phone shows it. */}
       {roster.length > 0 && (
         <div
           className="pointer-events-none fixed inset-x-3 flex flex-wrap-reverse items-end gap-7 px-3.5 pb-3.5"
@@ -472,17 +480,28 @@ function Explorer({ data }: { data: PoolData }) {
                   className="pointer-events-none absolute top-1/2 left-1/2 size-21 -translate-1/2 rounded-full border-[3px] transition-[opacity,scale] duration-150 motion-reduce:transition-none"
                   style={{ borderColor: color, opacity: p.touching ? 1 : 0, scale: p.touching ? 1 : 0.6 }}
                 />
-                <DigitImage
-                  pixels={pixels}
-                  poolRow={allRows[i]}
-                  traces={traces}
-                  playhead={playhead}
-                  windowPixels={windowPixels}
-                  onPress={() => setFocus(i)}
-                  pressLabel="Follow this participant"
-                  style={p.touching ? { borderColor: color, borderWidth: 3 } : undefined}
-                  className={cn('pointer-events-auto absolute inset-0 size-14 rounded-sm shadow-lg shadow-black/60', !p.touching && 'border-white/60!')}
-                />
+                {valenceSlots.has(p.slot) ? (
+                  <ValenceSquare
+                    valence={() => room.valence[p.slot]}
+                    playhead={playhead}
+                    onPress={() => toggleValenceSlot(p.slot)}
+                    pressLabel="Show this participant's drawing"
+                    style={p.touching ? { borderColor: color, borderWidth: 3 } : undefined}
+                    className={cn('pointer-events-auto absolute inset-0 size-14 rounded-sm shadow-lg shadow-black/60', !p.touching && 'border-white/60!')}
+                  />
+                ) : (
+                  <DigitImage
+                    pixels={pixels}
+                    poolRow={allRows[i]}
+                    traces={traces}
+                    playhead={playhead}
+                    windowPixels={windowPixels}
+                    onPress={() => toggleValenceSlot(p.slot)}
+                    pressLabel="Show this participant's valence now"
+                    style={p.touching ? { borderColor: color, borderWidth: 3 } : undefined}
+                    className={cn('pointer-events-auto absolute inset-0 size-14 rounded-sm shadow-lg shadow-black/60', !p.touching && 'border-white/60!')}
+                  />
+                )}
               </div>
             )
           })}

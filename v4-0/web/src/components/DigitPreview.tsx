@@ -1,6 +1,6 @@
 import { use, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
-import { GradientContext, gradientCss, rgbCss, type RGB } from '../palette'
+import { GradientContext, gradientCss, gradientRGB, rgbCss, type RGB } from '../palette'
 import type { Playhead } from '../playhead'
 import { accentOf, shadeDigit } from '../digitImage'
 import { SIDE, valenceAt, type Traces } from '../signal'
@@ -102,6 +102,55 @@ export function DigitImage({
       onPointerUp={release}
       onPointerCancel={release}
     />
+  )
+}
+
+/**
+ * A participant's valence right now, as their phone shows it: the whole square in the room's gradient, with the number
+ * beneath. Clicking calls `onPress`.
+ */
+export function ValenceSquare({
+  valence,
+  playhead,
+  onPress,
+  pressLabel,
+  className,
+  style,
+}: {
+  /** Their tilt now, read every frame. */
+  valence: () => number
+  playhead: Playhead
+  onPress: () => void
+  pressLabel: string
+  className?: string
+  style?: React.CSSProperties
+}) {
+  const ref = useRef<HTMLButtonElement>(null)
+  const readoutRef = useRef<HTMLSpanElement>(null)
+  const gradient = use(GradientContext)
+
+  useEffect(() => {
+    const draw = () => {
+      const v = valence()
+      ref.current!.style.backgroundColor = rgbCss(gradientRGB(gradient, v) as RGB)
+      readoutRef.current!.textContent = `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`
+    }
+    draw()
+    return playhead.onFrame(draw)
+  }, [valence, playhead, gradient])
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={cn('flex cursor-pointer items-end justify-center border border-border', className)}
+      style={style}
+      aria-label={pressLabel}
+      title={pressLabel}
+      onClick={onPress}
+    >
+      <span ref={readoutRef} className="num mb-0.5 rounded-sm bg-black/55 px-1 text-[10px] text-white" />
+    </button>
   )
 }
 

@@ -24,7 +24,9 @@ other versions it isn't on GitHub Pages.
   beside the digits. A participant's tilt is the ink of the pixel being read right now, and of every
   pixel the playhead passed since the last frame. What they've drawn so far is read as a trace, just
   as a digit's pixels are (same smoothing and mapping), so it's grouped and clustered over the window
-  the same way. One gradient (View → Style) colours valence everywhere it's shown, −1 to +1: the
+  the same way. Each participant's drawing also shows in a square along the bottom; tapping one
+  switches it to their valence right now (the whole square in the gradient, as their phone shows it)
+  and back. One gradient (View → Style) colours valence everywhere it's shown, −1 to +1: the
   visualiser, digit images, matrix, legend and phones. Black/white, white/black, red/black/green
   (the default, as the visualiser was) or red/white/green.
 - **Rows only.** Every digit, and every drawing, is read row by row, left to right, as a pen writes:
