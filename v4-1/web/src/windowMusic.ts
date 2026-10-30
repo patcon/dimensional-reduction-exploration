@@ -5,11 +5,9 @@
  * same neighbours), which set the melody.
  */
 
-import { UMAP } from 'umap-js'
-import { hdbscan } from './hdbscan.ts'
-import { knnGraph, nearestNeighbours, type Graph } from './knn.ts'
+import { knnGraph, type Graph } from './knn.ts'
 import { leiden } from './leiden.ts'
-import { makeRng } from './rng.ts'
+import { umapHdbscan } from './umapHdbscan.ts'
 
 export interface MusicSettings {
   /** Nearest neighbours, for the walk's graph, the small groups and UMAP alike. */
@@ -44,10 +42,6 @@ export const DEFAULT_MUSIC: MusicSettings = {
   melody: 0.7,
 }
 
-/** Dimensions UMAP embeds the window in, for HDBSCAN to find dense regions in; more than two, as it's not for looking at. */
-const UMAP_DIMS = 10
-const UMAP_EPOCHS = 200
-
 /** What the walk needs of the window: the neighbours to step along, and which broad and small group each digit is in. */
 export interface WindowMusic {
   /** The digits (and participants) it was worked out for, as the visualiser's rows. */
@@ -67,20 +61,6 @@ export function analyseWindow(rows: number[], features: Float32Array, dim: numbe
   const k = Math.max(2, Math.min(settings.neighbours, n - 1))
   const graph = knnGraph(features, n, dim, k)
   const fine = n < 3 ? new Int32Array(n) : leiden(graph, { resolution: settings.fineResolution, iterations: 2, seed })
-  let broad: Int32Array = new Int32Array(n)
-  // Too few digits to embed: they're one broad group.
-  if (n > k + 1 && n > 3) {
-    const { indices, dists } = nearestNeighbours(features, n, dim, k)
-    const umap = new UMAP({ nComponents: Math.min(UMAP_DIMS, n - 2), nNeighbors: k, minDist: 0, nEpochs: UMAP_EPOCHS, random: makeRng(seed) })
-    umap.setPrecomputedKNN(
-      Array.from({ length: n }, (_, i) => Array.from(indices.subarray(i * k, (i + 1) * k))),
-      Array.from({ length: n }, (_, i) => Array.from(dists.subarray(i * k, (i + 1) * k))),
-    )
-    const rowsOf = Array.from({ length: n }, (_, i) => Array.from(features.subarray(i * dim, (i + 1) * dim)))
-    const embedding = umap.fit(rowsOf)
-    const flat = Float64Array.from(embedding.flat())
-    // A window where every digit reads alike can leave UMAP nothing to go on.
-    if (flat.every(Number.isFinite)) broad = hdbscan(flat, n, embedding[0].length, settings)
-  }
+  const broad = umapHdbscan(features, n, dim, settings.neighbours, settings, seed)
   return { rows, graph, broad, broadCount: Math.max(-1, ...broad) + 1, fine, fineCount: Math.max(-1, ...fine) + 1 }
 }

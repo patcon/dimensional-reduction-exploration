@@ -33,9 +33,12 @@ export function clusterColor(id: number): RGB {
 /** Participants, grouped by label: they have no digit, so they're a group of their own. */
 const LIVE_GROUP_COLOR: RGB = [235, 235, 235]
 
-/** A colour per group: a digit's own hue (or the participants' grey), or a cluster's by its id. */
+/** HDBSCAN's noise: the digits in no cluster. */
+const NOISE_GROUP_COLOR: RGB = [110, 110, 110]
+
+/** A colour per group: a digit's own hue (or the participants' grey), a cluster's by its id, or noise's grey. */
 export function groupColors(grouping: Grouping): RGB[] {
-  return grouping.groups.map((g) => (g.id !== undefined ? clusterColor(g.id) : g.majorityLabel < 0 ? LIVE_GROUP_COLOR : hexRgb(DIGIT_COLORS[g.majorityLabel])))
+  return grouping.groups.map((g) => (g.noise ? NOISE_GROUP_COLOR : g.id !== undefined ? clusterColor(g.id) : g.majorityLabel < 0 ? LIVE_GROUP_COLOR : hexRgb(DIGIT_COLORS[g.majorityLabel])))
 }
 
 export const rgbCss = ([r, g, b]: RGB) => `rgb(${r} ${g} ${b})`

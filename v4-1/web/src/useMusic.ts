@@ -4,44 +4,13 @@ import { MusicWalk } from './music'
 import type { Playhead } from './playhead'
 import { windowFeatures } from './selection'
 import type { Traces } from './signal'
-import type { MusicSettings, WindowMusic } from './windowMusic'
-import type { WindowRequest } from './windowMusic.worker'
+import type { MusicSettings } from './windowMusic'
+import type { WindowAnswer, WindowRequest } from './windowMusic.worker'
+import { WorkerQueue } from './workerQueue'
 
-/**
- * The window's music, worked out in a worker. One request at a time: asked again while it's busy, the newest waits
- * (replacing any older still waiting), so it never falls behind the playhead.
- */
-class WindowAnalyser {
-  private worker = new Worker(new URL('./windowMusic.worker.ts', import.meta.url), { type: 'module' })
-  private busy: { rows: number[]; onResult: (w: WindowMusic) => void } | null = null
-  private waiting: { request: Omit<WindowRequest, 'id'>; onResult: (w: WindowMusic) => void } | null = null
-  private id = 0
-
-  constructor() {
-    this.worker.onmessage = (e: MessageEvent<{ id: number; result: WindowMusic }>) => {
-      const done = this.busy
-      this.busy = null
-      // Its rows as asked for, the same array, so the walk can tell when they've changed.
-      if (done) done.onResult({ ...e.data.result, rows: done.rows })
-      const next = this.waiting
-      this.waiting = null
-      if (next) this.request(next.request, next.onResult)
-    }
-  }
-
-  request(request: Omit<WindowRequest, 'id'>, onResult: (w: WindowMusic) => void) {
-    if (this.busy) {
-      this.waiting = { request, onResult }
-      return
-    }
-    this.busy = { rows: request.rows, onResult }
-    this.worker.postMessage({ ...request, id: ++this.id } satisfies WindowRequest, [request.features.buffer])
-  }
-
-  close() {
-    this.worker.terminate()
-  }
-}
+/** The window's music, worked out in a worker. */
+const windowAnalyser = () =>
+  new WorkerQueue<WindowRequest, WindowAnswer>(new Worker(new URL('./windowMusic.worker.ts', import.meta.url), { type: 'module' }))
 
 /**
  * While `on`, the walk's music: the window's broad and small groups worked out again `clusterRate` times a second as
@@ -72,10 +41,10 @@ export function useMusic({ on, settings, seed, playhead, traces, rows, windowPix
 
   useEffect(() => (on ? unlockOnInteraction() : undefined), [on])
 
-  const analyser = useRef<WindowAnalyser | null>(null)
+  const analyser = useRef<ReturnType<typeof windowAnalyser> | null>(null)
   useEffect(() => {
     if (!on) return
-    const a = new WindowAnalyser()
+    const a = windowAnalyser()
     analyser.current = a
     return () => {
       a.close()
@@ -90,7 +59,10 @@ export function useMusic({ on, settings, seed, playhead, traces, rows, windowPix
     const analyse = (moment: number, span: number, wrap: boolean) => {
       const { features, dim } = windowFeatures(traces, moment, span, wrap)
       const current = latest.current.settings
-      analyser.current?.request({ rows, features, dim, settings: current, seed }, (w) => walk.setWindow(w, latest.current.settings))
+      // Its rows as asked for, the same array, so the walk can tell when they've changed.
+      analyser.current?.request({ rows, features, dim, settings: current, seed }, [features.buffer], ({ result }) =>
+        walk.setWindow({ ...result, rows }, latest.current.settings),
+      )
     }
     if (pin) {
       const runPinned = () => analyse(pin.to, pin.to - pin.from, false)

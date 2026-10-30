@@ -160,19 +160,38 @@ const DETECTION_HOW = {
  * How digits are grouped (by label or Leiden cluster), and the order their chords sit in. Leiden and neighbour forces
  * both compare digits by their nearest neighbours, over the full digit or the window; with neither, that's greyed out.
  */
-export function GroupingSection({ settings, set, grouping }: SettingsEditor & { grouping: Grouping }) {
-  const { groupBy, resolution, neighbours, clusterOver, clusterRate, windowPixels, order, geometry, particles } = settings
+export function GroupingSection({ settings, set, patch, grouping }: SettingsEditor & { grouping: Grouping }) {
+  const { groupBy, resolution, neighbours, clusterOver, clusterRate, windowPixels, order, geometry, particles, hdbscan } = settings
   const byLeiden = groupBy === 'leiden'
+  const byHdbscan = groupBy === 'hdbscan'
+  const clustering = byLeiden ? 'Leiden' : byHdbscan ? 'UMAP+HDBSCAN' : null
   const byNeighbourForces = geometry === 'particle' && particles.forces === 'neighbours'
-  const unused = !byLeiden && !byNeighbourForces
-  const usedBy = byLeiden && byNeighbourForces ? 'Leiden and neighbour forces' : byLeiden ? 'Leiden' : 'neighbour forces'
-  const why = unused ? 'Only for Leiden, or particles with neighbour forces' : `Used by ${usedBy}`
+  const unused = !clustering && !byNeighbourForces
+  const usedBy = clustering && byNeighbourForces ? `${clustering} and neighbour forces` : (clustering ?? 'neighbour forces')
+  const why = unused ? 'Only for Leiden, UMAP+HDBSCAN, or particles with neighbour forces' : `Used by ${usedBy}`
+  const noise = grouping.groups.find((g) => g.noise)?.size ?? 0
   return (
     <Section title="Grouping">
       <Field label="group by">
-        <Segmented options={['digit', 'leiden'] as const} value={groupBy} onChange={(v) => set('groupBy', v)} labels={{ digit: 'Label', leiden: 'Leiden' }} />
+        <Segmented
+          options={['digit', 'leiden', 'hdbscan'] as const}
+          value={groupBy}
+          onChange={(v) => set('groupBy', v)}
+          labels={{ digit: 'Label', leiden: 'Leiden', hdbscan: 'UMAP+HDBSCAN' }}
+        />
       </Field>
       {byLeiden && <Slider label="resolution" value={resolution} min={0.1} max={3} step={0.1} onChange={(v) => set('resolution', v)} format={fixed(1)} />}
+      {byHdbscan && (
+        <>
+          <p className="text-xs text-muted-foreground">
+            UMAP embeds the digits by their nearest neighbours, then HDBSCAN finds dense regions in it, deciding how many groups there are itself and
+            leaving stragglers as noise (grey).
+          </p>
+          <Slider label="min group size" value={hdbscan.minClusterSize} min={2} max={60} onChange={(v) => patch('hdbscan', { minClusterSize: v })} title="The smallest group worth calling a cluster" />
+          <Slider label="min samples" value={hdbscan.minSamples} min={1} max={30} onChange={(v) => patch('hdbscan', { minSamples: v })} title="How conservative it is: higher leaves more digits as noise" />
+          <Toggle label="allow one group" checked={hdbscan.allowSingle} onChange={(v) => patch('hdbscan', { allowSingle: v })} note="otherwise it always splits, or leaves everything as noise" />
+        </>
+      )}
       <Slider label="neighbours" value={neighbours} min={3} max={30} onChange={(v) => set('neighbours', v)} title={why} disabled={unused} />
       <Field label="compare over" title={why} disabled={unused}>
         <Segmented options={['full', 'window'] as const} value={clusterOver} onChange={(v) => set('clusterOver', v)} labels={{ full: 'full digit', window: 'window' }} disabled={unused} />
@@ -193,6 +212,11 @@ export function GroupingSection({ settings, set, grouping }: SettingsEditor & { 
       {byLeiden && (
         <p className="num text-xs text-muted-foreground">
           {grouping.groups.length} clusters · modularity {grouping.modularity?.toFixed(2)}
+        </p>
+      )}
+      {byHdbscan && (
+        <p className="num text-xs text-muted-foreground">
+          {grouping.groups.filter((g) => !g.noise).length} clusters · {noise} left as noise
         </p>
       )}
       <Slider

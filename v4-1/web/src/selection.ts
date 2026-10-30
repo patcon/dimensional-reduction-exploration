@@ -38,7 +38,7 @@ export function windowFeatures(traces: Traces, moment: number, span: number, wra
   return { features, dim }
 }
 
-export type GroupBy = 'digit' | 'leiden'
+export type GroupBy = 'digit' | 'leiden' | 'hdbscan'
 /** What digits are compared over, for Leiden and neighbour forces: each whole digit (its principal components), or a window of each trace. */
 export type ClusterOver = 'full' | 'window'
 
@@ -51,8 +51,10 @@ export interface LeidenSettings {
 export interface Group {
   /** A short name: the digit (or "live", for participants), or the cluster's number (its id + 1). */
   name: string
-  /** For Leiden: the cluster's id, kept from one run to the next where the cluster carries on. */
+  /** For clusters (Leiden's, or HDBSCAN's): the cluster's id, kept from one run to the next where the cluster carries on. */
   id?: number
+  /** For HDBSCAN: the digits it left out of every cluster. */
+  noise?: boolean
   /** Participants in it. */
   size: number
   /** The most common digit, or −1 for a group of participants alone. */
@@ -89,7 +91,7 @@ function summarise(labels: number[], membership: ArrayLike<number>, count: numbe
  * doesn't hand its colour straight to another. Without one, ids follow Leiden's order: largest first.
  */
 function stableIds(membership: Int32Array, count: number, previous?: Grouping) {
-  if (!previous || previous.groupOf.length !== membership.length) return Int32Array.from({ length: count }, (_, c) => c)
+  if (!previous || previous.groupOf.length !== membership.length || previous.groups.some((g) => g.id === undefined)) return Int32Array.from({ length: count }, (_, c) => c)
   const previousIds = previous.groups.map((g) => g.id!)
   const span = Math.max(...previousIds) + 1
   const overlap = new Map<number, number>()
@@ -126,7 +128,7 @@ export function groupParticipants(
   labels: number[],
   points: Float32Array,
   dim: number,
-  by: GroupBy,
+  by: 'digit' | 'leiden',
   settings: LeidenSettings,
   previous?: Grouping,
 ): Grouping {
@@ -151,6 +153,28 @@ export function groupParticipants(
   order.forEach((c, i) => (rank[c] = i))
   const groups = order.map((c) => ({ ...clusters[c], id: idOf[c], name: String(idOf[c] + 1) }))
   return { groups, groupOf: membership.map((c) => rank[c]), modularity: modularity(graph, membership, settings.resolution) }
+}
+
+/**
+ * Groups participants with these `labels` by `clusters` already found (HDBSCAN's, worked out in a worker), −1 for
+ * noise. Noise is a group of its own, after the clusters. With a `previous` grouping of the same participants, clusters
+ * keep their ids, as Leiden's do.
+ */
+export function groupFromClusters(labels: number[], clusters: Int32Array, previous?: Grouping): Grouping {
+  const count = Math.max(-1, ...clusters) + 1
+  // Noise is one more cluster, so it keeps an id from one run to the next like the rest.
+  const hasNoise = clusters.some((c) => c < 0)
+  const total = count + (hasNoise ? 1 : 0)
+  const membership = clusters.map((c) => (c < 0 ? count : c))
+  const summaries = summarise(labels, membership, total)
+  const idOf = stableIds(membership, total, previous)
+  // In id order, noise last, so the legend and grouped chords keep their places from one run to the next.
+  const isNoise = (c: number) => (c === count ? 1 : 0)
+  const order = summaries.map((_, c) => c).sort((a, b) => isNoise(a) - isNoise(b) || idOf[a] - idOf[b])
+  const rank = new Int32Array(total)
+  order.forEach((c, i) => (rank[c] = i))
+  const groups = order.map((c) => ({ ...summaries[c], id: idOf[c], name: c === count ? 'noise' : String(idOf[c] + 1), ...(c === count && { noise: true }) }))
+  return { groups, groupOf: membership.map((c) => rank[c]) }
 }
 
 /** How chords are laid out around the geometry: as the digits were picked, or group by group. */

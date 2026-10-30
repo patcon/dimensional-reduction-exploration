@@ -41,6 +41,13 @@ other versions it isn't on GitHub Pages.
   off for now (its controls hidden, its code kept): with no groups, the music keeps time instead. Touching participants get a pulsing ring in their colour. The most
   recent of them shows in the corner square, bordered in that colour. Following one shows their
   drawing in the inspect tab.
+- **Grouping by UMAP+HDBSCAN** (Groups tab), beside label and Leiden: UMAP embeds the digits by
+  their nearest neighbours (the Groups tab's), then HDBSCAN finds dense regions in it, deciding how
+  many groups there are itself; stragglers are left as noise, a grey group of their own. Its minimum
+  group size and samples, and whether all can be one group, are its own (the music's broad groups
+  have theirs). Over the full digit or the window, as Leiden; it's worked out in a worker, so its
+  clusters arrive a moment later (grouped by label until the first), and keep their numbers and
+  colours from one run to the next.
 - **Music** (the note button, under the digits at the top left, or the music tab). A walker steps
   through the digits (and participants) at random, along their nearest neighbours over the window,
   each step to a neighbour as likely as it's strongly linked, and is ringed in white on the

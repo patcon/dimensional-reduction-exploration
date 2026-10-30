@@ -22,14 +22,16 @@ import { useLiveRoom } from './live'
 import { GradientContext, groupColors, hexRgb, type RGB } from './palette'
 import { usePlayhead } from './playhead'
 import { useSettings } from './presets'
-import { chordSlots, groupParticipants, pcsOf, pickRows, windowFeatures, type Grouping } from './selection'
+import { chordSlots, groupFromClusters, groupParticipants, pcsOf, pickRows, windowFeatures, type Grouping } from './selection'
 import { neighbourAffinity } from './knn'
 import { participantColor } from './protocol'
 import { buildTraces, N_PIXELS, rereadTraces } from './signal'
 import { liveRow, projectDrawings, useData, type PoolData } from './useData'
 import { usePresets } from './usePresets'
 import { useMusic } from './useMusic'
+import type { ClusterAnswer, ClusterRequest } from './umapHdbscan.worker'
 import { useWakeLock } from './useWakeLock'
+import { WorkerQueue } from './workerQueue'
 import { GEO_MODES, MAX_CHORDS, VIEW_LABELS, type ViewMode } from './vizSettings'
 
 /** Moments a participant's drawing fills in one frame at most; a jump further (a seek) only marks where it lands. */
@@ -97,10 +99,23 @@ function Explorer({ data }: { data: PoolData }) {
   const allRows = useMemo(() => [...rows, ...liveRows], [rows, liveRows])
   /** Participant i of the visualiser's, for a participant's slot. */
   const participantOf = (slot: number) => rows.length + liveRows.indexOf(liveRow(meta, slot))
-  // What compares digits by their nearest neighbours: Leiden, and neighbour forces, while particles feel them.
+  // What compares digits by their nearest neighbours: Leiden or UMAP+HDBSCAN, and neighbour forces, while particles feel them.
   const byLeiden = groupBy === 'leiden'
+  const byHdbscan = groupBy === 'hdbscan'
+  const hdbscanOptions = settings.hdbscan
   const affinityOneWay = geometry === 'particle' && particles.forces === 'neighbours' ? particles.oneWay : null
-  const comparing = byLeiden || affinityOneWay !== null
+  const comparing = byLeiden || byHdbscan || affinityOneWay !== null
+  // UMAP+HDBSCAN takes a few hundred milliseconds, so it's worked out in a worker, its clusters arriving a moment later.
+  const [clusterer, setClusterer] = useState<WorkerQueue<ClusterRequest, ClusterAnswer> | null>(null)
+  useEffect(() => {
+    if (!byHdbscan) return
+    const queue = new WorkerQueue<ClusterRequest, ClusterAnswer>(new Worker(new URL('./umapHdbscan.worker.ts', import.meta.url), { type: 'module' }))
+    setClusterer(queue)
+    return () => {
+      queue.close()
+      setClusterer(null)
+    }
+  }, [byHdbscan])
   // Comparing over the full digit, participants' drawings are projected onto the principal components again, as
   // often as the window would be compared, as they change as they're drawn.
   const [drawingTick, setDrawingTick] = useState(0)
@@ -116,15 +131,29 @@ function Explorer({ data }: { data: PoolData }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- drawingTick: participants' components, changed in place
   const points = useMemo(() => pcsOf(pcs, meta.nPcs, allRows), [pcs, meta.nPcs, allRows, drawingTick])
   const rowLabels = useMemo(() => allRows.map((r) => labels[r]), [allRows, labels])
+  // UMAP+HDBSCAN over the full digit, from the worker; not needed comparing over the window. Each clustering keeps the
+  // last one's cluster numbers and colours.
+  const [fullClusters, setFullClusters] = useState<{ rows: number[]; grouping: Grouping } | null>(null)
+  useEffect(() => {
+    if (!clusterer || clusterOver === 'window') return
+    // A copy, as the worker takes it.
+    const sent = points.slice()
+    clusterer.request({ points: sent, n: rowLabels.length, dim: meta.nPcs, neighbours, options: hdbscanOptions, seed }, [sent.buffer], ({ membership }) =>
+      setFullClusters((last) => ({ rows: allRows, grouping: groupFromClusters(rowLabels, membership, last?.rows === allRows ? last.grouping : undefined) })),
+    )
+  }, [clusterer, clusterOver, points, rowLabels, allRows, meta.nPcs, neighbours, hdbscanOptions, seed])
   // Re-clustered as participants draw, it starts from the last clustering, keeping its clusters' numbers and colours.
   const lastFull = useRef<Grouping | undefined>(undefined)
   const fullGrouping = useMemo(() => {
+    // UMAP+HDBSCAN's clusters, once the worker has them; until then, grouped by label.
+    if (byHdbscan && fullClusters?.rows === allRows) return fullClusters.grouping
+    const by = groupBy === 'leiden' ? 'leiden' : 'digit'
     // Only Leiden's own clusterings carry on: grouped by label, there are no cluster numbers to keep.
-    const previous = groupBy === 'leiden' && lastFull.current?.groupOf.length === rowLabels.length ? lastFull.current : undefined
-    const grouping = groupParticipants(rowLabels, points, meta.nPcs, groupBy, { resolution, neighbours, seed }, previous)
-    lastFull.current = groupBy === 'leiden' ? grouping : undefined
+    const previous = by === 'leiden' && lastFull.current?.groupOf.length === rowLabels.length ? lastFull.current : undefined
+    const grouping = groupParticipants(rowLabels, points, meta.nPcs, by, { resolution, neighbours, seed }, previous)
+    lastFull.current = by === 'leiden' ? grouping : undefined
     return grouping
-  }, [rowLabels, points, meta.nPcs, groupBy, resolution, neighbours, seed])
+  }, [rowLabels, points, meta.nPcs, groupBy, resolution, neighbours, seed, byHdbscan, fullClusters, allRows])
   // Neighbour forces: how much each digit counts each other as a neighbour, over what digits are compared over (the
   // full digit here; the window below, while comparing over it). Only worked out while particles feel it.
   const fullAffinity = useMemo(
@@ -158,7 +187,7 @@ function Explorer({ data }: { data: PoolData }) {
   // (see music.ts). useMetronome and its settings are kept, to bring it back.
   useEffect(() => playhead.resetLaps(), [playhead, traces])
 
-  // Comparing over the window: Leiden and neighbour forces (whichever are in use) are worked out again `clusterRate`
+  // Comparing over the window: Leiden, UMAP+HDBSCAN (in its worker) and neighbour forces (whichever are in use) are worked out again `clusterRate`
   // times a second while the playhead moves, each clustering starting from the last one's clusters (or the full
   // clustering's, at first) and keeping their ids. Pinned, the window holds still, so it's compared once.
   const windowed = comparing && clusterOver === 'window'
@@ -175,9 +204,17 @@ function Explorer({ data }: { data: PoolData }) {
     const cluster = (moment: number, span: number, wrap: boolean) => {
       const previous = (lastWindow.current?.rows === allRows && lastWindow.current.grouping) || fullGrouping
       const { features, dim } = windowFeatures(traces, moment, span, wrap)
+      const affinity = affinityOneWay === null ? null : neighbourAffinity(features, rowLabels.length, dim, neighbours, affinityOneWay)
+      if (byHdbscan) {
+        clusterer?.request({ points: features, n: rowLabels.length, dim, neighbours, options: hdbscanOptions, seed }, [features.buffer], ({ membership }) => {
+          const last = lastWindow.current?.rows === allRows ? lastWindow.current.grouping : null
+          lastWindow.current = { rows: allRows, grouping: groupFromClusters(rowLabels, membership, last ?? undefined), affinity }
+          setWindowGrouping(lastWindow.current)
+        })
+        return
+      }
       // Grouped by label, the window only sets neighbour forces.
       const grouping = byLeiden ? groupParticipants(rowLabels, features, dim, 'leiden', { resolution, neighbours, seed }, previous) : null
-      const affinity = affinityOneWay === null ? null : neighbourAffinity(features, rowLabels.length, dim, neighbours, affinityOneWay)
       lastWindow.current = { rows: allRows, grouping, affinity }
       setWindowGrouping(lastWindow.current)
     }
@@ -197,7 +234,7 @@ function Explorer({ data }: { data: PoolData }) {
     run()
     const id = setInterval(run, 1000 / clusterRate)
     return () => clearInterval(id)
-  }, [windowed, pin, clusterRate, allRows, drawing, rowLabels, traces, playhead, windowPixels, resolution, neighbours, seed, fullGrouping, byLeiden, affinityOneWay])
+  }, [windowed, pin, clusterRate, allRows, drawing, rowLabels, traces, playhead, windowPixels, resolution, neighbours, seed, fullGrouping, byLeiden, affinityOneWay, byHdbscan, clusterer, hdbscanOptions])
   const windowCurrent = windowed && windowGrouping?.rows === allRows ? windowGrouping : null
   const grouping = windowCurrent?.grouping ?? fullGrouping
   // Until the window's first clustering with them, neighbour forces go by the full digit's.

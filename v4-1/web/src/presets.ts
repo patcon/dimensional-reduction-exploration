@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { DEFAULT_GRADIENT, type Detection, type Gradient } from './protocol.ts'
 import { DEFAULT_MUSIC, type MusicSettings } from './windowMusic.ts'
+import type { HdbscanOptions } from './hdbscan.ts'
 import type { ChordOrder, ClusterOver, GroupBy } from './selection.ts'
 import type { SignalSettings } from './signal.ts'
 import type { BeatPattern } from './useMetronome.ts'
@@ -15,6 +16,8 @@ export interface Settings {
   groupBy: GroupBy
   resolution: number
   neighbours: number
+  /** Grouping by UMAP+HDBSCAN: its smallest cluster, how conservative it is, and whether all can be one cluster. */
+  hdbscan: HdbscanOptions
   clusterOver: ClusterOver
   clusterRate: number
   /** The window that Leiden and neighbour forces compare digits over, comparing over the window, and that the digit images and matrix shade, in pixels read. */
@@ -58,6 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   groupBy: 'leiden',
   resolution: 0.4,
   neighbours: 30,
+  hdbscan: { minClusterSize: 8, minSamples: 5, allowSingle: true },
   clusterOver: 'window',
   clusterRate: 1,
   windowPixels: 140,
@@ -103,11 +107,12 @@ export function completeSettings(partial: Partial<Settings> & { lineClicks?: boo
     style: { ...d.style, ...style, colorBy: { ...d.style.colorBy, ...style.colorBy }, opacity: { ...d.style.opacity, ...style.opacity } },
     particles: { ...d.particles, ...partial.particles },
     music: { ...d.music, ...partial.music },
+    hdbscan: { ...d.hdbscan, ...partial.hdbscan },
   }
 }
 
 /** Settings that are objects of their own, changed a field at a time. */
-type Nested = 'signal' | 'style' | 'particles' | 'music'
+type Nested = 'signal' | 'style' | 'particles' | 'music' | 'hdbscan'
 
 const SETTINGS_KEY = 'mnist-valence-participation:settings'
 

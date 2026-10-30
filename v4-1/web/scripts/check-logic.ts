@@ -6,7 +6,7 @@
 import { knnGraph, neighbourAffinity } from '../src/knn.ts'
 import { Playhead } from '../src/playhead.ts'
 import { completeSettings, DEFAULT_SETTINGS } from '../src/presets.ts'
-import { sampleGroups } from '../src/selection.ts'
+import { groupFromClusters, sampleGroups } from '../src/selection.ts'
 import { buildTraces, N_PIXELS, valenceAt, type Traces } from '../src/signal.ts'
 import { Particles } from '../src/viz/particles.ts'
 import { DEFAULT_PARTICLES } from '../src/vizSettings.ts'
@@ -91,6 +91,14 @@ const churned = Int32Array.from(split, (g, i) => (i === 4 ? 1 : g))
 check('a late member moving changes nothing', sampleGroups(2, churned, order, 3), [[2, 0, 8], [7, 9, 5]])
 // The two merge: the merged group's picks come from both.
 check('a merged group shows both', sampleGroups(1, new Int32Array(10), order, 3), [[7, 2, 9]])
+
+// ── groupFromClusters: HDBSCAN's noise is a group of its own, last; clusters keep their ids from the last run ──
+const hdb = groupFromClusters([0, 0, 1, 1, 7], Int32Array.from([0, 0, 1, 1, -1]))
+check('clusters, then noise', hdb.groups.map((g) => [g.name, g.size, g.noise ?? false]), [['1', 2, false], ['2', 2, false], ['noise', 1, true]])
+check('each digit in its group', Array.from(hdb.groupOf), [0, 0, 1, 1, 2])
+// The same clusters, numbered the other way round by HDBSCAN (largest first), keep their ids.
+const again = groupFromClusters([0, 0, 1, 1, 7], Int32Array.from([1, 1, 0, 0, 0]), hdb)
+check('ids carried over', again.groups.map((g) => [g.name, g.size]), [['1', 2], ['2', 3]])
 
 // ── neighbourAffinity: symmetrised, Leiden's graph weights; one-way, not mutual ──
 // A tight cluster of 6 on a line, and one outlier off to the side: it counts them, they don't count it.
