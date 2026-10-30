@@ -61,6 +61,12 @@ other versions it isn't on GitHub Pages.
   - *Small groups set the melody.* Leiden at a high resolution on the same neighbours; each small
     group is given a note of the chord, so the tune changes as the walker crosses from one to the
     next, louder on a new one.
+  - *Or the visualiser's groups.* "Same groups as the visualiser" (music tab) takes the Groups tab's
+    groups as the broad groups instead (by label, Leiden or UMAP+HDBSCAN, over the full digit or the
+    window, noise as noise), so what's heard is what's coloured, worked out once: the music skips its
+    own UMAP+HDBSCAN, and the music tab shows each group in its colour. Off by default. Unsynced, the
+    two are separate runs: the music's always over the window, with its own neighbours (15, against
+    the Groups tab's 30) and HDBSCAN settings, so they can disagree.
   - *No groups, a metronome.* With no digits or participants, or every one left as noise, there's
     nothing to harmonise, so the walk keeps time with a click instead, at its tempo and swing.
   - The music tab shows what the walker is on, the chord, and what each broad group holds, with

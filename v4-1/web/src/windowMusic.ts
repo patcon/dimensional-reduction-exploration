@@ -18,6 +18,11 @@ export interface MusicSettings {
   minSamples: number
   /** Let every digit be one broad group, rather than always splitting or leaving everything as noise. */
   allowSingle: boolean
+  /**
+   * Take the visualiser's groups (the Groups tab's) as the broad groups, rather than the music's own over the window,
+   * so what's heard is what's coloured, worked out once.
+   */
+  syncGroups: boolean
   /** Leiden's resolution for the small groups: higher makes more of them, smaller. */
   fineResolution: number
   stepsPerSecond: number
@@ -34,6 +39,7 @@ export const DEFAULT_MUSIC: MusicSettings = {
   minClusterSize: 8,
   minSamples: 5,
   allowSingle: true,
+  syncGroups: false,
   fineResolution: 6,
   stepsPerSecond: 7,
   swing: true,
@@ -61,6 +67,7 @@ export function analyseWindow(rows: number[], features: Float32Array, dim: numbe
   const k = Math.max(2, Math.min(settings.neighbours, n - 1))
   const graph = knnGraph(features, n, dim, k)
   const fine = n < 3 ? new Int32Array(n) : leiden(graph, { resolution: settings.fineResolution, iterations: 2, seed })
-  const broad = umapHdbscan(features, n, dim, settings.neighbours, settings, seed)
+  // Synced, the visualiser's groups stand in (see MusicWalk.setShared).
+  const broad = settings.syncGroups ? new Int32Array(n) : umapHdbscan(features, n, dim, settings.neighbours, settings, seed)
   return { rows, graph, broad, broadCount: Math.max(-1, ...broad) + 1, fine, fineCount: Math.max(-1, ...fine) + 1 }
 }

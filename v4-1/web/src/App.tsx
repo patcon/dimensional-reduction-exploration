@@ -248,6 +248,23 @@ function Explorer({ data }: { data: PoolData }) {
   // The walk's music, over the window, whatever digits are compared over.
   const walk = useMusic({ on: settings.musicOn, settings: settings.music, seed, playhead, traces, rows: allRows, windowPixels, clusterRate, drawing, slotOf, followed })
   const walker = useCallback(() => walk.node, [walk])
+  // Synced, the music's harmony goes by these same groups (noise as noise), rather than working out its own.
+  const syncMusic = settings.musicOn && settings.music.syncGroups
+  useEffect(() => {
+    if (!syncMusic) return
+    const clusters = grouping.groups.flatMap((g, i) => (g.noise ? [] : [i]))
+    const numberOf = new Int32Array(grouping.groups.length).fill(-1)
+    clusters.forEach((i, c) => (numberOf[i] = c))
+    walk.setShared({
+      rows: allRows,
+      broad: grouping.groupOf.map((i) => numberOf[i]),
+      count: clusters.length,
+      names: clusters.map((i) => grouping.groups[i].name),
+      colors: clusters.map((i) => colors[i]),
+    })
+  }, [syncMusic, walk, grouping, colors, allRows])
+  // Only unsynced once turned off, so each new grouping doesn't unsync for a moment (which would change the chord).
+  useEffect(() => (syncMusic ? () => walk.setShared(null) : undefined), [syncMusic, walk])
   // Participants touching their phones are ringed in their colour, on the visualiser and round their own square below.
   const highlights = useMemo(
     () => roster.filter((p) => p.touching).map((p) => ({ participant: participantOf(p.slot), color: hexRgb(participantColor(p.slot)) })),

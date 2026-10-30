@@ -31,18 +31,21 @@ export function MusicPanel({ settings, set, patch, walk, pixels, rows, labels, t
   playhead: Playhead
   windowPixels: number
 }) {
-  const { window: w, node, tone } = useSyncExternalStore(walk.subscribe, walk.getSnapshot)
+  const { window: w, broad, node, tone } = useSyncExternalStore(walk.subscribe, walk.getSnapshot)
   const music = settings.music
   const on = settings.musicOn
   const current = w && w.rows === rows ? w : null
-  const tones = chordSize(current?.broadCount ?? 0)
-  const here = current && node !== null && node < rows.length ? node : null
+  // The broad groups: the visualiser's, synced, or the music's own.
+  const groups = current && broad?.rows === rows ? broad : null
+  const tones = chordSize(groups?.count ?? 0)
+  const here = groups && node !== null && node < rows.length ? node : null
+  const nameOf = (c: number) => (c < 0 ? 'noise' : (groups?.names?.[c] ?? String(c + 1)))
 
   // Each broad group's digits, by label (participants as their own), and noise last.
-  const contents = current
-    ? [...Array.from({ length: current.broadCount }, (_, c) => c), -1].flatMap((c) => {
+  const contents = groups
+    ? [...Array.from({ length: groups.count }, (_, c) => c), -1].flatMap((c) => {
         const counts = new Array<number>(N_DIGITS + 1).fill(0)
-        current.broad.forEach((g, i) => g === c && counts[labels[rows[i]] < 0 ? N_DIGITS : labels[rows[i]]]++)
+        groups.broad.forEach((g, i) => g === c && counts[labels[rows[i]] < 0 ? N_DIGITS : labels[rows[i]]]++)
         const size = counts.reduce((a, b) => a + b, 0)
         return size ? [{ group: c, counts, size }] : []
       })
@@ -70,21 +73,21 @@ export function MusicPanel({ settings, set, patch, walk, pixels, rows, labels, t
               className="size-14 rounded-sm"
             />
             <p className="text-sm text-muted-foreground">
-              {!current ? (
+              {!current || !groups ? (
                 'Finding the window’s groups…'
               ) : !current.rows.length ? (
                 'No digits or participants: keeping time with a metronome.'
-              ) : current.broadCount === 0 ? (
+              ) : groups.count === 0 ? (
                 'Every digit is left as noise, so there are no groups to harmonise: keeping time with a metronome.'
               ) : here === null ? (
                 'The walk starts with the first press on the page.'
               ) : (
                 <>
                   On {labels[rows[here]] < 0 ? 'a participant' : <>a <strong className="text-foreground">{labels[rows[here]]}</strong></>}
-                  {current.broad[here] < 0 ? (
+                  {groups.broad[here] < 0 ? (
                     <>, left as <strong className="text-foreground">noise</strong>: the bass drops out and the melody plays softly</>
                   ) : (
-                    <>, in broad group <strong className="text-foreground">{current.broad[here] + 1}</strong></>
+                    <>, in {groups.names ? 'group' : 'broad group'} <strong className="text-foreground">{nameOf(groups.broad[here])}</strong></>
                   )}
                   , small group {current.fine[here] + 1} of {current.fineCount}.
                 </>
@@ -94,21 +97,22 @@ export function MusicPanel({ settings, set, patch, walk, pixels, rows, labels, t
         )}
       </Section>
 
-      {on && current && (
+      {on && groups && (
         <Section title="Harmony" description="One chord tone per broad group: the walker's is louder, and the bass plays it.">
           <div className="flex items-baseline gap-2">
-            <strong className="num text-3xl leading-none">{current.broadCount}</strong>
+            <strong className="num text-3xl leading-none">{groups.count}</strong>
             <span className="text-sm text-muted-foreground">
-              broad group{current.broadCount === 1 ? '' : 's'}: {current.broadCount ? CHORD_NAMES[tones - 1] : 'a metronome, no chord'}
+              {groups.names ? 'group' : 'broad group'}
+              {groups.count === 1 ? '' : 's'}: {groups.count ? CHORD_NAMES[tones - 1] : 'a metronome, no chord'}
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5" aria-label="Chord tones">
-            {TONE_NAMES.slice(0, current.broadCount ? tones : 0).map((name, i) => (
+            {TONE_NAMES.slice(0, groups.count ? tones : 0).map((name, i) => (
               <span
                 key={name}
                 className={cn(
                   'num min-w-8 rounded-md border px-1.5 py-0.5 text-center text-xs text-muted-foreground',
-                  here !== null && current.broad[here] >= 0 && current.broad[here] % TONE_NAMES.length === i && 'border-foreground text-foreground',
+                  here !== null && groups.broad[here] >= 0 && groups.broad[here] % TONE_NAMES.length === i && 'border-foreground text-foreground',
                   i === tone && 'bg-foreground text-background',
                 )}
               >
@@ -118,9 +122,11 @@ export function MusicPanel({ settings, set, patch, walk, pixels, rows, labels, t
           </div>
           <div className="flex flex-col gap-1">
             {contents.map(({ group, counts, size }) => (
-              <div key={group} className="grid grid-cols-[3.5rem_1fr] items-center gap-2 text-xs text-muted-foreground">
-                <span className="num">
-                  {group < 0 ? 'noise' : group + 1} · {size}
+              <div key={group} className="grid grid-cols-[4.5rem_1fr] items-center gap-2 text-xs text-muted-foreground">
+                <span className="num flex items-center gap-1">
+                  {/* Synced, each group's swatch is its colour on the visualiser. */}
+                  {groups.colors && <span className="swatch" style={{ background: group < 0 ? NOISE_COLOR : rgbCss(groups.colors[group]) }} />}
+                  {nameOf(group)} · {size}
                 </span>
                 <div className="flex h-3.5 overflow-hidden rounded-sm" style={{ width: `${Math.max(6, (100 * size) / largest)}%` }}>
                   {counts.map((count, d) =>
@@ -146,16 +152,30 @@ export function MusicPanel({ settings, set, patch, walk, pixels, rows, labels, t
       )}
 
       <Section
-        title="Broad groups: HDBSCAN on UMAP"
-        description="The window is embedded by UMAP, then HDBSCAN finds its dense regions, deciding how many groups there are itself and leaving stragglers as noise."
+        title="Broad groups"
+        description={
+          music.syncGroups
+            ? 'The visualiser’s groups, as the Groups tab sets them (by label, Leiden or UMAP+HDBSCAN, over the full digit or the window): what’s heard is what’s coloured, worked out once.'
+            : 'The music’s own, over the window: UMAP embeds it, then HDBSCAN finds its dense regions, deciding how many groups there are itself and leaving stragglers as noise.'
+        }
       >
-        <Slider label="min group size" value={music.minClusterSize} min={2} max={60} onChange={(v) => patch('music', { minClusterSize: v })} title="The smallest group worth calling a broad group" />
-        <Slider label="min samples" value={music.minSamples} min={1} max={30} onChange={(v) => patch('music', { minSamples: v })} title="How conservative it is: higher leaves more digits as noise" />
-        <Toggle label="allow one group" checked={music.allowSingle} onChange={(v) => patch('music', { allowSingle: v })} note="otherwise it always splits, or leaves everything as noise" />
+        <Toggle
+          label="same groups as the visualiser"
+          checked={music.syncGroups}
+          onChange={(v) => patch('music', { syncGroups: v })}
+          note={music.syncGroups ? 'set in the Groups tab' : undefined}
+        />
+        {!music.syncGroups && (
+          <>
+            <Slider label="min group size" value={music.minClusterSize} min={2} max={60} onChange={(v) => patch('music', { minClusterSize: v })} title="The smallest group worth calling a broad group" />
+            <Slider label="min samples" value={music.minSamples} min={1} max={30} onChange={(v) => patch('music', { minSamples: v })} title="How conservative it is: higher leaves more digits as noise" />
+            <Toggle label="allow one group" checked={music.allowSingle} onChange={(v) => patch('music', { allowSingle: v })} note="otherwise it always splits, or leaves everything as noise" />
+          </>
+        )}
       </Section>
 
       <Section title="Small groups: the melody" description="Leiden at a high resolution on the same neighbours; each small group is given a note of the chord.">
-        <Slider label="neighbours" value={music.neighbours} min={2} max={50} onChange={(v) => patch('music', { neighbours: v })} title="For the walk, the small groups and UMAP alike" />
+        <Slider label="neighbours" value={music.neighbours} min={2} max={50} onChange={(v) => patch('music', { neighbours: v })} title={music.syncGroups ? 'For the walk and the small groups' : 'For the walk, the small groups and UMAP alike'} />
         <Slider label="resolution" value={fromFine(music.fineResolution)} min={0} max={1} step={0.001} onChange={(u) => patch('music', { fineResolution: toFine(u) })} format={() => music.fineResolution.toFixed(2)} />
         <Slider label="steps / s" value={music.stepsPerSecond} min={2} max={16} onChange={(v) => patch('music', { stepsPerSecond: v })} />
         <Toggle label="swing" checked={music.swing} onChange={(v) => patch('music', { swing: v })} />

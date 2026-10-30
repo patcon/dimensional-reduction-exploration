@@ -7,6 +7,7 @@
  */
 
 import { runningAudio } from './audio.ts'
+import type { RGB } from './palette.ts'
 import type { MusicSettings, WindowMusic } from './windowMusic.ts'
 
 // ── Harmony ──
@@ -268,8 +269,22 @@ class Synth {
 /** How often a walk waiting (for sound to start, or the window's groups) looks again, in ms. */
 const WAIT_MS = 150
 
+/** The groups that set the harmony: each digit's, numbered from 0, or −1 for noise. */
+export interface BroadGroups {
+  /** The visualiser's rows they're for. */
+  rows: number[]
+  broad: Int32Array
+  /** None, with no digits, or every one left as noise. */
+  count: number
+  /** Each group's name and colour, given the visualiser's groups; the music's own are numbered and coloured by digit. */
+  names?: string[]
+  colors?: RGB[]
+}
+
 export interface WalkSnapshot {
   window: WindowMusic | null
+  /** The groups the harmony goes by now, or null while waiting for them. */
+  broad: BroadGroups | null
   /** The digit the walker is on, as the visualiser's participant i, or null before it has started. */
   node: number | null
   /** Its small group's note, as a chord tone's index, or −1; changes with each step. */
@@ -284,6 +299,9 @@ export interface WalkSnapshot {
 export class MusicWalk {
   node: number | null = null
   private window: WindowMusic | null = null
+  /** With `sync`, the visualiser's groups, set the harmony instead of the window's own (see setShared). */
+  private sync = false
+  private shared: BroadGroups | null = null
   private synth: Synth | null = null
   private lastBroad = -2
   private lastFine = -1
@@ -291,7 +309,7 @@ export class MusicWalk {
   private tone = -1
   private sounding = false
   private listeners = new Set<() => void>()
-  snapshot: WalkSnapshot = { window: null, node: null, tone: -1, steps: 0 }
+  snapshot: WalkSnapshot = { window: null, broad: null, node: null, tone: -1, steps: 0 }
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn)
@@ -301,7 +319,7 @@ export class MusicWalk {
   getSnapshot = () => this.snapshot
 
   private changed() {
-    this.snapshot = { window: this.window, node: this.node, tone: this.tone, steps: this.snapshot.steps + 1 }
+    this.snapshot = { window: this.window, broad: this.broadGroups, node: this.node, tone: this.tone, steps: this.snapshot.steps + 1 }
     this.listeners.forEach((fn) => fn())
   }
 
@@ -313,6 +331,39 @@ export class MusicWalk {
     return this.synth
   }
 
+  /** The groups the harmony goes by: the visualiser's, synced (once they're for the window's digits), or the window's own. */
+  private get broadGroups(): BroadGroups | null {
+    const w = this.window
+    if (!w) return null
+    if (this.sync) return this.shared?.rows === w.rows ? this.shared : null
+    return { rows: w.rows, broad: w.broad, count: w.broadCount }
+  }
+
+  /**
+   * Synced, the visualiser's `groups` set the harmony, so what's heard is what's coloured, worked out once; or, null
+   * for `groups`, not synced: the window's own broad groups do.
+   */
+  setShared(groups: BroadGroups | null) {
+    this.sync = groups !== null
+    this.shared = groups
+    this.refreshChord()
+    this.changed()
+  }
+
+  /** The pad's chord, for however many broad groups there are now. */
+  private refreshChord() {
+    const synth = this.ready
+    const groups = this.broadGroups
+    if (!synth || !groups) return
+    // No groups: the walk keeps time with a metronome instead (see step).
+    if (groups.count === 0) synth.silence()
+    else if (synth.groups !== groups.count) {
+      synth.setChord(groups.count, synth.groups > 0)
+      this.lastBroad = -2
+      synth.padLevels(this.node === null ? -1 : groups.broad[this.node], this.sounding, true)
+    }
+  }
+
   /** Takes in the window's groups, carrying the walker over to the same digit if it's still there. */
   setWindow(next: WindowMusic, settings: MusicSettings) {
     const previous = this.window
@@ -322,17 +373,8 @@ export class MusicWalk {
     }
     if (this.node !== null && this.node >= next.rows.length) this.node = null
     this.window = next
-    const synth = this.ready
-    if (synth) {
-      synth.mix(settings)
-      // No groups: the walk keeps time with a metronome instead (see step).
-      if (next.broadCount === 0) synth.silence()
-      else if (synth.groups !== next.broadCount) {
-        synth.setChord(next.broadCount, synth.groups > 0)
-        this.lastBroad = -2
-        synth.padLevels(this.node === null ? -1 : next.broad[this.node], this.sounding, true)
-      }
-    }
+    this.ready?.mix(settings)
+    this.refreshChord()
     this.changed()
   }
 
@@ -347,11 +389,11 @@ export class MusicWalk {
 
   /** Moves the walker to a digit in another broad group, at random. */
   jumpGroup() {
-    const w = this.window
-    if (!w || !w.rows.length) return
-    const here = this.node === null ? -2 : w.broad[this.node]
-    const elsewhere = [...w.broad.keys()].filter((i) => w.broad[i] >= 0 && w.broad[i] !== here)
-    const pool = elsewhere.length ? elsewhere : [...w.broad.keys()]
+    const g = this.broadGroups
+    if (!g || !g.rows.length) return
+    const here = this.node === null ? -2 : g.broad[this.node]
+    const elsewhere = [...g.broad.keys()].filter((i) => g.broad[i] >= 0 && g.broad[i] !== here)
+    const pool = elsewhere.length ? elsewhere : [...g.broad.keys()]
     this.jumpTo(pool[Math.floor(Math.random() * pool.length)])
   }
 
@@ -364,18 +406,19 @@ export class MusicWalk {
   step(settings: MusicSettings, pan: (i: number) => number) {
     const synth = this.ready
     const w = this.window
+    const g = this.broadGroups
     if (synth) synth.mix(settings)
-    if (!synth || !w) return WAIT_MS
+    if (!synth || !w || !g) return WAIT_MS
     if (!this.sounding) {
       this.sounding = true
       this.lastBroad = -2
     }
-    if (w.broadCount === 0) {
+    if (g.count === 0) {
       synth.click(this.beat)
       this.tone = -1
       return this.nextStep(settings)
     }
-    if (synth.groups === 0) synth.setChord(w.broadCount, false)
+    if (synth.groups === 0) synth.setChord(g.count, false)
     let v = this.node ?? Math.floor(Math.random() * w.rows.length)
     if (this.node !== null) {
       const { offsets, nbrs, weights } = w.graph
@@ -392,7 +435,7 @@ export class MusicWalk {
     }
     this.node = v
     const t = synth.ctx.currentTime + 0.02
-    const broad = w.broad[v]
+    const broad = g.broad[v]
     const fine = w.fine[v]
     if (broad !== this.lastBroad) {
       synth.bassTo(broad, t)
@@ -401,11 +444,11 @@ export class MusicWalk {
     }
     const fresh = fine !== this.lastFine
     this.lastFine = fine
-    const semitones = melodyNote(fine, w.broadCount)
+    const semitones = melodyNote(fine, g.count)
     const strong = this.beat % 2 === 0
     const quiet = broad < 0 ? 0.45 : 1
-    synth.strike(t, ROOT * 8 * Math.pow(2, semitones / 12), quiet * (fresh ? 0.2 : strong ? 0.09 : 0.05), fresh ? 0.9 : 0.45, w.broadCount === 1 ? 0 : pan(v))
-    this.tone = CHORD_TONES.slice(0, chordSize(w.broadCount)).findIndex((s) => s % 12 === semitones % 12)
+    synth.strike(t, ROOT * 8 * Math.pow(2, semitones / 12), quiet * (fresh ? 0.2 : strong ? 0.09 : 0.05), fresh ? 0.9 : 0.45, g.count === 1 ? 0 : pan(v))
+    this.tone = CHORD_TONES.slice(0, chordSize(g.count)).findIndex((s) => s % 12 === semitones % 12)
     this.changed()
     return this.nextStep(settings)
   }

@@ -53,7 +53,7 @@ export function useMusic({ on, settings, seed, playhead, traces, rows, windowPix
   }, [on])
 
   const pin = playhead.pin
-  const { neighbours, minClusterSize, minSamples, allowSingle, fineResolution } = settings
+  const { neighbours, minClusterSize, minSamples, allowSingle, fineResolution, syncGroups } = settings
   useEffect(() => {
     if (!on) return
     const analyse = (moment: number, span: number, wrap: boolean) => {
@@ -82,7 +82,7 @@ export function useMusic({ on, settings, seed, playhead, traces, rows, windowPix
     return () => clearInterval(id)
     // The settings are read when it runs, but only those that change the groups run it again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [on, walk, traces, rows, playhead, pin, windowPixels, clusterRate, drawing, seed, neighbours, minClusterSize, minSamples, allowSingle, fineResolution])
+  }, [on, walk, traces, rows, playhead, pin, windowPixels, clusterRate, drawing, seed, neighbours, minClusterSize, minSamples, allowSingle, fineResolution, syncGroups])
 
   useEffect(() => {
     if (!on) return
