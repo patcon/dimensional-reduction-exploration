@@ -11,6 +11,7 @@
     "check:localmap": "node scripts/check-localmap.ts",
     "check:scale": "node scripts/check-scale.ts",
     "check:midi": "node scripts/check-midi.ts",
+    "explore:lean": "node scripts/explore-lean.ts",
     "preview": "vite preview"
   },
   "dependencies": {

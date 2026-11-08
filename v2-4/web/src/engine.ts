@@ -1,4 +1,5 @@
 import type { Optimiser } from './optimisers.ts'
+import { oneWayPairs, scrambleOneWay } from './lean.ts'
 import { PAIR_TYPES, type Pairs, type PairType, type Weights } from './types.ts'
 
 /**
@@ -180,6 +181,20 @@ export class Engine {
   readonly Y: Float32Array
   readonly grad: Float32Array
   optimiser: Optimiser
+  /**
+   * Each force's lean, from -1 to 1: how its pull or push on a pair (i, j) is shared between i, the point whose
+   * sampling chose the pair, and j, the point chosen. i feels (1 + lean) of it and j (1 - lean), so a pair's force
+   * keeps its sign and its total; 0 is PaCMAP's, equal and opposite. Where a pair is listed both ways round (a
+   * mutual neighbour pair, say) the leans cancel, so only one-way relationships move differently.
+   */
+  lean: Weights = { nb: 0, mn: 0, fp: 0 }
+  /**
+   * Whether the forces act on the neighbour pairs with who chose whom scrambled (see scrambleOneWay), the null to
+   * compare a lean against. Only the forces read them: the far-pair redraw still knows each point's own neighbours.
+   */
+  scrambled = false
+  private scrambledNb: Uint32Array | null = null
+  private oneWay: Uint8Array | null = null
   /** Scales the optimiser's learning rate (the speed control); 1 is PaCMAP's. */
   speed = 1
   /** Steps taken since the last reset. */
@@ -302,6 +317,26 @@ export class Engine {
     this.speed = speed
   }
 
+  setLean(lean: Weights) {
+    this.lean = { ...lean }
+  }
+
+  /** For each neighbour pair, 1 if it's one way (see oneWayPairs); worked out when first asked for. */
+  oneWayNeighbours() {
+    this.oneWay ??= oneWayPairs(this.pairs.nb, this.n)
+    return this.oneWay
+  }
+
+  setScrambled(scrambled: boolean) {
+    this.scrambled = scrambled
+    if (scrambled) this.scrambledNb ??= scrambleOneWay(this.pairs.nb, this.oneWayNeighbours())
+  }
+
+  /** The pairs the forces act on: as sampled, but for the neighbours, scrambled while `scrambled` is on. */
+  private forcePairs(type: PairType) {
+    return type === 'nb' && this.scrambled && this.scrambledNb ? this.scrambledNb : this.pairs[type]
+  }
+
   /** LocalMAP's neighbour boost (its threshold / 2), or null for PaCMAP's kernel. */
   setBoost(boost: number | null) {
     this.boost = boost
@@ -313,20 +348,30 @@ export class Engine {
     this.optimiser = optimiser
   }
 
-  /** Accumulate every pair's force into this.grad. Pair types with a zero multiplier are skipped. */
+  /**
+   * Accumulate every pair's force into this.grad. Pair types with a zero multiplier are skipped. With a lean,
+   * forces are no longer equal and opposite, so they can add up to a net force on the whole layout, which would
+   * carry it off as one; that net force is taken off every point equally, leaving how points move relative to
+   * each other (with no lean it's zero already, and nothing is taken off).
+   */
   gradient(w: Weights) {
     const { Y, grad } = this
     grad.fill(0)
+    let leaning = false
     for (const type of PAIR_TYPES) {
       const mult = w[type]
       if (mult === 0) continue
-      const A = KERNEL_SCALE[type]
-      const k = mult * 2 * A
-      const p = this.pairs[type]
+      const lean = this.lean[type]
+      if (lean !== 0) leaning = true
       if (type === 'nb' && this.boost !== null) {
-        this.boostedNeighbours(mult, this.boost)
+        this.boostedNeighbours(mult, this.boost, lean)
         continue
       }
+      const A = KERNEL_SCALE[type]
+      // The force's share on each end of the pair: i, which chose it, and j, chosen.
+      const ki = mult * 2 * A * (1 + lean)
+      const kj = mult * 2 * A * (1 - lean)
+      const p = this.forcePairs(type)
       // One loop per dimension, unrolled, as this is the hot path.
       if (this.dim === 2)
         for (let t = 0; t < p.length; t += 2) {
@@ -335,11 +380,13 @@ export class Engine {
           const dx = Y[i] - Y[j]
           const dy = Y[i + 1] - Y[j + 1]
           const r = A + 1 + dx * dx + dy * dy
-          const c = k / (r * r)
-          grad[i] += c * dx
-          grad[i + 1] += c * dy
-          grad[j] -= c * dx
-          grad[j + 1] -= c * dy
+          const r2 = r * r
+          const ci = ki / r2
+          const cj = kj / r2
+          grad[i] += ci * dx
+          grad[i + 1] += ci * dy
+          grad[j] -= cj * dx
+          grad[j + 1] -= cj * dy
         }
       else
         for (let t = 0; t < p.length; t += 2) {
@@ -349,26 +396,41 @@ export class Engine {
           const dy = Y[i + 1] - Y[j + 1]
           const dz = Y[i + 2] - Y[j + 2]
           const r = A + 1 + dx * dx + dy * dy + dz * dz
-          const c = k / (r * r)
-          grad[i] += c * dx
-          grad[i + 1] += c * dy
-          grad[i + 2] += c * dz
-          grad[j] -= c * dx
-          grad[j + 1] -= c * dy
-          grad[j + 2] -= c * dz
+          const r2 = r * r
+          const ci = ki / r2
+          const cj = kj / r2
+          grad[i] += ci * dx
+          grad[i + 1] += ci * dy
+          grad[i + 2] += ci * dz
+          grad[j] -= cj * dx
+          grad[j + 1] -= cj * dy
+          grad[j + 2] -= cj * dz
         }
+    }
+    if (leaning) this.removeNetForce()
+  }
+
+  /** Takes the mean force off every point, so the forces sum to zero, as equal and opposite ones do. */
+  private removeNetForce() {
+    const { grad, dim, n } = this
+    for (let d = 0; d < dim; d++) {
+      let sum = 0
+      for (let k = d; k < grad.length; k += dim) sum += grad[k]
+      const mean = sum / n
+      for (let k = d; k < grad.length; k += dim) grad[k] -= mean
     }
   }
 
   /**
    * The neighbour pairs' forces with LocalMAP's boost (pacmap_grad_nearby_recip_sqrt): PaCMAP's kernel
-   * times boost / sqrt(dd), dd = 1 + |yi - yj|². Its own loop, so the unboosted path stays as it was.
+   * times boost / sqrt(dd), dd = 1 + |yi - yj|², leaning as gradient() does. Its own loop, so the unboosted
+   * path stays as it was.
    */
-  private boostedNeighbours(mult: number, boost: number) {
+  private boostedNeighbours(mult: number, boost: number, lean: number) {
     const { Y, grad, dim } = this
     const A = KERNEL_SCALE.nb
     const k = mult * 2 * A
-    const p = this.pairs.nb
+    const p = this.forcePairs('nb')
     for (let t = 0; t < p.length; t += 2) {
       const i = p[t] * dim
       const j = p[t + 1] * dim
@@ -379,10 +441,12 @@ export class Engine {
       }
       const r = A + dd
       const c = ((k / (r * r)) * boost) / Math.sqrt(dd)
+      const ci = c * (1 + lean)
+      const cj = c * (1 - lean)
       for (let d = 0; d < dim; d++) {
         const delta = Y[i + d] - Y[j + d]
-        grad[i + d] += c * delta
-        grad[j + d] -= c * delta
+        grad[i + d] += ci * delta
+        grad[j + d] -= cj * delta
       }
     }
   }
