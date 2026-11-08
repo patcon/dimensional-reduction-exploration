@@ -13,6 +13,8 @@ export interface Settings {
   size: SampleSize
   dim: Dim
   autoRotate: boolean
+  /** Points coloured by their digit, or all one plain colour. */
+  labelColors: boolean
   /** Keep the selected digit at the plot's middle, the view panning to follow it, rather than the layout's centroid. */
   followSelected: boolean
   /** Which digit labels are drawn. */
@@ -57,6 +59,7 @@ export const DEFAULT_SETTINGS: Settings = {
   dim: 3,
   autoRotate: true,
   followSelected: false,
+  labelColors: true,
   digitsShown: Array<boolean>(10).fill(true),
   scale: { nb: DEFAULT_SCALE, mn: DEFAULT_SCALE, fp: DEFAULT_SCALE },
   spring: { nb: false, mn: false, fp: false },

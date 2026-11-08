@@ -12,6 +12,8 @@ interface Props {
   labels: number[]
   /** Which digit labels are drawn (and can be picked); the layout is still fitted to them all, so it holds still. */
   shown: boolean[]
+  /** Points in their digit's colour, or all one plain colour. */
+  colored?: boolean
   /** Bump to redraw after Y changes. */
   version: number
   /** In 3D, spin the view slowly about the vertical axis. */
@@ -74,7 +76,7 @@ const DRAG_TURN = 0.008
 /** While the brush is held, it paints at most this often, in milliseconds (each paint redraws far pairs). */
 const PAINT_MS = 120
 /** How far zoom can go, as a multiple of the fitted size. */
-const ZOOM_RANGE = [0.5, 500]
+const ZOOM_RANGE = [0.1, 500]
 /** Zoom per pixel of wheel scroll. */
 const WHEEL_ZOOM = 0.002
 /** How near the cursor, in CSS pixels, a digit has to be to pick it. */
@@ -119,11 +121,14 @@ const rgb = (hex: string) => {
   return [v >> 16, (v >> 8) & 0xff, v & 0xff]
 }
 
-/** Each digit's colour at FADE_LEVELS depths, faded towards `bg`: index digit * FADE_LEVELS + level. */
-function packedColors(bg: number[]) {
+/**
+ * Each digit's colour at FADE_LEVELS depths, faded towards `bg`: index digit * FADE_LEVELS + level. With `plain`,
+ * every digit is that one colour instead.
+ */
+function packedColors(bg: number[], plain: number[] | null) {
   const out = new Uint32Array(DIGIT_COLORS.length * FADE_LEVELS)
   DIGIT_COLORS.forEach((hex, digit) => {
-    const c = rgb(hex)
+    const c = plain ?? rgb(hex)
     for (let level = 0; level < FADE_LEVELS; level++) {
       const t = (FAR_FADE * level) / (FADE_LEVELS - 1)
       const [r, g, b] = c.map((v, k) => Math.round(v + (bg[k] - v) * t))
@@ -169,9 +174,9 @@ function makeScratch(n: number) {
 const plotCentre = (w: number, h: number, dpr: number) => [w / 2, PAD_TOP * dpr + (h - (PAD + PAD_TOP) * dpr) / 2]
 
 /** The page background as [r, g, b], so the canvas follows light/dark mode. */
-function background(el: Element) {
+function background(el: Element, variable = '--background', fallback = '#ffffff') {
   const probe = document.createElement('canvas').getContext('2d')!
-  probe.fillStyle = getComputedStyle(el).getPropertyValue('--background').trim() || '#ffffff'
+  probe.fillStyle = getComputedStyle(el).getPropertyValue(variable).trim() || fallback
   probe.fillRect(0, 0, 1, 1)
   const [r, g, b] = probe.getImageData(0, 0, 1, 1).data
   return [r, g, b]
@@ -192,7 +197,7 @@ function background(el: Element) {
  * Clicking a digit selects it and clicking away selects none; the mouse hovers digits, and holding a press still
  * hovers digits picked at random around it (see JITTER_RADIUS), inside a ring drawn there.
  */
-export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, reach = null, className, coveredBottom, follow = null, brush = null }: Props) {
+export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, reach = null, className, coveredBottom, follow = null, brush = null }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   /** The rings around the selected and hovered digits, over the points, so they move without redrawing them. */
@@ -453,7 +458,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     }
 
     const bg = background(canvas)
-    const colors = packedColors(bg)
+    const colors = packedColors(bg, colored ? null : background(canvas, '--muted-foreground', '#737373'))
     const ctx = canvas.getContext('2d')!
     const image = ctx.createImageData(w, h)
     const px = new Uint32Array(image.data.buffer)
@@ -474,7 +479,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
       const frame = requestAnimationFrame(() => setEasing((e) => e + 1))
       return () => cancelAnimationFrame(frame)
     }
-  }, [Y, dim, labels, shown, order, size, version, viewVersion, covered, follow, easing])
+  }, [Y, dim, labels, shown, colored, order, size, version, viewVersion, covered, follow, easing])
 
   const turnable = dim === 3
   const redraw = () => setViewVersion((v) => v + 1)

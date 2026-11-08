@@ -388,6 +388,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
           dim={dim}
           labels={meta.labels}
           shown={digitsShown}
+          colored={settings.labelColors}
           version={clock.version}
           autoRotate={autoRotate}
           selected={selected}
@@ -424,7 +425,12 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
             />
           }
         >
-          <DigitPicker shown={digitsShown} onShown={(v) => set('digitsShown', v)} />
+          <DigitPicker
+            shown={digitsShown}
+            onShown={(v) => set('digitsShown', v)}
+            colored={settings.labelColors}
+            onColored={(v) => set('labelColors', v)}
+          />
         </Scatter>
       </div>
       {/* What sits over the plot, kept clear of the drawer. The buttons sit on the drawer's top edge, so they rise and

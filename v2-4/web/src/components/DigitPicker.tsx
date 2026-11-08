@@ -1,3 +1,4 @@
+import { Palette } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { DIGIT_COLORS } from '../palette'
 import { Button } from './ui/button'
@@ -5,9 +6,15 @@ import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group'
 
 /**
  * Which digit labels are shown, one toggle each, underlined in its colour (so it's the legend too), and a button
- * to show them all, "*", or once all are shown, "∅" to hide them all, for picking afresh.
+ * to show them all, "*", or once all are shown, "∅" to hide them all, for picking afresh; then whether points are
+ * coloured by their digit or all one plain colour.
  */
-export function DigitPicker({ shown, onShown }: { shown: boolean[]; onShown: (shown: boolean[]) => void }) {
+export function DigitPicker({ shown, onShown, colored, onColored }: {
+  shown: boolean[]
+  onShown: (shown: boolean[]) => void
+  colored: boolean
+  onColored: (colored: boolean) => void
+}) {
   const allShown = shown.every(Boolean)
   return (
     <div className="flex flex-wrap items-center gap-1">
@@ -39,6 +46,18 @@ export function DigitPicker({ shown, onShown }: { shown: boolean[]; onShown: (sh
         title={allShown ? 'No digits' : 'All digits'}
       >
         {allShown ? '∅' : '*'}
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 min-w-6 bg-background/85 px-1.5 shadow-none data-[off]:text-muted-foreground"
+        data-off={colored ? undefined : ''}
+        onClick={() => onColored(!colored)}
+        aria-pressed={colored}
+        aria-label="Colour points by digit"
+        title={colored ? 'Colours by digit: click for plain points' : 'Plain points: click to colour them by digit'}
+      >
+        <Palette className={colored ? undefined : 'opacity-50'} />
       </Button>
     </div>
   )

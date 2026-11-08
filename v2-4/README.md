@@ -49,6 +49,9 @@ moved the whole view. Here it centres on the centroid and reaches as far as 98% 
 half a second (`src/fit.ts`): on a held, leaning 10k map in 3D, the centre shifts 0.002% of the view per step against
 1.1% before, and its size 0.2% against 1.4%. **Follow the selected digit** (view tab) keeps a digit at the middle
 instead, the map moving past it.
+The palette button at the end of the digit bar switches points between their digit's colour and one plain grey (the
+bar's underlines stay, as a legend), to watch the motion without the labels; it's remembered. Zoom goes out to a tenth
+of the fit (half before), so the whole map can be seen with the drawer open and the farthest digits beyond the fit.
 
 **The resample brush** (🖌, on the plot's bottom edge beside ⓘ) redraws far pairs where you paint, and nowhere else.
 On, two dashed rings follow the pointer or finger (at the map's middle depth): the brush, and around it, fainter, the
