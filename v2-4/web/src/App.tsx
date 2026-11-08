@@ -1,8 +1,9 @@
-import { Box, ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet, Plane, Shuffle, Square } from 'lucide-react'
+import { Box, ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet, Plane, Scale, Shuffle, Square } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DigitPicker } from './components/DigitPicker'
 import { DigitPreview } from './components/DigitPreview'
 import { ForceSliders } from './components/ForceSliders'
+import { LeanPanel } from './components/LeanPanel'
 import { LocalPanel, ResampleButton } from './components/LocalPanel'
 import { MidiPanel } from './components/MidiPanel'
 import { OptimiserPanel } from './components/OptimiserPanel'
@@ -41,12 +42,19 @@ const MODE_LABEL_MS = 1200
 /** The drawer's tabs, in order. */
 const TABS = [
   { value: 'forces', label: 'Forces', icon: Magnet },
+  { value: 'lean', label: 'Lean', icon: Scale },
   { value: 'local', label: 'Local', icon: Shuffle },
   { value: 'play', label: 'Play', icon: Gauge },
   { value: 'view', label: 'View', icon: Eye },
   { value: 'optimiser', label: 'Optimiser', icon: Footprints },
   { value: 'midi', label: 'MIDI', icon: KeyboardMusic },
 ] as const
+
+/**
+ * Each force's lean on opening (see Engine.lean): the neighbours' toward the digit chosen, which the data's own
+ * who-chose-whom moves most against its null (scripts/explore-lean.ts); the rest, drawn at random, even.
+ */
+const DEFAULT_LEAN: Weights = { nb: -1, mn: 0, fp: 0 }
 
 /** What autopilot plays, or manual: autopilot off, the forces are yours. */
 type Pilot = Algorithm | 'manual'
@@ -157,6 +165,17 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     setFar(GLOBAL_FAR)
     setFpVersion(engine.fpVersion)
   }
+  // Played, like the forces, so not remembered: each force's lean, and whether who chose whom is scrambled.
+  const [lean, setLean] = useState<Weights>(DEFAULT_LEAN)
+  const [scrambled, setScrambled] = useState(false)
+  useEffect(() => {
+    engine.setLean(lean)
+    engine.setScrambled(scrambled)
+  }, [engine, lean, scrambled])
+  const oneWay = useMemo(() => {
+    const flags = engine.oneWayNeighbours()
+    return { count: flags.reduce((a, b) => a + b, 0), of: flags.length }
+  }, [engine])
   // Played, like the forces, so not remembered: LocalMAP's neighbour boost, and redrawing far pairs every so often.
   const [boost, setBoost] = useState(false)
   const [autoResample, setAutoResample] = useState(false)
@@ -172,22 +191,24 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
   // Opens on autopilot, paused at the start: press Play to watch its run (LocalMAP's or PaCMAP's).
   const [autopilot, setAutopilot] = useState(true)
 
+  // Autopilot follows the iteration (steps since reset) rather than the looping playhead: once its run's schedule is
+  // over, it stays in the last phase, as PaCMAP does given more iterations, so a leaning map can keep moving.
   const getWeights = useCallback(
-    (playhead: number): Weights =>
-      autopilot ? pacmapWeights(playhead, meta.schedule) : mapValues(store.get(), (u, type) => toMultiplier(u, scale[type])),
-    [autopilot, meta.schedule, store, scale],
+    (): Weights =>
+      autopilot ? pacmapWeights(engine.steps, meta.schedule) : mapValues(store.get(), (u, type) => toMultiplier(u, scale[type])),
+    [autopilot, engine, meta.schedule, store, scale],
   )
-  // LocalMAP's additions at a playhead under autopilot: none when it plays PaCMAP.
+  // LocalMAP's additions at an iteration under autopilot: none when it plays PaCMAP.
   const autopilotLocal = useCallback(
-    (playhead: number) =>
+    (iteration: number) =>
       local.autopilotPlays === 'localmap'
-        ? localmapAt(playhead, meta.schedule, meta.localmap.resampleEvery)
+        ? localmapAt(iteration, meta.schedule, meta.localmap.resampleEvery)
         : { boost: false, resampleAfter: false },
     [local.autopilotPlays, meta.schedule, meta.localmap.resampleEvery],
   )
   const beforeStep = useCallback(
-    (playhead: number) => {
-      const on = autopilot ? autopilotLocal(playhead).boost : boost
+    () => {
+      const on = autopilot ? autopilotLocal(engine.steps).boost : boost
       engine.setBoost(on ? local.thres / 2 : null)
     },
     [autopilot, autopilotLocal, boost, engine, local.thres],
@@ -198,15 +219,16 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
   const onStep = useCallback(
     (playhead: number, w: Weights) => {
       trail.record(playhead, w)
-      if (autopilot ? autopilotLocal(playhead).resampleAfter : autoResample && engine.steps % local.resampleEvery === 0) {
+      // The step just taken was iteration engine.steps - 1.
+      if (autopilot ? autopilotLocal(engine.steps - 1).resampleAfter : autoResample && engine.steps % local.resampleEvery === 0) {
         resample()
         trail.recordResample(playhead)
       }
     },
     [trail, autopilot, autopilotLocal, autoResample, engine, local.resampleEvery, resample],
   )
-  // Autopilot plays its run once and stops; manual play loops.
-  const clock = useLoopClock(engine, length, getWeights, !autopilot, settings.rate, settings.interpolate, onStep, true, beforeStep)
+  // The playhead loops, autopilot's run held in its last phase once over, as manual play does.
+  const clock = useLoopClock(engine, length, getWeights, true, settings.rate, settings.interpolate, onStep, true, beforeStep)
   // The Reset button: back to the start (the initial layout, PaCMAP's far pairs), stopped there until Start simulation.
   const reset = () => {
     trail.clear()
@@ -239,10 +261,12 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
 
   // Under autopilot the sliders follow PaCMAP's forces (LocalMAP's are the same); grabbing one takes over from exactly there.
   const shown: ControlValues = autopilot
-    ? mapValues(pacmapWeights(clock.playhead, meta.schedule), (w, type) => toU(w, scale[type]))
+    ? mapValues(pacmapWeights(clock.steps, meta.schedule), (w, type) => toU(w, scale[type]))
     : controls
-  const liveWeights = getWeights(clock.playhead)
-  const boostShown = autopilot ? autopilotLocal(clock.playhead).boost : boost
+  const liveWeights = getWeights()
+  const boostShown = autopilot ? autopilotLocal(clock.steps).boost : boost
+  // Autopilot past its run's schedule, holding the last phase.
+  const held = autopilot && clock.steps >= length
   const pacmapAutopilot = autopilot && local.autopilotPlays === 'pacmap'
   // Leaving autopilot, by grabbing a slider or pressing Manual, keeps its forces (and boost) where they are.
   const takeOver = () => {
@@ -416,10 +440,11 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
             <DrawerHandle className="mb-2" />
             <TransportBar
               status={clock.status}
-              playhead={clock.playhead}
+              playhead={held ? length : clock.playhead}
               schedule={meta.schedule}
               length={length}
-              phase={phaseOf(clock.playhead, meta.schedule)}
+              phase={held ? 3 : phaseOf(clock.playhead, meta.schedule)}
+              held={held}
               steps={clock.steps}
               autopilot={autopilot ? local.autopilotPlays : null}
               onPause={clock.pause}
@@ -478,6 +503,15 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
                         nb: <Toggle label="boost" checked={boostShown} onChange={onBoost} disabled={pacmapAutopilot} />,
                         fp: <ResampleButton compact far={far} onResample={resampleNow} disabled={pacmapAutopilot} />,
                       }}
+                    />
+                  </TabsContent>
+                  <TabsContent value="lean">
+                    <LeanPanel
+                      lean={lean}
+                      onLean={(type, v) => setLean((prev) => ({ ...prev, [type]: v }))}
+                      scrambled={scrambled}
+                      onScrambled={setScrambled}
+                      oneWay={oneWay}
                     />
                   </TabsContent>
                   <TabsContent value="local">
@@ -547,12 +581,13 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
       <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
         <SheetContent side="right" className="overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>Playable LocalMAP</SheetTitle>
+            <SheetTitle>Asymmetric LocalMAP</SheetTitle>
             <SheetDescription>
-              PaCMAP's optimisation, live in the browser on {meta.nSamples.toLocaleString()} MNIST digits, with LocalMAP's
-              additions. The forces on the neighbour, mid-near and far pairs are yours to play, and the far pairs can be
-              redrawn from the digits near each one, as LocalMAP does. A loop runs over PaCMAP's 450-iteration schedule;
-              autopilot plays PaCMAP's or LocalMAP's own run along it.
+              LocalMAP's optimisation, live in the browser on {meta.nSamples.toLocaleString()} MNIST digits, with its
+              forces leaning. Every pair is one digit's choice (its neighbours are its nearest in the data), and PaCMAP pulls
+              or pushes both ends equally, so its map settles. Here a force can lean toward one end: only where the data's
+              relationships are one-way does that move anything, and there the map keeps moving. Autopilot plays LocalMAP's
+              run and then holds its last phase; the lean tab sets the leans, and scrambles who chose whom to compare.
             </SheetDescription>
           </SheetHeader>
           <div className="flex flex-col gap-2 px-4 text-sm text-muted-foreground">

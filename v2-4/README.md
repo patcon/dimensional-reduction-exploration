@@ -1,6 +1,45 @@
 # v2.4 — Asymmetric LocalMAP
 
-A fresh copy of [v2.3](../v2-3/), to lean each pair's force toward the digit that chose it. What follows is v2.3's.
+[v2.3](../v2-3/) with each pair's force leaning toward one end, to see what the high-dimensional data does to a map
+that would otherwise settle.
+
+Every PaCMAP pair is one digit's choice: `(i, j)` is in `i`'s list (its neighbours are its nearest in the data). PaCMAP
+pulls or pushes both ends equally, which makes the whole thing the gradient of one loss, so it can only settle. A
+**lean** (−1 to 1, per force) gives `i`, the chooser, `1 + lean` of the force and `j`, the chosen, `1 − lean`: same
+sign, same total. Two things follow:
+
+- Where a pair is listed both ways round (mutual neighbours) the leans cancel exactly. Only one-way relationships
+  move differently: 18% of neighbour pairs at 10k.
+- Each one-way pair then pushes both its digits on together, from chooser toward chosen (or back, leaning the other
+  way). Where those pushes add up, the map keeps moving: nothing in it is a potential any more.
+
+Unequal forces could add up to a net force on the whole map, carrying it off as one; the engine takes that off every
+point equally, so only relative motion is left (with no lean there's none to take off).
+
+**Scramble who chose whom** is the null: each one-way neighbour pair turned round, or not, at random. The same digits
+pair and the same pairs are mutual; only the data's say in which chose which is gone. Mid-near and far pairs aren't
+scrambled, as each is already drawn at random by its chooser.
+
+### Defaults, and why
+
+Autopilot plays LocalMAP's run and then **holds its last phase** (neighbours 1, far pairs −1, boosted, redrawn every
+10), as PaCMAP does given more iterations, so the map has time to move once formed. The lean opens at **neighbours −1**
+(toward the digit chosen), the others even. `pnpm run explore:lean` (scripts/explore-lean.ts) is how that was picked:
+LocalMAP's run at 10k, then held for 1200 steps with each lean, measuring how far points travel over the last 100
+(as a share of the map's spread) against the same lean scrambled:
+
+| lean (3D, Adam) | drift ×1000 | scrambled | 10-NN same digit |
+|---|---|---|---|
+| none | 8 | — | 0.92 |
+| neighbours +1 | 261 | 191 | 0.90 |
+| neighbours −1 | 576 | 179 | 0.78 |
+| all +1 | 560 | 515 | 0.78 |
+
+Unleaned, the map is still. Leaning the far pairs moves it a lot, but as much scrambled: their direction is a random
+draw, so that's the lean's own noise, not the data's. Leaning neighbours toward the chosen moves it 3x more than its
+null: there the data's direction does the driving. Leaning from the first step still forms the map (0.92 at 450).
+
+What follows is v2.3's.
 
 ## v2.3 — Playable LocalMAP
 

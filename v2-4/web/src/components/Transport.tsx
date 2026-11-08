@@ -16,6 +16,8 @@ interface BarProps {
   length: number
   phase: 1 | 2 | 3
   steps: number
+  /** Autopilot past its run's schedule, holding its last phase. */
+  held?: boolean
   /** What autopilot is playing, or null when it's off (manual). */
   autopilot: Algorithm | null
   onPause: () => void
@@ -71,9 +73,14 @@ export function TransportBar(p: BarProps) {
           ) : p.status === 'idle' ? (
             <strong>Move a force to start</strong>
           ) : start ? (
-            <strong>{p.autopilot ? `Press play to watch ${ALGORITHM_NAMES[p.autopilot]}'s own run` : 'Press play to start'}</strong>
+            <strong>{p.autopilot ? `Press play to watch ${ALGORITHM_NAMES[p.autopilot]}'s run, then its last phase held` : 'Press play to start'}</strong>
           ) : p.status === 'ended' && p.autopilot ? (
             <strong>Autopilot finished: reset to replay, or go manual to carry on</strong>
+          ) : p.held ? (
+            <>
+              iteration {p.steps} · phase 3, held
+              {p.status === 'paused' && ' · paused'}
+            </>
           ) : (
             <>
               iteration {p.playhead} / {p.length} · phase {p.phase} · {p.steps} steps
