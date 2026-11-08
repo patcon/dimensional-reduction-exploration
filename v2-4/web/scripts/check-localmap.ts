@@ -13,6 +13,8 @@
 //    from 210) to 450, and its final layout is compared with LocalMAP's and PaCMAP's by how many of each
 //    point's 10 nearest neighbours they share, and by how many of its 10 nearest are the same digit.
 //    It should land nearer LocalMAP's than PaCMAP's does, and as pure.
+// 4. A redraw of some points only (the brush's): just their far pairs change, and those redrawn are within the
+//    threshold.
 import { readFileSync } from 'node:fs'
 import { Engine } from '../src/engine.ts'
 import { Adam } from '../src/optimisers.ts'
@@ -218,6 +220,30 @@ console.log(`  ${K}-NN shared with LocalMAP's: engine ${(nearLocal * 100).toFixe
 console.log(`  ${K}-NN same digit: engine ${(purity(ours) * 100).toFixed(1)}%, LocalMAP ${(purity(theirLocal) * 100).toFixed(1)}%, PaCMAP ${(purity(theirPacmap) * 100).toFixed(1)}%`)
 expect(nearLocal >= pacmapNearLocal, "nearer LocalMAP's layout than PaCMAP's is")
 expect(Math.abs(purity(ours) - purity(theirLocal)) <= 0.01, "as pure as LocalMAP's (within 1 point)")
+
+console.log('a redraw of some points only')
+{
+  const before = new Uint32Array(engine.pairs.fp)
+  const only = Array.from({ length: 200 }, (_, k) => (k * 7919) % n)
+  const chosen = new Set(only)
+  const r = engine.resampleFar(thres, only)
+  let othersChanged = 0
+  let changed = 0
+  let tooFar = 0
+  for (let p = 0; p < before.length / 2; p++) {
+    const i = engine.pairs.fp[2 * p]
+    const moved = engine.pairs.fp[2 * p + 1] !== before[2 * p + 1]
+    if (!chosen.has(i)) othersChanged += moved ? 1 : 0
+    else if (moved) {
+      changed++
+      if (dist2(engine.Y, i, engine.pairs.fp[2 * p + 1]) > thres * thres) tooFar++
+    }
+  }
+  console.log(`  ${only.length} points: ${r.resampled} far pairs redrawn, ${r.kept} kept, ${changed} changed partner`)
+  expect(r.resampled + r.kept === only.length * fpPer, 'counts only those points\' far pairs')
+  expect(othersChanged === 0, "leaves every other point's far pairs as they were")
+  expect(changed > 0 && tooFar === 0, 'redraws those points within the threshold')
+}
 
 console.log(failures ? `MISMATCH: ${failures} failed` : 'OK')
 process.exit(failures ? 1 : 0)

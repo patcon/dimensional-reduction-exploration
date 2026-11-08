@@ -41,6 +41,12 @@ interface Props {
    * The view's middle moves up by half that, as a map's does, so what's covered is the plot's bottom, not its middle.
    */
   coveredBottom?: () => number
+  /**
+   * The resample brush, or null when off: a ring `radius` layout units across (at the map's middle depth, in 3D)
+   * follows the pointer, and pressing and dragging paints with it instead of turning or panning, calling `onPaint`
+   * with the shown digits under it (in 3D, those drawn inside it, at their own depth) every PAINT_MS while held.
+   */
+  brush?: { radius: number; onPaint: (points: number[]) => void } | null
   /** A point to keep at the plot's middle (the view pans to follow it), or null to centre on the layout's centroid. */
   follow?: number | null
 }
@@ -63,6 +69,8 @@ const DEPTH_BUCKETS = 512
 const SPIN = 0.25
 /** 3D: radians turned per CSS pixel dragged. */
 const DRAG_TURN = 0.008
+/** While the brush is held, it paints at most this often, in milliseconds (each paint redraws far pairs). */
+const PAINT_MS = 120
 /** How far zoom can go, as a multiple of the fitted size. */
 const ZOOM_RANGE = [0.5, 500]
 /** Zoom per pixel of wheel scroll. */
@@ -182,7 +190,7 @@ function background(el: Element) {
  * Clicking a digit selects it and clicking away selects none; the mouse hovers digits, and holding a press still
  * hovers digits picked at random around it (see JITTER_RADIUS), inside a ring drawn there.
  */
-export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, reach = null, className, coveredBottom, follow = null }: Props) {
+export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, reach = null, className, coveredBottom, follow = null, brush = null }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   /** The rings around the selected and hovered digits, over the points, so they move without redrawing them. */
@@ -209,7 +217,14 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   /** Per-point working space for a draw, reused between draws. */
   const scratchRef = useRef<ReturnType<typeof makeScratch>>(null)
   /** How the last draw was scaled, to find its points again: device pixels per CSS pixel, and the dot's size. */
-  const drawnRef = useRef({ dpr: 1, dot: 1, zoom: 1 })
+  const drawnRef = useRef({ dpr: 1, dot: 1, zoom: 1, scale: 1 })
+  const brushRingRef = useRef<HTMLDivElement>(null)
+  /** The brush, while painting: when it last painted. */
+  const paintRef = useRef<{ last: number } | null>(null)
+  /** Where the brush ring was last placed (CSS pixels), to resize it as the map's scale changes. */
+  const brushAtRef = useRef<{ x: number; y: number } | null>(null)
+  /** What a draw does once done, for the brush: kept current each render, as the draw effect reads it. */
+  const afterDrawRef = useRef(() => {})
   /** What the rings and the hold's jitter read, as they run outside a render. */
   const live = useRef({ selected, hovered, onHover, reach })
 
@@ -352,7 +367,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     const pad = PAD * dpr
     const padTop = PAD_TOP * dpr
     const dot = Math.max(1, Math.round(DOT * dpr))
-    drawnRef.current = { dpr, dot, zoom: viewRef.current.zoom }
+    drawnRef.current = { dpr, dot, zoom: viewRef.current.zoom, scale: 1 }
     const n = labels.length
     if (scratchRef.current?.sx.length !== n) scratchRef.current = makeScratch(n)
     const scratch = scratchRef.current
@@ -382,6 +397,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
       }
       level.fill(0)
       unit.fill(scale)
+      drawnRef.current.scale = scale
     } else {
       // Fitted as a sphere about the centre, reaching as far as most points.
       const [cx, cy, cz] = fit.centre
@@ -390,6 +406,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
       // A point on the sphere's rim can't project further out than R / sin(the sphere's half-angle).
       const rim = R / Math.sqrt(1 - 1 / CAMERA_DISTANCE ** 2)
       const scale = Math.min(w - 2 * pad - dot, h - pad - padTop - dot) / (2 * rim)
+      drawnRef.current.scale = scale
       const { yaw, pitch } = viewRef.current
       const cosY = Math.cos(yaw), sinY = Math.sin(yaw), cosP = Math.cos(pitch), sinP = Math.sin(pitch)
       const { bucket, starts, sorted } = scratch
@@ -446,6 +463,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     }
     ctx.putImageData(image, 0, 0)
     drawMarks.current()
+    afterDrawRef.current()
     // Still easing, with nothing else to draw it again: draw again next frame.
     if (!done) {
       const frame = requestAnimationFrame(() => setEasing((e) => e + 1))
@@ -540,9 +558,74 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   }
   useEffect(() => endHold, [])
 
+  /** The brush ring's radius in CSS pixels, as last drawn: the brush's radius at the map's middle depth. */
+  const brushPixels = () => (brush ? (brush.radius * drawnRef.current.scale * drawnRef.current.zoom) / drawnRef.current.dpr : 0)
+  const placeBrush = (x: number, y: number) => {
+    const ring = brushRingRef.current
+    if (!ring) return
+    const r = brushPixels()
+    ring.style.width = ring.style.height = `${2 * r}px`
+    ring.style.transform = `translate(${x - r}px, ${y - r}px)`
+    ring.hidden = false
+    brushAtRef.current = { x, y }
+  }
+  /** The shown digits drawn inside the brush at a canvas point (CSS pixels), each at its own depth's scale. */
+  const underBrush = (x: number, y: number) => {
+    const scratch = scratchRef.current
+    if (!scratch || !brush) return []
+    const { dpr, dot, zoom } = drawnRef.current
+    const px = x * dpr - dot / 2, py = y * dpr - dot / 2
+    const out: number[] = []
+    for (let i = 0; i < scratch.sx.length; i++) {
+      if (!shown[labels[i]]) continue
+      const r = brush.radius * scratch.unit[i] * zoom
+      if ((scratch.sx[i] - px) ** 2 + (scratch.sy[i] - py) ** 2 <= r * r) out.push(i)
+    }
+    return out
+  }
+  const paint = (x: number, y: number, force = false) => {
+    const painting = paintRef.current
+    if (!painting || !brush) return
+    const now = performance.now()
+    if (!force && now - painting.last < PAINT_MS) return
+    painting.last = now
+    const points = underBrush(x, y)
+    if (points.length) brush.onPaint(points)
+  }
+  const stopPainting = () => {
+    paintRef.current = null
+    brushRingRef.current?.removeAttribute('data-painting')
+  }
+  // After each draw: the ring keeps its size against the map, and a held brush keeps painting as the map moves under it.
+  useEffect(() => {
+    afterDrawRef.current = () => {
+      const ring = brushRingRef.current
+      const at = brushAtRef.current
+      if (!brush || !ring || ring.hidden || !at) return
+      placeBrush(at.x, at.y)
+      paint(at.x, at.y)
+    }
+  })
+  // Off: no ring, and no painting.
+  useEffect(() => {
+    if (brush) return
+    stopPainting()
+    if (brushRingRef.current) brushRingRef.current.hidden = true
+  }, [brush])
+
   const onPointerDown = (e: PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     pointersRef.current.set(e.pointerId, at(e))
+    // The brush paints with one pointer's main button; a second finger pinches as ever.
+    if (brush && pointersRef.current.size === 1 && e.button === 0) {
+      const { x, y } = at(e)
+      paintRef.current = { last: 0 }
+      brushRingRef.current?.setAttribute('data-painting', '')
+      placeBrush(x, y)
+      paint(x, y, true)
+      return
+    }
+    stopPainting()
     dragModeRef.current = turnable && e.button === 0 && !e.shiftKey ? 'turn' : 'pan'
     if (pointersRef.current.size === 1 && e.button === 0) {
       pressRef.current = { ...at(e), far: false, view: { ...viewRef.current }, moved }
@@ -557,6 +640,12 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     const pointers = pointersRef.current
     const last = pointers.get(e.pointerId)
     const now = at(e)
+    if (brush && pointers.size <= 1) placeBrush(now.x, now.y)
+    if (paintRef.current) {
+      pointers.set(e.pointerId, now)
+      paint(now.x, now.y)
+      return
+    }
     if (!last) {
       // Nothing pressed: the mouse hovers whichever digit it's over.
       if (e.pointerType === 'mouse') onHover(pickAt(now.x, now.y))
@@ -599,6 +688,12 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   }
   const onPointerUp = (e: PointerEvent) => {
     pointersRef.current.delete(e.pointerId)
+    if (paintRef.current) {
+      stopPainting()
+      // A finger lifted takes its brush with it; a mouse keeps it, to paint again.
+      if (e.pointerType !== 'mouse' && brushRingRef.current) brushRingRef.current.hidden = true
+      return
+    }
     // Lifting one of two fingers leaves the other panning, not turning.
     dragModeRef.current = 'pan'
     const press = pressRef.current
@@ -612,6 +707,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     }
   }
   const onPointerLeave = () => {
+    if (!pointersRef.current.size && brushRingRef.current) brushRingRef.current.hidden = true
     if (!pointersRef.current.size && !holdRef.current.at) onHover(null)
   }
   const resetView = () => {
@@ -632,7 +728,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
         onPointerLeave={onPointerLeave}
         onDoubleClick={resetView}
         onContextMenu={(e) => e.preventDefault()}
-        className={hovered !== null ? 'over-digit' : undefined}
+        className={brush ? 'brushing' : hovered !== null ? 'over-digit' : undefined}
       />
       <canvas ref={marksRef} className="scatter-marks" style={{ width: size.width, height: size.height }} />
       <div
@@ -641,6 +737,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
         className="scatter-hold"
         style={{ width: JITTER_RADIUS * 2, height: JITTER_RADIUS * 2, margin: -JITTER_RADIUS }}
       />
+      <div ref={brushRingRef} hidden className="scatter-brush" />
       {children && <div className="scatter-overlay">{children}</div>}
       {corner && <div className="scatter-corner">{corner}</div>}
       {moved && (

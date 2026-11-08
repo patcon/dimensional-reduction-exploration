@@ -246,8 +246,11 @@ export class Engine {
    * cells hold few points (LIST_UP_TO), it lists those it may pick and picks from the list without
    * repeats, as the draws would, in one pass.
    * scripts/check-localmap.ts compares the two.
+   *
+   * With `only`, just those points' far pairs are redrawn (from anywhere within `thres` of each, as before); the
+   * rest keep theirs.
    */
-  resampleFar(thres: number): Resample {
+  resampleFar(thres: number, only?: ArrayLike<number>): Resample {
     const start = performance.now()
     const { n, dim, Y, random } = this
     const nb = this.pairs.nb
@@ -269,7 +272,9 @@ export class Engine {
     }
     let resampled = 0
     let kept = 0
-    for (let i = 0; i < n; i++) {
+    const count = only ? only.length : n
+    for (let o = 0; o < count; o++) {
+      const i = only ? only[o] : o
       const pool = grid.around(i)
       barred[i] = i
       for (let q = 0, from = i * nbPer * 2; q < nbPer; q++) barred[nb[from + q * 2 + 1]] = i

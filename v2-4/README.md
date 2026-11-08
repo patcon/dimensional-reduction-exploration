@@ -50,6 +50,14 @@ half a second (`src/fit.ts`): on a held, leaning 10k map in 3D, the centre shift
 1.1% before, and its size 0.2% against 1.4%. **Follow the selected digit** (view tab) keeps a digit at the middle
 instead, the map moving past it.
 
+**The resample brush** (🖌, on the plot's bottom edge beside ⓘ) redraws far pairs where you paint, and nowhere else.
+On, a dashed ring the threshold across (at the map's middle depth) follows the pointer or finger; pressing and dragging
+paints instead of turning or panning (a two-finger pinch still zooms), redrawing the far pairs of the shown digits
+under it, from those within the threshold of each, every 120 ms while held, the map moving under a still brush
+included. In 3D a digit is under it if it's drawn inside the ring at its own depth's scale. Painting takes over from
+autopilot, as touching a force does, and turns off auto-resampling, so from then on only brushed digits are redrawn;
+restore global puts every digit's back. The far-pair readout says how many digits were brushed.
+
 What follows is v2.3's.
 
 ## v2.3 — Playable LocalMAP

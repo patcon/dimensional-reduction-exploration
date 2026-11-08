@@ -1,4 +1,4 @@
-import { Box, ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet, Plane, Scale, Shuffle, Square } from 'lucide-react'
+import { Box, Brush, ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet, Plane, Scale, Shuffle, Square } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DigitPicker } from './components/DigitPicker'
 import { DigitPreview } from './components/DigitPreview'
@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { PlaySection, TransportBar, ViewSection } from './components/Transport'
 import { Engine } from './engine'
 import { GLOBAL_FAR, type FarState } from './far'
+import { FORCE_COLORS } from './palette'
 import { spanning, toMultiplier, toU } from './forceScale'
 import { InputStore, useControlValues, type ControlValues } from './inputStore'
 import { DEFAULT_OPTIMISER, OptimiserBank } from './optimisers'
@@ -162,6 +163,16 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     setFar({ global: false, last: { ...r, step: engine.steps } })
     setFpVersion(engine.fpVersion)
   }, [engine, local.thres])
+  // The resample brush: on, painting redraws only the far pairs of the digits under it.
+  const [brushOn, setBrushOn] = useState(false)
+  const paintResample = useCallback(
+    (points: number[]) => {
+      const r = engine.resampleFar(local.thres, points)
+      setFar({ global: false, last: { ...r, step: engine.steps, painted: points.length } })
+      setFpVersion(engine.fpVersion)
+    },
+    [engine, local.thres],
+  )
   const restore = () => {
     engine.restoreFar()
     setFar(GLOBAL_FAR)
@@ -382,6 +393,20 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
           weights={liveWeights}
           reach={!far.global || tab === 'local' ? local.thres : null}
           follow={settings.followSelected ? selected : null}
+          // Painting takes over from autopilot, as touching a force does, and stops auto-resampling: from then on only
+          // brushed digits' far pairs are redrawn.
+          brush={
+            brushOn
+              ? {
+                  radius: local.thres,
+                  onPaint: (points) => {
+                    takeOver()
+                    setAutoResample(false)
+                    paintResample(points)
+                  },
+                }
+              : null
+          }
           corner={
             <DigitPreview
               pixels={pixels}
@@ -408,6 +433,20 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
           aria-label="About"
         >
           <Info />
+        </Button>
+        {/* The resample brush: painting the plot redraws the far pairs of the digits under it, and no others. */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="pointer-events-auto absolute bottom-0 left-14 rounded-b-none bg-background/85 text-muted-foreground hover:text-foreground"
+          // On, it takes the far pairs' colour, as its ring does.
+          style={brushOn ? { background: FORCE_COLORS.fp, color: 'white' } : undefined}
+          onClick={() => setBrushOn(!brushOn)}
+          aria-pressed={brushOn}
+          aria-label="Resample brush: paint the plot to redraw the far pairs of the digits under it"
+          title={brushOn ? 'Brush on: paint to redraw far pairs under it (click to turn off)' : 'Resample brush: paint to redraw far pairs under it'}
+        >
+          <Brush />
         </Button>
         <span
           className="pointer-events-none absolute right-3 bottom-11 rounded-md bg-foreground/75 px-2 py-0.5 text-xs text-background transition-opacity duration-300 motion-reduce:transition-none"
