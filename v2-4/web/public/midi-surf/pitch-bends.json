@@ -1,0 +1,150 @@
+{
+  "label": "LocalMAP 🎯",
+  "controller": {
+    "tag": "Row",
+    "args": [
+      [
+        {
+          "tag": "SizedColumn",
+          "args": [
+            [
+              [
+                1,
+                {
+                  "tag": "Space",
+                  "args": []
+                }
+              ],
+              [
+                6,
+                {
+                  "tag": "PitchBend",
+                  "args": [
+                    {
+                      "status": null,
+                      "label": "nbrs",
+                      "labelSize": {
+                        "tag": "Medium",
+                        "args": []
+                      },
+                      "colour": {
+                        "tag": "Blue",
+                        "args": []
+                      },
+                      "channel": {
+                        "tag": "Ch1",
+                        "args": []
+                      },
+                      "bendValue": 8192
+                    }
+                  ]
+                }
+              ]
+            ]
+          ]
+        },
+        {
+          "tag": "SizedColumn",
+          "args": [
+            [
+              [
+                1,
+                {
+                  "tag": "Space",
+                  "args": []
+                }
+              ],
+              [
+                6,
+                {
+                  "tag": "PitchBend",
+                  "args": [
+                    {
+                      "status": null,
+                      "label": "midnear",
+                      "labelSize": {
+                        "tag": "Medium",
+                        "args": []
+                      },
+                      "colour": {
+                        "tag": "Green",
+                        "args": []
+                      },
+                      "channel": {
+                        "tag": "Ch2",
+                        "args": []
+                      },
+                      "bendValue": 8192
+                    }
+                  ]
+                }
+              ]
+            ]
+          ]
+        },
+        {
+          "tag": "SizedColumn",
+          "args": [
+            [
+              [
+                1,
+                {
+                  "tag": "CCValue",
+                  "args": [
+                    {
+                      "status": null,
+                      "label": "🔀 resample",
+                      "labelSize": {
+                        "tag": "Small",
+                        "args": []
+                      },
+                      "colour": {
+                        "tag": "Red",
+                        "args": []
+                      },
+                      "channel": {
+                        "tag": "Ch1",
+                        "args": []
+                      },
+                      "controller": 29,
+                      "value": 127
+                    }
+                  ]
+                }
+              ],
+              [
+                6,
+                {
+                  "tag": "PitchBend",
+                  "args": [
+                    {
+                      "status": null,
+                      "label": "far",
+                      "labelSize": {
+                        "tag": "Medium",
+                        "args": []
+                      },
+                      "colour": {
+                        "tag": "Red",
+                        "args": []
+                      },
+                      "channel": {
+                        "tag": "Ch3",
+                        "args": []
+                      },
+                      "bendValue": 8192
+                    }
+                  ]
+                }
+              ]
+            ]
+          ]
+        }
+      ]
+    ]
+  },
+  "config": {
+    "gapSize": 2,
+    "debug": false
+  }
+}

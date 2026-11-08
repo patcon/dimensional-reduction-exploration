@@ -14,6 +14,8 @@ UMAP / PaCMAP / LocalMAP projections. Each version builds on the last:
   paths that replay PaCMAP's schedule exactly or curve close by
 - [v2.3](v2-3/) — Playable LocalMAP: v2.1 with LocalMAP's local far pairs, resampled on
   autopilot, on a timer or at the press of a button (or a MIDI control)
+- [v2.4](v2-4/) — Asymmetric LocalMAP: v2.3 with each pair's force leaning toward the digit that
+  chose it, so one-way relationships in the high-dimensional data play out as motion on the map
 - [v3.0](v3-0/) — a valence visualisation fed with stand-in data: each digit's pixels, read in
   order, as one participant's valence over time
 - [v3.1](v3-1/) — valence particles: a fresh copy of v3.0 to build on
@@ -34,4 +36,4 @@ UMAP / PaCMAP / LocalMAP projections. Each version builds on the last:
 
 Data for each comes from `pipeline/v<n>.py` (e.g. `pipeline/v2-0.py`); each app lives in
 `v<n>/web`. GitHub Pages serves a landing page (`site/index.html`) with every version
-beneath it at `/v1-0/`, `/v1-1/`, `/v1-2/`, `/v2-0/`, `/v2-1/`, `/v2-2/`, `/v2-3/`, `/v3-0/`, `/v3-1/`, `/v3-2/`, `/v3-3/`, `/v3-4/` and `/v5-0/`.
+beneath it at `/v1-0/`, `/v1-1/`, `/v1-2/`, `/v2-0/`, `/v2-1/`, `/v2-2/`, `/v2-3/`, `/v2-4/`, `/v3-0/`, `/v3-1/`, `/v3-2/`, `/v3-3/`, `/v3-4/` and `/v5-0/`.
