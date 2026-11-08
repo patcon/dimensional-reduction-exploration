@@ -243,6 +243,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     : controls
   const liveWeights = getWeights(clock.playhead)
   const boostShown = autopilot ? autopilotLocal(clock.playhead).boost : boost
+  const pacmapAutopilot = autopilot && local.autopilotPlays === 'pacmap'
   // Leaving autopilot, by grabbing a slider or pressing Manual, keeps its forces (and boost) where they are.
   const takeOver = () => {
     if (!autopilot) return
@@ -473,8 +474,9 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
                       onGrab={takeOver}
                       onChange={(type, u) => store.set(type, u)}
                       header={{
-                        nb: <Toggle label="boost" checked={boostShown} onChange={onBoost} />,
-                        fp: <ResampleButton compact far={far} onResample={resampleNow} />,
+                        // Out of the way while autopilot plays PaCMAP, which has neither (the local tab still has both).
+                        nb: <Toggle label="boost" checked={boostShown} onChange={onBoost} disabled={pacmapAutopilot} />,
+                        fp: <ResampleButton compact far={far} onResample={resampleNow} disabled={pacmapAutopilot} />,
                       }}
                     />
                   </TabsContent>

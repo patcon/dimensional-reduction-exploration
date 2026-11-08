@@ -83,7 +83,7 @@ pnpm dev
 - **LocalMAP.** Above the far-pair slider, **resample** redraws every digit's far pairs from those within the
   threshold of it on the map (not itself, its neighbours, or a repeat), and says beneath it what share found one
   and at which step (in red under half: the threshold is likely small for how spread out the map is; the rest keep
-  their partners). Above the neighbour slider, **boost** switches LocalMAP's pull on close neighbours. The **local**
+  their partners). Above the neighbour slider, **boost** switches LocalMAP's pull on close neighbours. Both are greyed out there while autopilot plays PaCMAP, which has neither. The **local**
   tab has these too, with **restore global** (PaCMAP's far pairs, as sampled at the start), **resample every N
   steps** off autopilot, and the **threshold** (1–100, log; it also sets the boost, to half of it). With a digit
   selected, its far-pair edges jump to their new partners on a redraw, inside a dashed ring at the threshold (shown

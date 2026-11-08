@@ -6,10 +6,10 @@ import { Section, Slider, Toggle } from './controls'
 import { Button } from './ui/button'
 
 /** Redraws the far pairs now: on the forces tab above the far-pair slider, and in the local tab. */
-export function ResampleButton({ onResample, far, compact }: { onResample: () => void; far: FarState; compact?: boolean }) {
+export function ResampleButton({ onResample, far, compact, disabled }: { onResample: () => void; far: FarState; compact?: boolean; disabled?: boolean }) {
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <Button variant="outline" size="sm" className={cn(compact && 'h-7 px-2 text-xs')} onClick={onResample}>
+      <Button variant="outline" size="sm" className={cn(compact && 'h-7 px-2 text-xs')} onClick={onResample} disabled={disabled}>
         <Shuffle /> resample
       </Button>
       {compact && (
