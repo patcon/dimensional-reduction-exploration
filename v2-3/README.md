@@ -1,6 +1,14 @@
 # v2.3 — Playable LocalMAP
 
-[v2.1](../v2-1/) with [LocalMAP](https://github.com/YingfanWang/PaCMAP)'s local far pairs. (In progress: a fresh copy of v2.1.)
+[v2.1](../v2-1/) with [LocalMAP](https://github.com/YingfanWang/PaCMAP)'s additions to play: far pairs redrawn from
+the digits near each one on the map, on LocalMAP's schedule, every so many steps, or at the press of a button (on screen
+or MIDI), and put back to PaCMAP's global ones; and LocalMAP's boost to close neighbours, switched on or off.
+
+LocalMAP ([Wang et al., AAAI 2025](https://doi.org/10.1609/aaai.v39i20.35436)) is PaCMAP with two changes in its last
+phase. Every 10 iterations from 210 it redraws each digit's far pairs from the digits within a threshold of it on the
+map (10, in layout units) that aren't its neighbours, so far pairs push apart clusters that touch rather than ones
+already apart. And from 201 it scales each neighbour pair's pull by (threshold / 2) / √(1 + d²): five times as hard
+where they touch.
 
 PaCMAP's optimisation, running live in the browser on 10k, 20k or all 65k MNIST digits, with its
 forces in your hands. PaCMAP samples three sets of pairs once (neighbours, mid-near
@@ -14,6 +22,7 @@ graph of PaCMAP's own schedule, in 2D or 3D.
 cd ../pipeline
 uv run v2-3.py               # defaults: -n 10000 20000 65000 --seed 0 (a few minutes)
 uv run v2-3.py --check       # replays the exports against PaCMAP's own run
+uv run v2-3.py --check --algo localmap   # ... and LocalMAP's, to its first redraw
 
 # 2. View
 cd ../v2-3/web
@@ -25,7 +34,7 @@ pnpm dev
 
 - **Layout.** The plot fills the screen. A drawer along the bottom always shows the transport (play,
   reset, and the schedule's three phases filling as the loop plays); open it (the chevron, or drag its
-  handle) for the settings, in tabs along its bottom: **Forces**, **Play** (rate, smoothing, keeping
+  handle) for the settings, in tabs along its bottom: **Forces**, **Local** (LocalMAP), **Play** (rate, smoothing, keeping
   the screen awake, the schedule graph), **View** (2D/3D, digits, auto-rotate), **Optimiser** and
   **MIDI**. The plot stays full-screen behind it, its centre sliding up into the space left. On the
   drawer's top edge, ⓘ opens the intro (and resets settings) and the cube or square switches 2D/3D.
@@ -44,7 +53,7 @@ pnpm dev
   random sample with its own pairs. Switching starts over once the new digits have
   loaded; forces, optimiser and MIDI carry across. 65k steps about 4x slower than 20k.
 - **Starting.** It opens in 3D on autopilot, paused: press play to watch
-  PaCMAP's own run, or set the forces yourself first (grabbing a slider turns autopilot off)
+  LocalMAP's own run, or set the forces yourself first (grabbing a slider turns autopilot off)
   and then start it.
 - **Loop.** Off autopilot, nothing runs until a force is non-zero. Then a playhead steps through
   PaCMAP's 450-iteration schedule at the chosen rate (1–60 it/s; at 20k about 30 is the
@@ -68,9 +77,17 @@ pnpm dev
   The selected digit's pairs are drawn as edges to it, in its forces' colours: neighbours, mid-near
   and far pairs (whichever end of the pair it's at). An edge is solid while its force attracts, dashed
   while it repels, and left out while it's at no force.
-- **Autopilot** (the button atop the forces tab) plays PaCMAP's own schedule once and stops.
-  Grabbing a slider, moving a MIDI control or pressing the button again turns it off, taking over
-  from autopilot's current forces.
+- **Autopilot** (the button atop the forces tab) plays LocalMAP's run, or PaCMAP's (chosen in the local tab),
+  once and stops. Grabbing a slider or the boost switch, moving a MIDI control or pressing the button again turns it
+  off, taking over from autopilot's current forces and boost.
+- **LocalMAP.** Above the far-pair slider, **resample** redraws every digit's far pairs from those within the
+  threshold of it on the map (not itself, its neighbours, or a repeat), and says beneath it what share found one
+  and at which step (in red under half: the threshold is likely small for how spread out the map is; the rest keep
+  their partners). Above the neighbour slider, **boost** switches LocalMAP's pull on close neighbours. The **local**
+  tab has these too, with **restore global** (PaCMAP's far pairs, as sampled at the start), **resample every N
+  steps** off autopilot, and the **threshold** (1–100, log; it also sets the boost, to half of it). With a digit
+  selected, its far-pair edges jump to their new partners on a redraw, inside a dashed ring at the threshold (shown
+  while the far pairs are local, or the local tab is open). Reset puts PaCMAP's far pairs back.
 - **Schedule graph.** PaCMAP's three weights over one loop (dashed; far pairs below zero,
   as they repel), on a scale spanning the sliders' ranges, with what you've played this loop drawn solid
   over them.
@@ -84,6 +101,8 @@ pnpm dev
 
 Chrome, Edge or Firefox (not Safari). Press **Connect MIDI**, then **learn** beside a
 force (or speed) and move the control to bind it.
+
+**Resample** can be learnt too: a button (or any control pushed past half way) redraws the far pairs.
 
 Each force reads its control one of two ways (the **0 at** menu beside it):
 
@@ -105,9 +124,11 @@ that binds everything here to match:
 
 | Layout | Controls | Bindings |
 |---|---|---|
-| PaCMAP 🎚️ | three faders parked half way, centre is 0 | CC 20–22, ch 1 |
-| PaCMAP 🎚️± | three faders from 0, a 🧲± toggle under each | faders CC 23–25, toggles CC 26–28, ch 1 |
-| PaCMAP 🎯 | three pitch-bend strips | pitch bend, ch 1–3 |
+| LocalMAP 🎚️ | three faders parked half way, centre is 0 | CC 20–22, ch 1 |
+| LocalMAP 🎚️± | three faders from 0, a 🧲± toggle under each | faders CC 23–25, toggles CC 26–28, ch 1 |
+| LocalMAP 🎯 | three pitch-bend strips | pitch bend, ch 1–3 |
+
+Each has a 🔀 resample button above the far-pair control, sending CC 29 on channel 1.
 
 1. Plug an Android phone into the computer by USB. On the phone, tap the USB notification
    (or find USB under Settings → Connected devices) and choose **MIDI**; the computer then
@@ -149,4 +170,17 @@ or connect over Wi-Fi with a
   3e-6 of the layout through phase 1; `ITERS=450` checks the rest at a looser bar, as
   phase 2's rearrangement amplifies float rounding into a slightly rotated copy; `DIM=3`
   checks the 3D run, `SIZE=10k` or `SIZE=65k` another sample size).
-  `check:scale` and `check:midi` cover the control scale and MIDI decoding.
+  `check:scale` and `check:midi` cover the control scale and MIDI decoding (and the resample trigger).
+- The pipeline also runs LocalMAP, from the same seed, keeping its run as `reference_localmap_{2,3}d.bin`, and asserts
+  it samples the same pairs and matches PaCMAP's run up to phase 3. LocalMAP's redraw reads only the layout and the
+  neighbour pairs, so the browser needs no more data for it. `ALGO=localmap pnpm run check:engine` follows LocalMAP's
+  run through iteration 210, its boost included; the boosted snapshots get a looser bar, as the boost magnifies float
+  drift (from one perturbation at 200, numba's own kernels end 10 iterations later 2x smaller under PaCMAP and 3x
+  bigger under LocalMAP). Its redraws can't be replayed (numba draws random numbers per thread).
+- `engine.resampleFar` draws from the grid cells around each digit, a threshold wide, rather than from every digit
+  as PaCMAP's loop does: that loop doesn't count draws too far away against its 100 tries, so where few digits are
+  near it can take seconds at 10k digits (minutes at 65k). Where the cells hold few digits it lists the ones it may
+  pick and picks from the list. A redraw takes ~40 ms at 10k, ~100 ms at 20k and 0.2–0.5 s at 65k on a laptop.
+  `pnpm run check:localmap` checks a redraw's rules on LocalMAP's layouts, compares it with a port of PaCMAP's
+  sampler (as many redrawn, as far apart, as often the same digit), and plays a whole LocalMAP run: it lands nearer
+  LocalMAP's layout than PaCMAP's does (10-NN shared 53% vs 28% at 10k in 2D, 65% vs 45% in 3D) and as pure.
