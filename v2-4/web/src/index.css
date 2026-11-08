@@ -158,13 +158,12 @@
   position: absolute; top: 0; left: 0; pointer-events: none; border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--foreground) 60%, transparent); background: color-mix(in srgb, var(--foreground) 5%, transparent);
 }
-/* The brush, around the pointer, in the far pairs' colour: what it paints (filled faintly while painting), inside the
-   threshold its far partners are drawn within. */
-.scatter-brush-at { position: absolute; top: 0; left: 0; width: 0; height: 0; pointer-events: none; }
-.scatter-brush, .scatter-brush-reach { position: absolute; top: 0; left: 0; border-radius: 50%; }
-.scatter-brush { border: 1.5px dashed #ea580c; }
-.scatter-brush-reach { border: 1px dashed color-mix(in srgb, #ea580c 45%, transparent); }
-.scatter-brush-at[data-painting] .scatter-brush { background: color-mix(in srgb, #ea580c 12%, transparent); border-style: solid; }
+/* The resample brush, around the pointer: the far pairs' colour, filled faintly while painting. */
+.scatter-brush {
+  position: absolute; top: 0; left: 0; pointer-events: none; border-radius: 50%;
+  border: 1.5px dashed #ea580c;
+}
+.scatter-brush[data-painting] { background: color-mix(in srgb, #ea580c 12%, transparent); border-style: solid; }
 .scatter canvas.brushing { cursor: crosshair; }
 /* The digits shown in the top left of the plot (the plot keeps clear of the top), the picked digit in the top right. */
 .scatter-overlay { position: absolute; top: max(8px, env(safe-area-inset-top)); left: 8px; right: 112px; }

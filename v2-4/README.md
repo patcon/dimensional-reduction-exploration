@@ -54,10 +54,7 @@ bar's underlines stay, as a legend), to watch the motion without the labels; it'
 of the fit (half before), so the whole map can be seen with the drawer open and the farthest digits beyond the fit.
 
 **The resample brush** (🖌, on the plot's bottom edge beside ⓘ) redraws far pairs where you paint, and nowhere else.
-On, two dashed rings follow the pointer or finger (at the map's middle depth): the brush, and around it, fainter, the
-threshold its digits' far partners are drawn within. The brush is a share of the threshold, half to start, set by the
-**brush** slider in the local tab or, while the brush is on, the wheel (which no longer zooms then; a two-finger pinch
-on a touch screen still does). Pressing and dragging
+On, a dashed ring the threshold across (at the map's middle depth) follows the pointer or finger; pressing and dragging
 paints instead of turning or panning (a two-finger pinch still zooms), redrawing the far pairs of the shown digits
 under it, from those within the threshold of each, every 120 ms while held, the map moving under a still brush
 included. In 3D a digit is under it if it's drawn inside the ring at its own depth's scale. Painting takes over from

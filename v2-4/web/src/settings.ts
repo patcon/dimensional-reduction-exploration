@@ -44,15 +44,9 @@ export interface LocalSettings {
   resampleEvery: number
   /** What the brush does: redraw the far pairs of the digits under it (false), or add to them (upsample, true). */
   brushAdds: boolean
-  /** The brush's radius, as a share of the threshold (BRUSH_RATIO_RANGE). */
-  brushRatio: number
 }
 
-/** How small, and how large, the brush can be, as a share of the threshold. */
-export const BRUSH_RATIO_RANGE = [0.05, 1] as const
-export const clampBrushRatio = (r: number) => Math.min(BRUSH_RATIO_RANGE[1], Math.max(BRUSH_RATIO_RANGE[0], r))
-
-export const DEFAULT_LOCAL: LocalSettings = { autopilotPlays: 'localmap', thres: 10, resampleEvery: 10, brushAdds: false, brushRatio: 0.5 }
+export const DEFAULT_LOCAL: LocalSettings = { autopilotPlays: 'localmap', thres: 10, resampleEvery: 10, brushAdds: false }
 
 export const DEFAULT_SETTINGS: Settings = {
   size: '20k',
