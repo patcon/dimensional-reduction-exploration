@@ -1,4 +1,4 @@
-"""Subsample MNIST, run PaCMAP once, and export what the browser needs to rerun its optimisation live.
+"""Subsample MNIST, run PaCMAP and LocalMAP once, and export what the browser needs to rerun their optimisation live.
 
 The source sprite (mnist_images.png) is a 784 x 65000 image: each row is one
 28x28 digit flattened. Labels are 65000 one-hot rows of 10 uint8 bytes.
@@ -22,11 +22,20 @@ Outputs per sample size (written to ../v2-3/web/public/data/<size>/, e.g. 20k/):
   meta.json      labels, pair counts, snapshot iterations, the weight schedule and Adam params
 
 and, kept out of the site (only the checks use it), to data/v2-3/<size>/:
-  reference_{2,3}d.bin  float32, snapshots x N x d: PaCMAP's layout every SNAPSHOT_EVERY iterations
+  reference_{2,3}d.bin           float32, snapshots x N x d: PaCMAP's layout every SNAPSHOT_EVERY iterations
+  reference_localmap_{2,3}d.bin  the same for LocalMAP's run
+
+LocalMAP is PaCMAP plus two changes in phase 3: from iteration 201 its neighbours' force is scaled by
+(thres/2)/sqrt(d), and after iterations 210, 220, ... it redraws each point's far pairs from the points within
+low_dist_thres of it in the current layout. It samples the same pairs from the same seed, so up to iteration 200
+its run is PaCMAP's (asserted), and the browser needs no more data than for PaCMAP: the redraw reads only the
+layout and the neighbour pairs.
 
 --check replays the optimisation from the exported files, with PaCMAP's own kernels
 (must match the reference exactly) and with an independent numpy version (must
 match closely), to prove the exports are complete. -n and --dims pick which runs it checks.
+--check --algo localmap replays LocalMAP's run with its own kernels up to its first redraw (iteration 210):
+numba draws its random numbers per thread, so no replay can follow it further.
 """
 
 import argparse
@@ -64,6 +73,9 @@ SNAPSHOT_EVERY = 10
 SNAPSHOTS = list(range(0, N_ITERS + 1, SNAPSHOT_EVERY))
 DIMS = (2, 3)
 SAMPLE_SIZES = (10000, 20000, N_TOTAL)
+# LocalMAP's defaults: the radius far pairs are redrawn within, and how often (in iterations) they are.
+LOW_DIST_THRES = 10.0
+RESAMPLE_EVERY = 10
 
 HERE = Path(__file__).parent
 RAW_DIR = HERE / "data" / "raw"
@@ -134,16 +146,11 @@ def run_size(args: argparse.Namespace, sprite: np.ndarray, labels: np.ndarray, n
     out_dir.mkdir(parents=True, exist_ok=True)
     reference_dir.mkdir(parents=True, exist_ok=True)
     pairs = None
+    options = dict(
+        num_iters=PHASES, lr=LR, random_state=args.seed, intermediate=True, intermediate_snapshots=SNAPSHOTS, verbose=True
+    )
     for dim in DIMS:
-        reducer = pacmap.PaCMAP(
-            n_components=dim,
-            num_iters=PHASES,
-            lr=LR,
-            random_state=args.seed,
-            intermediate=True,
-            intermediate_snapshots=SNAPSHOTS,
-            verbose=True,
-        )
+        reducer = pacmap.PaCMAP(n_components=dim, **options)
         reducer.fit(X, save_pairs=True)
         snapshots = np.asarray(reducer.intermediate_states, dtype=np.float32)
         assert snapshots.shape == (len(SNAPSHOTS), n, dim), snapshots.shape
@@ -155,6 +162,19 @@ def run_size(args: argparse.Namespace, sprite: np.ndarray, labels: np.ndarray, n
             assert all(np.array_equal(pairs[name], run_pairs[name]) for name in pairs), f"{dim}D sampled other pairs"
         snapshots[0].tofile(out_dir / f"init_{dim}d.bin")
         snapshots.tofile(reference_dir / f"reference_{dim}d.bin")
+
+        local = pacmap.LocalMAP(n_components=dim, low_dist_thres=LOW_DIST_THRES, **options)
+        local.fit(X, save_pairs=True)
+        local_snapshots = np.asarray(local.intermediate_states, dtype=np.float32)
+        # Its far pairs end up redrawn; the others, and its run up to phase 3, are PaCMAP's.
+        assert np.array_equal(local.pair_neighbors, pairs["nb"]) and np.array_equal(local.pair_MN, pairs["mn"]), (
+            f"LocalMAP sampled other pairs in {dim}D"
+        )
+        phase_3 = SNAPSHOTS.index(PHASES[0] + PHASES[1])
+        assert np.array_equal(local_snapshots[: phase_3 + 1], snapshots[: phase_3 + 1]), (
+            f"LocalMAP's {dim}D run left PaCMAP's before phase 3"
+        )
+        local_snapshots.tofile(reference_dir / f"reference_localmap_{dim}d.bin")
 
     for name, p in pairs.items():
         p.astype(np.uint32).tofile(out_dir / f"pairs_{name}.bin")
@@ -170,12 +190,16 @@ def run_size(args: argparse.Namespace, sprite: np.ndarray, labels: np.ndarray, n
         "reference": {"iterations": SNAPSHOTS},
         "schedule": {"phases": list(PHASES), "wMnInit": W_MN_INIT},
         "adam": {"lr": LR, "beta1": BETA1, "beta2": BETA2, "eps": EPS},
+        "localmap": {"lowDistThres": LOW_DIST_THRES, "resampleEvery": RESAMPLE_EVERY},
     }
     (out_dir / "meta.json").write_text(json.dumps(meta))
 
     counts = ", ".join(f"{name} {len(p)}" for name, p in pairs.items())
     print(f"{n} samples -> pairs: {counts} -> {out_dir}")
-    print(f"{len(SNAPSHOTS)} reference snapshots each in {' and '.join(f'{d}D' for d in DIMS)} -> {reference_dir}")
+    print(
+        f"{len(SNAPSHOTS)} reference snapshots each of PaCMAP and LocalMAP in {' and '.join(f'{d}D' for d in DIMS)} "
+        f"-> {reference_dir}"
+    )
 
 
 def pacmap_grad(Y: np.ndarray, pairs: dict[str, np.ndarray], w: tuple[float, float, float]) -> np.ndarray:
@@ -197,7 +221,8 @@ def pacmap_grad(Y: np.ndarray, pairs: dict[str, np.ndarray], w: tuple[float, flo
 
 def check(args: argparse.Namespace) -> None:
     """Check each of --dims' runs (see check_dim), and exit non-zero if any fails."""
-    ok = [check_dim(args, n, dim) for n in args.n_samples for dim in args.dims]
+    check_one = check_localmap if args.algo == "localmap" else check_dim
+    ok = [check_one(args, n, dim) for n in args.n_samples for dim in args.dims]
     raise SystemExit(0 if all(ok) else 1)
 
 
@@ -267,12 +292,59 @@ def check_dim(args: argparse.Namespace, n: int, dim: int) -> bool:
     return ok
 
 
+def check_localmap(args: argparse.Namespace, n: int, dim: int) -> bool:
+    """Replay LocalMAP's n-sample, dim-D run with its own kernels up to its first far-pair redraw (iteration 210).
+
+    It must match the reference exactly. The redraw itself can't be replayed: numba draws random numbers per
+    thread, so which points land where varies with scheduling. pacmap.localmap is followed line for line: the
+    boosted neighbour kernel from itr > 200, and the redraw after the step at itr > 200 with itr % 10 == 0.
+    """
+    from pacmap.pacmap import pacmap_grad as numba_grad
+    from pacmap.pacmap import pacmap_grad_nearby_recip_sqrt, update_embedding_adam
+
+    out_dir = OUT_DIR / size_name(n)
+    meta = json.loads((out_dir / "meta.json").read_text())
+    pairs = {
+        name: np.fromfile(out_dir / f"pairs_{name}.bin", dtype=np.uint32).reshape(-1, 2).astype(np.int32)
+        for name in ("nb", "mn", "fp")
+    }
+    Y = np.fromfile(out_dir / f"init_{dim}d.bin", dtype=np.float32).reshape(n, dim).copy()
+    iterations = meta["reference"]["iterations"]
+    reference_path = REFERENCE_DIR / size_name(n) / f"reference_localmap_{dim}d.bin"
+    reference = np.fromfile(reference_path, dtype=np.float32).reshape(len(iterations), n, dim)
+    thres = meta["localmap"]["lowDistThres"]
+    first_redraw = next(i for i in range(sum(PHASES)) if i > PHASES[0] + PHASES[1] and i % RESAMPLE_EVERY == 0)
+    m = np.zeros_like(Y)
+    v = np.zeros_like(Y)
+    worst = 0.0
+    for itr in range(first_redraw + 1):
+        w_nb, w_mn, w_fp = (np.float32(w) for w in schedule(itr))
+        if itr > PHASES[0] + PHASES[1]:
+            grad = pacmap_grad_nearby_recip_sqrt(
+                Y, pairs["nb"], pairs["mn"], pairs["fp"], w_nb, w_mn, w_fp, np.float32(thres / 2)
+            )
+        else:
+            grad = numba_grad(Y, pairs["nb"], pairs["mn"], pairs["fp"], w_nb, w_mn, w_fp)
+        update_embedding_adam(Y, grad, m, v, BETA1, BETA2, LR, itr)
+        if itr + 1 in iterations:
+            worst = max(worst, float(np.abs(Y - reference[iterations.index(itr + 1)]).max()))
+    ok = worst == 0.0
+    print(
+        f"{size_name(n)} {dim}D LocalMAP {'OK' if ok else 'MISMATCH'}: replayed with its kernels through iteration "
+        f"{first_redraw}, the snapshot before its first redraw, max error {worst:.2e}"
+    )
+    return ok
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("-n", "--n-samples", type=int, nargs="+", default=list(SAMPLE_SIZES), help="sample sizes")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--check", action="store_true", help="verify the exported files instead of generating them")
     parser.add_argument("--check-iters", type=int, default=100)
+    parser.add_argument(
+        "--algo", choices=("pacmap", "localmap"), default="pacmap", help="which reference run --check replays"
+    )
     parser.add_argument("--dims", type=int, nargs="+", default=list(DIMS), help="which runs --check replays")
     parser.add_argument(
         "--percentile", type=float, default=99, help="per-point error percentile the numpy replay is judged on"
