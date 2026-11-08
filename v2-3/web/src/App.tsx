@@ -48,10 +48,10 @@ const TABS = [
   { value: 'midi', label: 'MIDI', icon: KeyboardMusic },
 ] as const
 
-/** What autopilot plays, or none: off, the forces are yours. */
-type Pilot = Algorithm | 'none'
-const PILOTS: Pilot[] = ['localmap', 'pacmap', 'none']
-const PILOT_LABELS: Record<Pilot, string> = { localmap: 'LocalMAP', pacmap: 'PaCMAP', none: 'none' }
+/** What autopilot plays, or manual: autopilot off, the forces are yours. */
+type Pilot = Algorithm | 'manual'
+const PILOTS: Pilot[] = ['localmap', 'pacmap', 'manual']
+const PILOT_LABELS: Record<Pilot, string> = { localmap: 'LocalMAP', pacmap: 'PaCMAP', manual: 'manual' }
 
 /** The window's height, kept up to date. */
 function useWindowHeight() {
@@ -242,9 +242,9 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     setBoost(boostShown)
     setAutopilot(false)
   }
-  // Choosing an algorithm puts autopilot on, playing it; none takes over from its forces.
+  // Choosing an algorithm puts autopilot on, playing it; manual takes over from its forces.
   const choosePilot = (pilot: Pilot) => {
-    if (pilot === 'none') return takeOver()
+    if (pilot === 'manual') return takeOver()
     if (pilot !== local.autopilotPlays) set('local', (l) => ({ ...l, autopilotPlays: pilot }))
     setAutopilot(true)
   }
@@ -438,10 +438,12 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-6">
                   <TabsContent value="forces" className="flex h-full flex-col gap-3">
                     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                      {/* On by choosing an algorithm; off by choosing none or touching a force, taking over from its forces. */}
+                      {/* On by choosing an algorithm; off by choosing manual or touching a force, taking over from its forces. */}
                       <div className="flex items-center gap-2" role="group" aria-label="Autopilot">
-                        <Plane className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                        <Segmented options={PILOTS} value={autopilot ? local.autopilotPlays : 'none'} onChange={choosePilot} labels={PILOT_LABELS} />
+                        <span className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground">
+                          <Plane className="size-4" aria-hidden /> autopilot
+                        </span>
+                        <Segmented options={PILOTS} value={autopilot ? local.autopilotPlays : 'manual'} onChange={choosePilot} labels={PILOT_LABELS} />
                       </div>
                       <span className="text-right text-xs text-muted-foreground">↑ attract · ↓ repel, PaCMAP's own marked</span>
                     </div>
