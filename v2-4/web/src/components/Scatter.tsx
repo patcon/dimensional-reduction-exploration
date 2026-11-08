@@ -42,11 +42,13 @@ interface Props {
    */
   coveredBottom?: () => number
   /**
-   * The resample brush, or null when off: a ring `radius` layout units across (at the map's middle depth, in 3D)
-   * follows the pointer, and pressing and dragging paints with it instead of turning or panning, calling `onPaint`
+   * The resample brush, or null when off: a ring of `radius` layout units (at the map's middle depth, in 3D), inside a
+   * fainter one of `reach` (the threshold its far partners are drawn within),
+   * following the pointer; pressing and dragging paints with it instead of turning or panning, calling `onPaint`
    * with the shown digits under it (in 3D, those drawn inside it, at their own depth) every PAINT_MS while held.
+   * The wheel resizes it, through `onScale` with the factor to scale it by, rather than zooming.
    */
-  brush?: { radius: number; onPaint: (points: number[]) => void } | null
+  brush?: { radius: number; reach: number; onPaint: (points: number[]) => void; onScale: (factor: number) => void } | null
   /** A point to keep at the plot's middle (the view pans to follow it), or null to centre on the layout's centroid. */
   follow?: number | null
 }
@@ -218,7 +220,10 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   const scratchRef = useRef<ReturnType<typeof makeScratch>>(null)
   /** How the last draw was scaled, to find its points again: device pixels per CSS pixel, and the dot's size. */
   const drawnRef = useRef({ dpr: 1, dot: 1, zoom: 1, scale: 1 })
+  /** The brush's rings, together at the pointer: the brush, and the threshold around it. */
   const brushRingRef = useRef<HTMLDivElement>(null)
+  const brushInnerRef = useRef<HTMLDivElement>(null)
+  const brushReachRef = useRef<HTMLDivElement>(null)
   /** The brush, while painting: when it last painted. */
   const paintRef = useRef<{ last: number } | null>(null)
   /** Where the brush ring was last placed (CSS pixels), to resize it as the map's scale changes. */
@@ -492,8 +497,11 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   // A native listener, as React's wheel listeners can't preventDefault to stop the page scrolling.
   // Trackpad pinches arrive as wheel events with ctrlKey, finer-grained, so they're scaled up.
   const zoomAtRef = useRef(zoomAt)
+  /** With the brush on, the wheel resizes it instead. */
+  const brushScaleRef = useRef<((factor: number) => void) | null>(null)
   useEffect(() => {
     zoomAtRef.current = zoomAt
+    brushScaleRef.current = brush?.onScale ?? null
   })
   useEffect(() => {
     const canvas = canvasRef.current!
@@ -501,6 +509,8 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
       e.preventDefault()
       const rect = canvas.getBoundingClientRect()
       const pixels = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
+      const factor = Math.exp(-pixels * WHEEL_ZOOM * (e.ctrlKey ? 5 : 1))
+      if (brushScaleRef.current) return brushScaleRef.current(factor)
       zoomAtRef.current(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-pixels * WHEEL_ZOOM * (e.ctrlKey ? 5 : 1)))
     }
     canvas.addEventListener('wheel', onWheel, { passive: false })
@@ -558,17 +568,30 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   }
   useEffect(() => endHold, [])
 
-  /** The brush ring's radius in CSS pixels, as last drawn: the brush's radius at the map's middle depth. */
-  const brushPixels = () => (brush ? (brush.radius * drawnRef.current.scale * drawnRef.current.zoom) / drawnRef.current.dpr : 0)
+  /** A radius in layout units in CSS pixels, as last drawn, at the map's middle depth. */
+  const toPixels = (radius: number) => (radius * drawnRef.current.scale * drawnRef.current.zoom) / drawnRef.current.dpr
   const placeBrush = (x: number, y: number) => {
     const ring = brushRingRef.current
-    if (!ring) return
-    const r = brushPixels()
-    ring.style.width = ring.style.height = `${2 * r}px`
-    ring.style.transform = `translate(${x - r}px, ${y - r}px)`
+    if (!ring || !brush) return
+    const size = (el: HTMLDivElement | null, r: number) => {
+      if (!el) return
+      el.style.width = el.style.height = `${2 * r}px`
+      el.style.margin = `${-r}px`
+    }
+    size(brushInnerRef.current, toPixels(brush.radius))
+    size(brushReachRef.current, toPixels(brush.reach))
+    ring.style.transform = `translate(${x}px, ${y}px)`
     ring.hidden = false
     brushAtRef.current = { x, y }
   }
+  // Resized (by the wheel, or the local tab): the rings follow straight away, where they are.
+  const brushRadius = brush?.radius
+  const brushReach = brush?.reach
+  useEffect(() => {
+    const at = brushAtRef.current
+    if (at && brushRingRef.current && !brushRingRef.current.hidden) placeBrush(at.x, at.y)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brushRadius, brushReach])
   /** The shown digits drawn inside the brush at a canvas point (CSS pixels), each at its own depth's scale. */
   const underBrush = (x: number, y: number) => {
     const scratch = scratchRef.current
@@ -737,7 +760,10 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
         className="scatter-hold"
         style={{ width: JITTER_RADIUS * 2, height: JITTER_RADIUS * 2, margin: -JITTER_RADIUS }}
       />
-      <div ref={brushRingRef} hidden className="scatter-brush" />
+      <div ref={brushRingRef} hidden className="scatter-brush-at">
+        <div ref={brushReachRef} className="scatter-brush-reach" />
+        <div ref={brushInnerRef} className="scatter-brush" />
+      </div>
       {children && <div className="scatter-overlay">{children}</div>}
       {corner && <div className="scatter-corner">{corner}</div>}
       {moved && (

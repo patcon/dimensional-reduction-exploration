@@ -21,7 +21,7 @@ import { FORCE_COLORS } from './palette'
 import { spanning, toMultiplier, toU } from './forceScale'
 import { InputStore, useControlValues, type ControlValues } from './inputStore'
 import { DEFAULT_OPTIMISER, OptimiserBank } from './optimisers'
-import { useSettings, type Algorithm, type SetSetting, type Settings } from './settings'
+import { clampBrushRatio, useSettings, type Algorithm, type SetSetting, type Settings } from './settings'
 import { localmapAt, pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
 import { PAIR_TYPES, type Pairs, type PairType, type Weights } from './types'
 import { useData, useDigits, type PacmapData, type SampleSize } from './useData'
@@ -403,7 +403,10 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
           brush={
             brushOn
               ? {
-                  radius: local.thres,
+                  radius: local.thres * local.brushRatio,
+                  reach: local.thres,
+                  // The wheel sizes the brush, as a share of the threshold, rather than zooming.
+                  onScale: (factor) => set('local', (l) => ({ ...l, brushRatio: clampBrushRatio(l.brushRatio * factor) })),
                   onPaint: (points) => {
                     takeOver()
                     setAutoResample(false)

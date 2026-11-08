@@ -1,6 +1,6 @@
 import { Shuffle, Undo2 } from 'lucide-react'
 import { farLong, farShort, LOW_SHARE, share, type FarState } from '../far'
-import type { LocalSettings } from '../settings'
+import { BRUSH_RATIO_RANGE, clampBrushRatio, type LocalSettings } from '../settings'
 import { cn } from '@/lib/utils'
 import { Section, Slider, Toggle } from './controls'
 import { Button } from './ui/button'
@@ -78,6 +78,16 @@ export function LocalPanel({ settings, onSettings, far, onResample, onRestore, a
           onChange={(e) => set('thres', fromExp(e))}
           format={() => String(settings.thres)}
           title="How near a far pair's partner must be, on the map, to be drawn. LocalMAP's is 10."
+        />
+        <Slider
+          label="brush"
+          value={settings.brushRatio}
+          min={BRUSH_RATIO_RANGE[0]}
+          max={BRUSH_RATIO_RANGE[1]}
+          step={0.01}
+          onChange={(r) => set('brushRatio', clampBrushRatio(r))}
+          format={(r) => `${Math.round(r * 100)}%`}
+          title="The brush's radius, as a share of the threshold: it paints the digits inside it, each drawing far partners from within the threshold of it. With the brush on, the wheel sets this too."
         />
       </Section>
       <Section title="Neighbours" description="LocalMAP's boost scales each neighbour pair's pull by (threshold / 2) / √(1 + distance²): five times as hard where they touch, at its threshold of 10, fading as they part.">
