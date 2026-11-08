@@ -77,9 +77,9 @@ pnpm dev
   The selected digit's pairs are drawn as edges to it, in its forces' colours: neighbours, mid-near
   and far pairs (whichever end of the pair it's at). An edge is solid while its force attracts, dashed
   while it repels, and left out while it's at no force.
-- **Autopilot** (the button atop the forces tab) plays LocalMAP's run, or PaCMAP's (chosen in the local tab),
-  once and stops. Grabbing a slider or the boost switch, moving a MIDI control or pressing the button again turns it
-  off, taking over from autopilot's current forces and boost.
+- **Autopilot** (✈ atop the forces tab: **LocalMAP**, **PaCMAP** or **none**) plays LocalMAP's run or PaCMAP's
+  once and stops. Choosing none, grabbing a slider or the boost switch, or moving a MIDI control turns it off, taking
+  over from autopilot's current forces and boost. The algorithm last chosen is remembered.
 - **LocalMAP.** Above the far-pair slider, **resample** redraws every digit's far pairs from those within the
   threshold of it on the map (not itself, its neighbours, or a repeat), and says beneath it what share found one
   and at which step (in red under half: the threshold is likely small for how spread out the map is; the rest keep

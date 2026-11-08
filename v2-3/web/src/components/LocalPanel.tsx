@@ -1,8 +1,8 @@
 import { Shuffle, Undo2 } from 'lucide-react'
 import { farLong, farShort, LOW_SHARE, share, type FarState } from '../far'
-import type { Algorithm, LocalSettings } from '../settings'
+import type { LocalSettings } from '../settings'
 import { cn } from '@/lib/utils'
-import { Field, Section, Segmented, Slider, Toggle } from './controls'
+import { Section, Slider, Toggle } from './controls'
 import { Button } from './ui/button'
 
 /** Redraws the far pairs now: on the forces tab above the far-pair slider, and in the local tab. */
@@ -35,8 +35,6 @@ interface Props {
   onBoost: (on: boolean) => void
 }
 
-const ALGORITHMS: Algorithm[] = ['pacmap', 'localmap']
-const ALGORITHM_LABELS: Record<Algorithm, string> = { pacmap: 'PaCMAP', localmap: 'LocalMAP' }
 
 /** Threshold slider: 1 to 100 on a log scale. */
 const toExp = (thres: number) => Math.log10(thres)
@@ -47,20 +45,11 @@ export function LocalPanel({ settings, onSettings, far, onResample, onRestore, a
   const set = <K extends keyof LocalSettings>(key: K, value: LocalSettings[K]) => onSettings({ ...settings, [key]: value })
   return (
     <div className="flex flex-col gap-8">
-      <Section
-        title="LocalMAP"
-        description={
-          <>
-            LocalMAP is PaCMAP with two additions in its last phase: every 10 iterations it redraws each digit's far pairs from the
-            digits near it on the map that aren't its neighbours, pushing apart clusters that touch; and it pulls close neighbours
-            harder. Autopilot plays either.
-          </>
-        }
-      >
-        <Field label="autopilot plays">
-          <Segmented options={ALGORITHMS} value={settings.autopilotPlays} onChange={(v) => set('autopilotPlays', v)} labels={ALGORITHM_LABELS} />
-        </Field>
-      </Section>
+      <p className="text-xs text-muted-foreground">
+        LocalMAP is PaCMAP with two additions in its last phase: every 10 iterations it redraws each digit's far pairs from the
+        digits near it on the map that aren't its neighbours, pushing apart clusters that touch; and it pulls close neighbours
+        harder. Autopilot, on the forces tab, plays either.
+      </p>
       <Section title="Far pairs" description={farLong(far)}>
         <div className="flex flex-wrap items-start gap-2">
           <ResampleButton onResample={onResample} far={far} />

@@ -8,7 +8,7 @@ import { MidiPanel } from './components/MidiPanel'
 import { OptimiserPanel } from './components/OptimiserPanel'
 import { Scatter } from './components/Scatter'
 import { ScheduleGraph } from './components/ScheduleGraph'
-import { Section, Toggle } from './components/controls'
+import { Section, Segmented, Toggle } from './components/controls'
 import { Button } from './components/ui/button'
 import { Drawer, DrawerContent, DrawerDescription, DrawerHandle, DrawerTitle } from './components/ui/drawer'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './components/ui/sheet'
@@ -19,7 +19,7 @@ import { GLOBAL_FAR, type FarState } from './far'
 import { spanning, toMultiplier, toU } from './forceScale'
 import { InputStore, useControlValues, type ControlValues } from './inputStore'
 import { DEFAULT_OPTIMISER, OptimiserBank } from './optimisers'
-import { useSettings, type SetSetting, type Settings } from './settings'
+import { useSettings, type Algorithm, type SetSetting, type Settings } from './settings'
 import { localmapAt, pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
 import { PAIR_TYPES, type Pairs, type PairType, type Weights } from './types'
 import { useData, useDigits, type PacmapData, type SampleSize } from './useData'
@@ -47,6 +47,11 @@ const TABS = [
   { value: 'optimiser', label: 'Optimiser', icon: Footprints },
   { value: 'midi', label: 'MIDI', icon: KeyboardMusic },
 ] as const
+
+/** What autopilot plays, or none: off, the forces are yours. */
+type Pilot = Algorithm | 'none'
+const PILOTS: Pilot[] = ['localmap', 'pacmap', 'none']
+const PILOT_LABELS: Record<Pilot, string> = { localmap: 'LocalMAP', pacmap: 'PaCMAP', none: 'none' }
 
 /** The window's height, kept up to date. */
 function useWindowHeight() {
@@ -237,6 +242,12 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     setBoost(boostShown)
     setAutopilot(false)
   }
+  // Choosing an algorithm puts autopilot on, playing it; none takes over from its forces.
+  const choosePilot = (pilot: Pilot) => {
+    if (pilot === 'none') return takeOver()
+    if (pilot !== local.autopilotPlays) set('local', (l) => ({ ...l, autopilotPlays: pilot }))
+    setAutopilot(true)
+  }
   const onBoost = (on: boolean) => {
     takeOver()
     setBoost(on)
@@ -426,17 +437,12 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
               <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0">
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-6">
                   <TabsContent value="forces" className="flex h-full flex-col gap-3">
-                    <div className="flex items-center justify-between gap-3">
-                      {/* On by a press; off by touching a force (or pressing it again), taking over from its forces. */}
-                      <Button
-                        variant={autopilot ? 'default' : 'outline'}
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => (autopilot ? takeOver() : setAutopilot(true))}
-                        aria-pressed={autopilot}
-                      >
-                        <Plane /> autopilot · {local.autopilotPlays === 'localmap' ? 'LocalMAP' : 'PaCMAP'}
-                      </Button>
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      {/* On by choosing an algorithm; off by choosing none or touching a force, taking over from its forces. */}
+                      <div className="flex items-center gap-2" role="group" aria-label="Autopilot">
+                        <Plane className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <Segmented options={PILOTS} value={autopilot ? local.autopilotPlays : 'none'} onChange={choosePilot} labels={PILOT_LABELS} />
+                      </div>
                       <span className="text-right text-xs text-muted-foreground">↑ attract · ↓ repel, PaCMAP's own marked</span>
                     </div>
                     <ForceSliders
