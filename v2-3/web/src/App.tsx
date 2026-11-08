@@ -164,7 +164,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
 
   const store = useMemo(() => new InputStore(), [])
   const controls = useControlValues(store)
-  // Opens on autopilot, paused at the start: press Play to watch PaCMAP's own run.
+  // Opens on autopilot, paused at the start: press Play to watch its run (LocalMAP's or PaCMAP's).
   const [autopilot, setAutopilot] = useState(true)
 
   const getWeights = useCallback(
@@ -197,7 +197,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     },
     [trail, autopilot, autopilotLocal, autoResample, engine, local.resampleEvery, resample],
   )
-  // Autopilot plays PaCMAP's schedule once and stops; manual play loops.
+  // Autopilot plays its run once and stops; manual play loops.
   const clock = useLoopClock(engine, length, getWeights, !autopilot, settings.rate, settings.interpolate, onStep, true, beforeStep)
   // The Reset button: back to the start (the initial layout, PaCMAP's far pairs), stopped there until Start simulation.
   const reset = () => {
@@ -229,7 +229,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     })
   }, [store, engine])
 
-  // Under autopilot the sliders follow PaCMAP's forces; grabbing one takes over from exactly there.
+  // Under autopilot the sliders follow PaCMAP's forces (LocalMAP's are the same); grabbing one takes over from exactly there.
   const shown: ControlValues = autopilot
     ? mapValues(pacmapWeights(clock.playhead, meta.schedule), (w, type) => toU(w, scale[type]))
     : controls
@@ -406,7 +406,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
               length={length}
               phase={phaseOf(clock.playhead, meta.schedule)}
               steps={clock.steps}
-              autopilot={autopilot}
+              autopilot={autopilot ? local.autopilotPlays : null}
               onPause={clock.pause}
               onResume={clock.resume}
               onReset={reset}

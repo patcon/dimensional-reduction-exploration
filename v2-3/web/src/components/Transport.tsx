@@ -1,6 +1,7 @@
 import { Pause, Play, RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import type { Algorithm } from '../settings'
 import type { Dim, Schedule } from '../types'
 import type { ClockStatus } from '../useLoopClock'
 import { SAMPLE_SIZES, type SampleSize } from '../useData'
@@ -15,7 +16,8 @@ interface BarProps {
   length: number
   phase: 1 | 2 | 3
   steps: number
-  autopilot: boolean
+  /** What autopilot is playing, or null when it's off (manual). */
+  autopilot: Algorithm | null
   onPause: () => void
   onResume: () => void
   onReset: () => void
@@ -25,6 +27,8 @@ interface BarProps {
   /** At the bar's end (the drawer's open button, say). */
   children?: ReactNode
 }
+
+const ALGORITHM_NAMES: Record<Algorithm, string> = { localmap: 'LocalMAP', pacmap: 'PaCMAP' }
 
 /** Play/pause, reset, and where the loop is up to in PaCMAP's schedule, phase by phase. */
 export function TransportBar(p: BarProps) {
@@ -38,7 +42,7 @@ export function TransportBar(p: BarProps) {
         className={cn('rounded-full', stopped && 'bg-go text-on-go hover:bg-go-hover')}
         onClick={stopped ? p.onResume : p.onPause}
         // Resuming a finished autopilot run would only replay it; that's what reset is for.
-        disabled={stopped ? p.status === 'ended' && p.autopilot : p.status === 'idle'}
+        disabled={stopped ? p.status === 'ended' && p.autopilot !== null : p.status === 'idle'}
         aria-label={start ? 'Start simulation' : stopped ? 'Resume' : 'Pause'}
       >
         {stopped || p.status === 'idle' ? <Play className="fill-current" /> : <Pause className="fill-current" />}
@@ -67,7 +71,7 @@ export function TransportBar(p: BarProps) {
           ) : p.status === 'idle' ? (
             <strong>Move a force to start</strong>
           ) : start ? (
-            <strong>Press play to watch PaCMAP's own run</strong>
+            <strong>{p.autopilot ? `Press play to watch ${ALGORITHM_NAMES[p.autopilot]}'s own run` : 'Press play to start'}</strong>
           ) : p.status === 'ended' && p.autopilot ? (
             <strong>Autopilot finished: reset to replay, or go manual to carry on</strong>
           ) : (
