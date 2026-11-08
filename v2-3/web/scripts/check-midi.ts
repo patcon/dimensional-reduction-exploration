@@ -1,5 +1,5 @@
 // MIDI messages decode to the right control and position.
-import { decode, describeBinding, faderPercent, sameBinding } from '../src/midi.ts'
+import { decode, describeBinding, faderPercent, sameBinding, Trigger, TRIGGER_DEBOUNCE_MS } from '../src/midi.ts'
 
 let failures = 0
 const expect = (ok: boolean, what: string) => {
@@ -37,5 +37,13 @@ expect(pct(0, 'bottom') === 0 && pct(1, 'bottom') === 100 && pct(-1, 'bottom') =
 // A centre fader at a force's percentage sends a CC that decodes back to (nearly) that force.
 const back = (u: number) => decode([0xb0, 20, Math.round((faderPercent(u, 'centre') / 100) * 127)])!.u
 expect([0.263, 0.5, -0.263, -0.9].every((u) => Math.abs(back(u) - u) <= 1 / 63), 'a centre fader set to the shown percentage reads back as that force')
+
+// The resample button: a press fires once, however often it's sent, and a release never does.
+const trigger = new Trigger()
+const press = (v: number, t: number) => trigger.fire(decode(cc(0, 29, v))!.travel, t)
+expect(press(127, 1000), 'a button press (127) fires')
+expect(!press(127, 1000 + TRIGGER_DEBOUNCE_MS / 2), 'the same press sent again straight away doesn\'t')
+expect(!press(0, 2000), 'a release (0) doesn\'t')
+expect(press(127, 2000), 'a later press fires again')
 
 process.exit(failures ? 1 : 0)

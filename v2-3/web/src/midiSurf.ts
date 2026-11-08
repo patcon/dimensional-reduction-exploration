@@ -15,7 +15,7 @@ export interface MidiSurfSetup {
   qr: string
   /** The page itself, for MIDI Surf's New page → Import page. */
   file: string
-  bindings: Pick<Bindings, 'nb' | 'mn' | 'fp' | 'nbSign' | 'mnSign' | 'fpSign'>
+  bindings: Pick<Bindings, 'nb' | 'mn' | 'fp' | 'nbSign' | 'mnSign' | 'fpSign' | 'resample'>
   zeros: Zeros
 }
 
@@ -28,27 +28,29 @@ const page = (id: MidiSurfSetup['id']) => ({
   file: `${import.meta.env.BASE_URL}midi-surf/${id}.json`,
 })
 const NO_SIGNS = { nbSign: null, mnSign: null, fpSign: null }
+/** Every page has a resample button above its far-pair control, sending CC 29. */
+const RESAMPLE = { resample: cc(29) }
 
 export const MIDI_SURF_SETUPS: MidiSurfSetup[] = [
   {
     ...page('centre-faders'),
-    title: 'PaCMAP 🎚️',
-    description: 'Three faders parked half way. Up attracts, down repels, and each stays where you leave it.',
-    bindings: { nb: cc(20), mn: cc(21), fp: cc(22), ...NO_SIGNS },
+    title: 'LocalMAP 🎚️',
+    description: 'Three faders parked half way. Up attracts, down repels, and each stays where you leave it. 🔀 above the far pairs redraws them.',
+    bindings: { nb: cc(20), mn: cc(21), fp: cc(22), ...NO_SIGNS, ...RESAMPLE },
     zeros: { nb: 'centre', mn: 'centre', fp: 'centre' },
   },
   {
     ...page('bottom-faders'),
-    title: 'PaCMAP 🎚️±',
-    description: 'Three faders starting at the bottom, which is no force, so up is stronger. The 🧲± button under each flips it between attract and repel.',
-    bindings: { nb: cc(23), mn: cc(24), fp: cc(25), nbSign: cc(26), mnSign: cc(27), fpSign: cc(28) },
+    title: 'LocalMAP 🎚️±',
+    description: 'Three faders starting at the bottom, which is no force, so up is stronger. The 🧲± button under each flips it between attract and repel. 🔀 above the far pairs redraws them.',
+    bindings: { nb: cc(23), mn: cc(24), fp: cc(25), nbSign: cc(26), mnSign: cc(27), fpSign: cc(28), ...RESAMPLE },
     zeros: { nb: 'bottom', mn: 'bottom', fp: 'bottom' },
   },
   {
     ...page('pitch-bends'),
-    title: 'PaCMAP 🎯',
-    description: 'Three pitch-bend strips that spring back to the centre, so a force stops the moment you let go.',
-    bindings: { nb: bend(0), mn: bend(1), fp: bend(2), ...NO_SIGNS },
+    title: 'LocalMAP 🎯',
+    description: 'Three pitch-bend strips that spring back to the centre, so a force stops the moment you let go. 🔀 above the far pairs redraws them.',
+    bindings: { nb: bend(0), mn: bend(1), fp: bend(2), ...NO_SIGNS, ...RESAMPLE },
     zeros: { nb: 'centre', mn: 'centre', fp: 'centre' },
   },
 ]

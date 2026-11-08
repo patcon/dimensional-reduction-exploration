@@ -3,7 +3,7 @@
 # ///
 """
 Writes three MIDI Surf (https://github.com/patcon/midi-surf) pages that match the
-setups in src/midiSurf.ts: each page's JSON and a QR code of its import link into
+setups in src/midiSurf.ts (each with a resample button, CC 29, above its far-pair control): each page's JSON and a QR code of its import link into
 public/midi-surf/, and the links into src/midiSurfLinks.ts.
 
     uv run scripts/midi-surf-pages.py
@@ -45,17 +45,32 @@ def bend(label, colour, n):
                            "channel": channel(n), "bendValue": 8192})
 
 
+def button(label, colour, cc):
+    """Sends CC `cc` at 127 on each press."""
+    return T("CCValue", {"status": None, "label": label, "labelSize": T("Small"), "colour": T(colour),
+                         "channel": channel(1), "controller": cc, "value": 127})
+
+
+RESAMPLE_CC = 29
+
+
+def with_resample(columns):
+    """Each force's column with a short row above: empty, except a resample button above the far pairs'."""
+    tops = [T("Space"), T("Space"), button("🔀 resample", "Red", RESAMPLE_CC)]
+    return T("Row", [T("SizedColumn", [[1, top], [6, column]]) for top, column in zip(tops, columns)])
+
+
 def page(label, controller):
     return {"label": label, "controller": controller, "config": {"gapSize": 2, "debug": False}}
 
 
 # Keys match the setup ids in src/midiSurf.ts; CC numbers and channels must match too.
 PAGES = {
-    "centre-faders": page("PaCMAP 🎚️", T("Row", [fader(n, c, 20 + i, 50) for i, (n, c) in enumerate(FORCES)])),
-    "bottom-faders": page("PaCMAP 🎚️±", T("Row", [
+    "centre-faders": page("LocalMAP 🎚️", with_resample([fader(n, c, 20 + i, 50) for i, (n, c) in enumerate(FORCES)])),
+    "bottom-faders": page("LocalMAP 🎚️±", with_resample([
         T("SizedColumn", [[5, fader(n, c, 23 + i, 0)], [1, toggle("🧲±", c, 26 + i)]])
         for i, (n, c) in enumerate(FORCES)])),
-    "pitch-bends": page("PaCMAP 🎯", T("Row", [bend(n, c, i + 1) for i, (n, c) in enumerate(FORCES)])),
+    "pitch-bends": page("LocalMAP 🎯", with_resample([bend(n, c, i + 1) for i, (n, c) in enumerate(FORCES)])),
 }
 
 OUT.mkdir(parents=True, exist_ok=True)

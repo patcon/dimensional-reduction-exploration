@@ -7,6 +7,7 @@ import {
   NO_BINDINGS,
   sameBinding,
   SIGN_TARGETS,
+  Trigger,
   type Bindings,
   type MidiTarget,
   type Zero,
@@ -62,7 +63,7 @@ const NO_STRENGTH: Record<PairType, number> = { nb: 0, mn: 0, fp: 0 }
  * the bottom takes its sign from its sign switch, starting as PaCMAP's (far pairs repel).
  * Bindings and zero points persist across reloads.
  */
-export function useMidi(onControl: (target: PairType | 'speed', u: number) => void) {
+export function useMidi(onControl: (target: PairType | 'speed', u: number) => void, onResample: () => void) {
   const [initial] = useState(load)
   const supported = 'requestMIDIAccess' in navigator
   // If MIDI was on last time, start out asking again (no prompt once permission has been granted).
@@ -78,6 +79,8 @@ export function useMidi(onControl: (target: PairType | 'speed', u: number) => vo
 
   // The message handler is attached once per input; it reads the latest of these through refs.
   const onControlRef = useRef(onControl)
+  const onResampleRef = useRef(onResample)
+  const resampleTrigger = useRef(new Trigger())
   const bindingsRef = useRef(bindings)
   const learningRef = useRef(learning)
   const zerosRef = useRef(zeros)
@@ -86,6 +89,7 @@ export function useMidi(onControl: (target: PairType | 'speed', u: number) => vo
   const strengths = useRef({ ...NO_STRENGTH })
   useEffect(() => {
     onControlRef.current = onControl
+    onResampleRef.current = onResample
     bindingsRef.current = bindings
     learningRef.current = learning
     zerosRef.current = zeros
@@ -138,6 +142,7 @@ export function useMidi(onControl: (target: PairType | 'speed', u: number) => vo
         const b = current[t]
         if (!b || !sameBinding(b, message.binding)) continue
         if (t === 'speed') onControlRef.current(t, message.u)
+        if (t === 'resample' && resampleTrigger.current.fire(message.travel, performance.now())) onResampleRef.current()
         for (const type of PAIR_TYPES) {
           if (t === type) {
             if (zeros[type] === 'centre') onControlRef.current(type, message.u)

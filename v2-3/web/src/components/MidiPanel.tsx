@@ -16,6 +16,7 @@ const TARGET_LABELS: Record<MidiTarget, string> = {
   nbSign: 'sign',
   mnSign: 'sign',
   fpSign: 'sign',
+  resample: 'Resample',
 }
 
 const ZERO_LABELS: Record<Zero, string> = { centre: 'centre (±)', bottom: 'bottom, + sign switch' }
@@ -164,7 +165,7 @@ export function MidiPanel({ midi }: { midi: Midi }) {
     )
 
   return (
-    <Section title="MIDI" description="Learn a control for each force, then move it to bind it.">
+    <Section title="MIDI" description="Learn a control for each force (or resample, a button), then move it to bind it.">
       <div className="flex flex-col gap-1.5 text-sm">
         <label className="flex items-center gap-2">
           <span className="w-22 shrink-0 text-muted-foreground">device</span>
@@ -187,6 +188,7 @@ export function MidiPanel({ midi }: { midi: Midi }) {
         {PAIR_TYPES.map((type) => (
           <ForceBinding key={type} midi={midi} type={type} />
         ))}
+        <BindingControl midi={midi} target="resample" />
         <BindingControl midi={midi} target="speed" />
       </div>
       <p className="text-xs text-muted-foreground">With 0 at the centre, up attracts and down repels: pitch bend springs back to 0 when you let go (the force stops); a fader stays put. With 0 at the bottom, the control sets only the strength and its sign switch (a toggle button) flips between attract and repel, starting as PaCMAP does (far pairs repel).</p>

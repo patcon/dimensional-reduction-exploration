@@ -5,10 +5,10 @@ export type SignTarget = 'nbSign' | 'mnSign' | 'fpSign'
 
 export const SIGN_TARGETS: Record<PairType, SignTarget> = { nb: 'nbSign', mn: 'mnSign', fp: 'fpSign' }
 
-/** What a MIDI control can drive: one of the three forces, a force's sign, or the optimiser's speed. */
-export type MidiTarget = PairType | 'speed' | SignTarget
+/** What a MIDI control can drive: one of the three forces, a force's sign, the optimiser's speed, or redrawing the far pairs (a button). */
+export type MidiTarget = PairType | 'speed' | SignTarget | 'resample'
 
-export const MIDI_TARGETS: MidiTarget[] = ['nb', 'mn', 'fp', 'speed', 'nbSign', 'mnSign', 'fpSign']
+export const MIDI_TARGETS: MidiTarget[] = ['nb', 'mn', 'fp', 'speed', 'nbSign', 'mnSign', 'fpSign', 'resample']
 
 /**
  * Where a force's control reads 0. centre: up attracts, down repels (a pitch bend, or a
@@ -32,7 +32,26 @@ export type Binding = { kind: 'pitchbend'; channel: number } | { kind: 'cc'; cha
 
 export type Bindings = Record<MidiTarget, Binding | null>
 
-export const NO_BINDINGS: Bindings = { nb: null, mn: null, fp: null, speed: null, nbSign: null, mnSign: null, fpSign: null }
+export const NO_BINDINGS: Bindings = { nb: null, mn: null, fp: null, speed: null, nbSign: null, mnSign: null, fpSign: null, resample: null }
+
+/** Presses closer together than this count as one, as a button can send its value more than once. */
+export const TRIGGER_DEBOUNCE_MS = 150
+
+/**
+ * A control bound to an action (a button, say) as a trigger: it fires on a press, a message in the top half of its
+ * travel (a MIDI Surf button sends 127), and not again for TRIGGER_DEBOUNCE_MS. A fader bound to it fires as it's
+ * pushed up past half way and then every TRIGGER_DEBOUNCE_MS while it's moved above.
+ */
+export class Trigger {
+  private last = -Infinity
+
+  /** Whether a message at this travel, at time `now` (ms), fires. */
+  fire(travel: number, now: number) {
+    if (travel < 0.5 || now - this.last < TRIGGER_DEBOUNCE_MS) return false
+    this.last = now
+    return true
+  }
+}
 
 /**
  * A decoded message: which control moved, its position as u in [-1, 1] with centre at 0,

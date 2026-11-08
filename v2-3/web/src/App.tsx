@@ -244,7 +244,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
       takeOver()
       store.set(target, u)
     }
-  })
+  }, resample)
   // Each slider follows how its MIDI control behaves whenever that changes (a layout applied, a
   // control learnt, its 0 point moved): pitch bend springs back, and a control with 0 at the
   // bottom draws its slider unsplit. In between, spring and split are yours to change, and are remembered, so
