@@ -51,10 +51,12 @@ const TABS = [
 ] as const
 
 /**
- * Each force's lean on opening (see Engine.lean): the neighbours' toward the digit chosen, which the data's own
- * who-chose-whom moves most against its null (scripts/explore-lean.ts); the rest, drawn at random, even.
+ * Each force's lean on opening (see Engine.lean). A pair is its chooser's view of the data, so the chooser is the one
+ * to react to it: the neighbours lean fully toward the digit that chose them. The mid-near and far pairs stay even:
+ * each is a random draw, and leaning them moves the map about as much with who chose whom scrambled
+ * (scripts/explore-lean.ts), so what they'd add is the draw's noise, not the data's.
  */
-const DEFAULT_LEAN: Weights = { nb: -1, mn: 0, fp: 0 }
+const DEFAULT_LEAN: Weights = { nb: 1, mn: 0, fp: 0 }
 
 /** What autopilot plays, or manual: autopilot off, the forces are yours. */
 type Pilot = Algorithm | 'manual'
@@ -379,6 +381,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
           edges={edges}
           weights={liveWeights}
           reach={!far.global || tab === 'local' ? local.thres : null}
+          follow={settings.followSelected ? selected : null}
           corner={
             <DigitPreview
               pixels={pixels}
@@ -553,6 +556,8 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
                       onDim={(v) => set('dim', v)}
                       autoRotate={autoRotate}
                       onAutoRotate={(v) => set('autoRotate', v)}
+                      followSelected={settings.followSelected}
+                      onFollowSelected={(v) => set('followSelected', v)}
                       size={size}
                       onSize={(v) => set('size', v)}
                     />

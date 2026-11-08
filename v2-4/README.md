@@ -23,21 +23,32 @@ scrambled, as each is already drawn at random by its chooser.
 ### Defaults, and why
 
 Autopilot plays LocalMAP's run and then **holds its last phase** (neighbours 1, far pairs −1, boosted, redrawn every
-10), as PaCMAP does given more iterations, so the map has time to move once formed. The lean opens at **neighbours −1**
-(toward the digit chosen), the others even. `pnpm run explore:lean` (scripts/explore-lean.ts) is how that was picked:
-LocalMAP's run at 10k, then held for 1200 steps with each lean, measuring how far points travel over the last 100
-(as a share of the map's spread) against the same lean scrambled:
+10), as PaCMAP does given more iterations, so the map has time to move once formed.
+
+The lean opens at **neighbours +1**, the others even. A pair is its chooser's view of the data, so the chooser is the
+one to react to it: each digit is pulled toward the digits it counts as neighbours, and isn't pulled by being counted.
+Where that's one-way, the pair moves on together from chooser toward chosen. `pnpm run explore:lean`
+(scripts/explore-lean.ts) plays LocalMAP's run at 10k, holds it 1200 steps with each lean, and measures how far points
+travel over the last 100 (as a share of the map's spread) against the same lean scrambled:
 
 | lean (3D, Adam) | drift ×1000 | scrambled | 10-NN same digit |
 |---|---|---|---|
 | none | 8 | — | 0.92 |
-| neighbours +1 | 261 | 191 | 0.90 |
-| neighbours −1 | 576 | 179 | 0.78 |
-| all +1 | 560 | 515 | 0.78 |
+| neighbours +1 (chooser) | 261 | 191 | 0.90 |
+| neighbours −1 (chosen) | 576 | 179 | 0.78 |
+| all +1 (chooser) | 560 | 515 | 0.78 |
 
-Unleaned, the map is still. Leaning the far pairs moves it a lot, but as much scrambled: their direction is a random
-draw, so that's the lean's own noise, not the data's. Leaning neighbours toward the chosen moves it 3x more than its
-null: there the data's direction does the driving. Leaning from the first step still forms the map (0.92 at 450).
+Unleaned, the map is still; leaned toward the chooser it keeps moving and stays a map, the data's own who-chose-whom
+moving it more than scrambled. Leaning toward the chosen moves it most, and most unlike its null, but reads backward
+(a digit reacting to being seen) and pulls the map apart. Leaning the mid-near and far pairs too, as a chooser's whole
+view, moves the map as much scrambled: each is a random draw, so that motion is the draw's noise, not the data's, and
+they open even. Leaning from the first step still forms the map (0.92 at 450).
+
+**The view.** v2.3 fitted the plot to the layout's bounding box every frame, so on a moving map one wandering digit
+moved the whole view. Here it centres on the centroid and reaches as far as 98% of the digits, easing there over about
+half a second (`src/fit.ts`): on a held, leaning 10k map in 3D, the centre shifts 0.002% of the view per step against
+1.1% before, and its size 0.2% against 1.4%. **Follow the selected digit** (view tab) keeps a digit at the middle
+instead, the map moving past it.
 
 What follows is v2.3's.
 

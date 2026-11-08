@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode
 import { DIGIT_COLORS, FORCE_COLORS } from '../palette'
 import { Button } from './ui/button'
 import { cn } from '@/lib/utils'
+import { easeFit, fitOf, settled, type Fit } from '../fit'
 import type { Dim, PairType, Weights } from '../types'
 
 interface Props {
@@ -40,6 +41,8 @@ interface Props {
    * The view's middle moves up by half that, as a map's does, so what's covered is the plot's bottom, not its middle.
    */
   coveredBottom?: () => number
+  /** A point to keep at the plot's middle (the view pans to follow it), or null to centre on the layout's centroid. */
+  follow?: number | null
 }
 
 const PAD = 12
@@ -179,7 +182,7 @@ function background(el: Element) {
  * Clicking a digit selects it and clicking away selects none; the mouse hovers digits, and holding a press still
  * hovers digits picked at random around it (see JITTER_RADIUS), inside a ring drawn there.
  */
-export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, reach = null, className, coveredBottom }: Props) {
+export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, reach = null, className, coveredBottom, follow = null }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   /** The rings around the selected and hovered digits, over the points, so they move without redrawing them. */
@@ -189,6 +192,10 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   /** What `coveredBottom` last read, in whole CSS pixels. */
   const [covered, setCovered] = useState(0)
   const viewRef = useRef<View>({ ...INITIAL_VIEW })
+  /** Where the view is fitted to, easing toward where it should be (see fit.ts); what it was fitted for, and when. */
+  const fitRef = useRef<{ fit: Fit; Y: Float32Array; dim: number; at: number } | null>(null)
+  /** Bumped to draw again while the fit is still easing, when nothing else would. */
+  const [easing, setEasing] = useState(0)
   /** Bumped whenever the view changes, to redraw. */
   const [viewVersion, setViewVersion] = useState(0)
   /** Whether the view has been zoomed or panned, to offer resetting it. */
@@ -352,48 +359,37 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     const { sx, sy, level, unit } = scratch
     let drawOrder: Uint32Array = order
 
+    // Ease toward the fit for now, from where it was; a new layout (another engine) snaps to it.
+    const target = fitOf(Y, dim, follow)
+    const now = performance.now()
+    const last = fitRef.current
+    const fresh = !last || last.Y !== Y || last.dim !== dim
+    const fit = fresh ? target : easeFit(last.fit, target, Math.min(0.1, (now - last.at) / 1000))
+    fitRef.current = { fit, Y, dim, at: now }
+    const done = settled(fit, target)
+    const midX = (w - dot) / 2
+    const midY = padTop + (h - pad - padTop - dot) / 2
+
     if (dim === 2) {
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
-      for (let k = 0; k < Y.length; k += 2) {
-        minX = Math.min(minX, Y[k])
-        maxX = Math.max(maxX, Y[k])
-        minY = Math.min(minY, Y[k + 1])
-        maxY = Math.max(maxY, Y[k + 1])
-      }
+      const [cx, cy] = fit.centre
+      const [rx, ry] = fit.reach
       // One scale for both axes, so the layout's shape isn't distorted.
-      const scale = Math.min((w - 2 * pad - dot) / (maxX - minX || 1), (h - pad - padTop - dot) / (maxY - minY || 1))
-      const offX = (w - (maxX - minX) * scale - dot) / 2
-      // Distance from the bottom edge, centring the layout in the space below the overlay.
-      const offY = pad + (h - pad - padTop - (maxY - minY) * scale - dot) / 2
+      const scale = Math.min((w - 2 * pad - dot) / (2 * rx), (h - pad - padTop - dot) / (2 * ry))
       for (let i = 0; i < n; i++) {
-        sx[i] = offX + (Y[2 * i] - minX) * scale
+        sx[i] = midX + (Y[2 * i] - cx) * scale
         // Flip y so the layout reads like a conventional plot.
-        sy[i] = h - offY - (Y[2 * i + 1] - minY) * scale - dot
+        sy[i] = midY - (Y[2 * i + 1] - cy) * scale
       }
       level.fill(0)
       unit.fill(scale)
     } else {
-      // Centre on the bounding box, and fit the sphere around it that holds every point.
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity
-      for (let k = 0; k < Y.length; k += 3) {
-        minX = Math.min(minX, Y[k])
-        maxX = Math.max(maxX, Y[k])
-        minY = Math.min(minY, Y[k + 1])
-        maxY = Math.max(maxY, Y[k + 1])
-        minZ = Math.min(minZ, Y[k + 2])
-        maxZ = Math.max(maxZ, Y[k + 2])
-      }
-      const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, cz = (minZ + maxZ) / 2
-      let r2 = 0
-      for (let k = 0; k < Y.length; k += 3)
-        r2 = Math.max(r2, (Y[k] - cx) ** 2 + (Y[k + 1] - cy) ** 2 + (Y[k + 2] - cz) ** 2)
-      const R = Math.sqrt(r2) || 1
+      // Fitted as a sphere about the centre, reaching as far as most points.
+      const [cx, cy, cz] = fit.centre
+      const R = fit.reach[0]
       const D = CAMERA_DISTANCE * R
       // A point on the sphere's rim can't project further out than R / sin(the sphere's half-angle).
       const rim = R / Math.sqrt(1 - 1 / CAMERA_DISTANCE ** 2)
       const scale = Math.min(w - 2 * pad - dot, h - pad - padTop - dot) / (2 * rim)
-      const midX = (w - dot) / 2
-      const midY = padTop + (h - pad - padTop - dot) / 2
       const { yaw, pitch } = viewRef.current
       const cosY = Math.cos(yaw), sinY = Math.sin(yaw), cosP = Math.cos(pitch), sinP = Math.sin(pitch)
       const { bucket, starts, sorted } = scratch
@@ -405,7 +401,8 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
         const y2 = cosP * y - sinP * z1
         // Towards the viewer is positive.
         const z2 = sinP * y + cosP * z1
-        const persp = (D * scale) / (D - z2)
+        // Points beyond the fitted sphere, nearer than the camera allows, are pinned just short of it.
+        const persp = (D * scale) / Math.max(D - z2, 0.05 * D)
         sx[i] = midX + x1 * persp
         sy[i] = midY - y2 * persp
         unit[i] = persp
@@ -449,7 +446,12 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     }
     ctx.putImageData(image, 0, 0)
     drawMarks.current()
-  }, [Y, dim, labels, shown, order, size, version, viewVersion, covered])
+    // Still easing, with nothing else to draw it again: draw again next frame.
+    if (!done) {
+      const frame = requestAnimationFrame(() => setEasing((e) => e + 1))
+      return () => cancelAnimationFrame(frame)
+    }
+  }, [Y, dim, labels, shown, order, size, version, viewVersion, covered, follow, easing])
 
   const turnable = dim === 3
   const redraw = () => setViewVersion((v) => v + 1)

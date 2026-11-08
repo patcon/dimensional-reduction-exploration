@@ -125,12 +125,17 @@ export function ViewSection(p: {
   onDim: (dim: Dim) => void
   autoRotate: boolean
   onAutoRotate: (on: boolean) => void
+  followSelected: boolean
+  onFollowSelected: (on: boolean) => void
   /** How many digits; switching starts over on the new ones once they've loaded. */
   size: SampleSize
   onSize: (size: SampleSize) => void
 }) {
   return (
-    <Section title="Layout" description="Switching dimension or digits starts over from the initial layout.">
+    <Section
+      title="Layout"
+      description="Switching dimension or digits starts over from the initial layout. The view centres on the map's centroid and reaches as far out as most of its digits, easing as the map moves, so a few wandering off don't shift it."
+    >
       <Field label="dimensions">
         <Segmented
           options={['2', '3'] as const}
@@ -143,6 +148,12 @@ export function ViewSection(p: {
         <Segmented options={SAMPLE_SIZES} value={p.size} onChange={(size) => size !== p.size && p.onSize(size)} />
       </Field>
       <Toggle label="auto-rotate" checked={p.autoRotate} onChange={p.onAutoRotate} disabled={p.dim !== 3} note={p.dim !== 3 ? 'in 3D only' : undefined} />
+      <Toggle
+        label="follow the selected digit"
+        checked={p.followSelected}
+        onChange={p.onFollowSelected}
+        note="Keeps it at the middle, the map moving past it, in place of centring on the map's centroid."
+      />
     </Section>
   )
 }
