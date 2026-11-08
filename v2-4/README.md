@@ -58,6 +58,13 @@ included. In 3D a digit is under it if it's drawn inside the ring at its own dep
 autopilot, as touching a force does, and turns off auto-resampling, so from then on only brushed digits are redrawn;
 restore global puts every digit's back. The far-pair readout says how many digits were brushed.
 
+**+** beside the brush switches it from resampling to **upsampling**: painting adds far pairs to the digits under it,
+keeping those they have, one per digit per paint (so holding the brush longer adds more). Each is drawn as a redraw
+is, from those within the threshold, and is never the digit itself, a neighbour or a far partner it has already. Added
+pairs are kept apart from the sampled ones (the engine assumes each digit has the same number of those), feel the far
+pairs' force and lean, and outlast resampling; restore global and reset drop them. The brush icon wears a + while
+upsampling, the choice is remembered, and the readout counts what's been added in all.
+
 What follows is v2.3's.
 
 ## v2.3 — Playable LocalMAP

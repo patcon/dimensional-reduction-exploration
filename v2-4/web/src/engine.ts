@@ -169,8 +169,12 @@ export class Engine {
   readonly globalFp: Uint32Array
   /** Bumped whenever the far pairs change. */
   fpVersion = 0
-  /** Whether the far pairs are the global ones. */
+  /** Whether the far pairs are the global ones (none redrawn, none added). */
   fpGlobal = true
+  /** The far partners upsampling added to each point (see upsampleFar), how many in all, and them flat, once asked for. */
+  private extraOf: (number[] | undefined)[] = []
+  extraCount = 0
+  private extraFlat: Uint32Array | null = null
   /**
    * LocalMAP's neighbour boost, or null for PaCMAP's kernel: each neighbour pair's force is scaled by
    * boost / sqrt(1 + |yi - yj|²), so close neighbours pull harder. LocalMAP's boost is its threshold / 2.
@@ -223,10 +227,13 @@ export class Engine {
     this.restoreFar()
   }
 
-  /** Puts PaCMAP's global far pairs back. */
+  /** Puts PaCMAP's global far pairs back, and drops any added. */
   restoreFar() {
     if (this.fpGlobal) return
     this.pairs.fp.set(this.globalFp)
+    this.extraOf = []
+    this.extraCount = 0
+    this.extraFlat = null
     this.fpGlobal = true
     this.fpVersion++
   }
@@ -252,6 +259,71 @@ export class Engine {
    */
   resampleFar(thres: number, only?: ArrayLike<number>): Resample {
     const start = performance.now()
+    const fp = this.pairs.fp
+    const fpPer = fp.length / 2 / this.n
+    let resampled = 0
+    let kept = 0
+    this.drawNear(thres, only, fpPer, false, (i, k, j) => {
+      const slot = (i * fpPer + k) * 2
+      fp[slot] = i
+      if (j === -1) kept++
+      else {
+        fp[slot + 1] = j
+        resampled++
+      }
+    })
+    this.fpGlobal = false
+    this.fpVersion++
+    return { resampled, kept, ms: performance.now() - start }
+  }
+
+  /**
+   * Upsampling, the brush's other mode: `per` more far pairs for each of `only`, on top of those it has, drawn as
+   * resampleFar draws (uniformly from the points within `thres` of it, not itself or a neighbour), and not one of
+   * its far partners already (as sampled, redrawn or added). They're kept apart from the sampled far pairs (see
+   * extraFar), feel the far pairs' force and lean, and are cleared by restoreFar (and so reset). In the result,
+   * `resampled` counts those added and `kept` those that found no partner.
+   */
+  upsampleFar(thres: number, only: ArrayLike<number>, per = 1): Resample {
+    const start = performance.now()
+    let added = 0
+    let missed = 0
+    this.drawNear(thres, only, per, true, (i, _k, j) => {
+      if (j === -1) return missed++
+      ;(this.extraOf[i] ??= []).push(j)
+      added++
+    })
+    if (added) {
+      this.extraCount += added
+      this.extraFlat = null
+      this.fpGlobal = false
+      this.fpVersion++
+    }
+    return { resampled: added, kept: missed, ms: performance.now() - start }
+  }
+
+  /** The far pairs upsampling added, flat (i, j) like the others: i the point painted, which chose j. */
+  extraFar(): Uint32Array {
+    if (!this.extraFlat) {
+      const flat = new Uint32Array(this.extraCount * 2)
+      let t = 0
+      this.extraOf.forEach((partners, i) => {
+        for (const j of partners ?? []) {
+          flat[t++] = i
+          flat[t++] = j
+        }
+      })
+      this.extraFlat = flat
+    }
+    return this.extraFlat
+  }
+
+  /**
+   * Draws `per` partners near each of `points` (every point, if none are given), as LocalMAP's redraw does (see
+   * resampleFar), calling `place(i, k, j)` with each draw, j -1 where none was found. A point may not draw itself,
+   * one of its neighbours, or a partner already drawn this time; with `barFar`, nor one of its far partners now.
+   */
+  private drawNear(thres: number, points: ArrayLike<number> | undefined, per: number, barFar: boolean, place: (i: number, k: number, j: number) => void) {
     const { n, dim, Y, random } = this
     const nb = this.pairs.nb
     const fp = this.pairs.fp
@@ -270,14 +342,16 @@ export class Engine {
       }
       return d2 <= thres2
     }
-    let resampled = 0
-    let kept = 0
-    const count = only ? only.length : n
+    const count = points ? points.length : n
     for (let o = 0; o < count; o++) {
-      const i = only ? only[o] : o
+      const i = points ? points[o] : o
       const pool = grid.around(i)
       barred[i] = i
       for (let q = 0, from = i * nbPer * 2; q < nbPer; q++) barred[nb[from + q * 2 + 1]] = i
+      if (barFar) {
+        for (let q = 0, from = i * fpPer * 2; q < fpPer; q++) barred[fp[from + q * 2 + 1]] = i
+        for (const j of this.extraOf[i] ?? []) barred[j] = i
+      }
       // Few points about: list those it may pick, then pick without repeats (a partial shuffle).
       let listed = -1
       if (pool <= LIST_UP_TO) {
@@ -287,7 +361,7 @@ export class Engine {
           if (barred[c] !== i && near(i, c)) list[listed++] = c
         }
       }
-      for (let k = 0; k < fpPer; k++) {
+      for (let k = 0; k < per; k++) {
         let j = -1
         if (listed >= 0) {
           if (k < listed) {
@@ -304,18 +378,9 @@ export class Engine {
             barred[c] = i
             break
           }
-        const slot = (i * fpPer + k) * 2
-        fp[slot] = i
-        if (j === -1) kept++
-        else {
-          fp[slot + 1] = j
-          resampled++
-        }
+        place(i, k, j)
       }
     }
-    this.fpGlobal = false
-    this.fpVersion++
-    return { resampled, kept, ms: performance.now() - start }
   }
 
   setSpeed(speed: number) {
@@ -360,8 +425,7 @@ export class Engine {
    * each other (with no lean it's zero already, and nothing is taken off).
    */
   gradient(w: Weights) {
-    const { Y, grad } = this
-    grad.fill(0)
+    this.grad.fill(0)
     let leaning = false
     for (const type of PAIR_TYPES) {
       const mult = w[type]
@@ -377,42 +441,52 @@ export class Engine {
       const ki = mult * 2 * A * (1 + lean)
       const kj = mult * 2 * A * (1 - lean)
       const p = this.forcePairs(type)
-      // One loop per dimension, unrolled, as this is the hot path.
-      if (this.dim === 2)
-        for (let t = 0; t < p.length; t += 2) {
-          const i = p[t] * 2
-          const j = p[t + 1] * 2
-          const dx = Y[i] - Y[j]
-          const dy = Y[i + 1] - Y[j + 1]
-          const r = A + 1 + dx * dx + dy * dy
-          const r2 = r * r
-          const ci = ki / r2
-          const cj = kj / r2
-          grad[i] += ci * dx
-          grad[i + 1] += ci * dy
-          grad[j] -= cj * dx
-          grad[j + 1] -= cj * dy
-        }
-      else
-        for (let t = 0; t < p.length; t += 2) {
-          const i = p[t] * 3
-          const j = p[t + 1] * 3
-          const dx = Y[i] - Y[j]
-          const dy = Y[i + 1] - Y[j + 1]
-          const dz = Y[i + 2] - Y[j + 2]
-          const r = A + 1 + dx * dx + dy * dy + dz * dz
-          const r2 = r * r
-          const ci = ki / r2
-          const cj = kj / r2
-          grad[i] += ci * dx
-          grad[i + 1] += ci * dy
-          grad[i + 2] += ci * dz
-          grad[j] -= cj * dx
-          grad[j + 1] -= cj * dy
-          grad[j + 2] -= cj * dz
-        }
+      this.accumulate(p, A, ki, kj)
+      if (type === 'fp' && this.extraCount) this.accumulate(this.extraFar(), A, ki, kj)
     }
     if (leaning) this.removeNetForce()
+  }
+
+  /**
+   * Adds the forces of pairs `p` to this.grad: for each (i, j), with r = A + 1 + |yi - yj|², i gets ki / r² and j
+   * kj / r² of (yi - yj), each its own end's share (see lean).
+   */
+  private accumulate(p: Uint32Array, A: number, ki: number, kj: number) {
+    const { Y, grad } = this
+    // One loop per dimension, unrolled, as this is the hot path.
+    if (this.dim === 2)
+      for (let t = 0; t < p.length; t += 2) {
+        const i = p[t] * 2
+        const j = p[t + 1] * 2
+        const dx = Y[i] - Y[j]
+        const dy = Y[i + 1] - Y[j + 1]
+        const r = A + 1 + dx * dx + dy * dy
+        const r2 = r * r
+        const ci = ki / r2
+        const cj = kj / r2
+        grad[i] += ci * dx
+        grad[i + 1] += ci * dy
+        grad[j] -= cj * dx
+        grad[j + 1] -= cj * dy
+      }
+    else
+      for (let t = 0; t < p.length; t += 2) {
+        const i = p[t] * 3
+        const j = p[t + 1] * 3
+        const dx = Y[i] - Y[j]
+        const dy = Y[i + 1] - Y[j + 1]
+        const dz = Y[i + 2] - Y[j + 2]
+        const r = A + 1 + dx * dx + dy * dy + dz * dz
+        const r2 = r * r
+        const ci = ki / r2
+        const cj = kj / r2
+        grad[i] += ci * dx
+        grad[i + 1] += ci * dy
+        grad[i + 2] += ci * dz
+        grad[j] -= cj * dx
+        grad[j + 1] -= cj * dy
+        grad[j + 2] -= cj * dz
+      }
   }
 
   /** Takes the mean force off every point, so the forces sum to zero, as equal and opposite ones do. */

@@ -78,14 +78,18 @@ function useWindowHeight() {
 const mapValues = <A, B>(r: Record<PairType, A>, f: (a: A, type: PairType) => B): Record<PairType, B> =>
   ({ nb: f(r.nb, 'nb'), mn: f(r.mn, 'mn'), fp: f(r.fp, 'fp') })
 
-/** Every partner of digit `i` in each pair type, whichever end of the pair it's at, as both ends feel its force. */
-function partnersOf(pairs: Pairs, i: number) {
-  return mapValues(pairs, (flat) => {
+/**
+ * Every partner of digit `i` in each pair type, whichever end of the pair it's at, as both ends feel its force; the
+ * far pairs with those the brush added (`extraFp`).
+ */
+function partnersOf(pairs: Pairs, i: number, extraFp: Uint32Array) {
+  return mapValues(pairs, (flat, type) => {
     const partners: number[] = []
-    for (let k = 0; k < flat.length; k += 2) {
-      if (flat[k] === i) partners.push(flat[k + 1])
-      else if (flat[k + 1] === i) partners.push(flat[k])
-    }
+    for (const list of type === 'fp' ? [flat, extraFp] : [flat])
+      for (let k = 0; k < list.length; k += 2) {
+        if (list[k] === i) partners.push(list[k + 1])
+        else if (list[k + 1] === i) partners.push(list[k])
+      }
     return Uint32Array.from(partners)
   })
 }
@@ -153,25 +157,26 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     setFpVersion(engine.fpVersion)
   }
   const edges = useMemo(
-    () => (selected === null ? null : partnersOf(engine.pairs, selected)),
+    () => (selected === null ? null : partnersOf(engine.pairs, selected, engine.extraFar())),
     // fpVersion: the far pairs change in place.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [engine, fpVersion, selected],
   )
   const resample = useCallback(() => {
     const r = engine.resampleFar(local.thres)
-    setFar({ global: false, last: { ...r, step: engine.steps } })
+    setFar({ global: false, last: { ...r, step: engine.steps }, extra: engine.extraCount })
     setFpVersion(engine.fpVersion)
   }, [engine, local.thres])
-  // The resample brush: on, painting redraws only the far pairs of the digits under it.
+  // The brush: on, painting redraws only the far pairs of the digits under it, or (upsampling) adds one to each.
   const [brushOn, setBrushOn] = useState(false)
   const paintResample = useCallback(
     (points: number[]) => {
-      const r = engine.resampleFar(local.thres, points)
-      setFar({ global: false, last: { ...r, step: engine.steps, painted: points.length } })
+      const added = local.brushAdds
+      const r = added ? engine.upsampleFar(local.thres, points) : engine.resampleFar(local.thres, points)
+      setFar({ global: false, last: { ...r, step: engine.steps, painted: points.length, added }, extra: engine.extraCount })
       setFpVersion(engine.fpVersion)
     },
-    [engine, local.thres],
+    [engine, local.thres, local.brushAdds],
   )
   const restore = () => {
     engine.restoreFar()
@@ -434,20 +439,38 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
         >
           <Info />
         </Button>
-        {/* The resample brush: painting the plot redraws the far pairs of the digits under it, and no others. */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="pointer-events-auto absolute bottom-0 left-14 rounded-b-none bg-background/85 text-muted-foreground hover:text-foreground"
-          // On, it takes the far pairs' colour, as its ring does.
-          style={brushOn ? { background: FORCE_COLORS.fp, color: 'white' } : undefined}
-          onClick={() => setBrushOn(!brushOn)}
-          aria-pressed={brushOn}
-          aria-label="Resample brush: paint the plot to redraw the far pairs of the digits under it"
-          title={brushOn ? 'Brush on: paint to redraw far pairs under it (click to turn off)' : 'Resample brush: paint to redraw far pairs under it'}
-        >
-          <Brush />
-        </Button>
+        {/* The brush: painting the plot redraws the far pairs of the digits under it, and no others; with + beside it on,
+            it adds far pairs to them instead (upsampling), keeping those they have. */}
+        <div className="pointer-events-auto absolute bottom-0 left-14 flex" role="group" aria-label="Brush">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-r-none rounded-b-none bg-background/85 text-muted-foreground hover:text-foreground"
+            // On, it takes the far pairs' colour, as its ring does.
+            style={brushOn ? { background: FORCE_COLORS.fp, color: 'white' } : undefined}
+            onClick={() => setBrushOn(!brushOn)}
+            aria-pressed={brushOn}
+            aria-label={`${local.brushAdds ? 'Upsample' : 'Resample'} brush: paint the plot to ${local.brushAdds ? 'add far pairs to' : 'redraw the far pairs of'} the digits under it`}
+            title={`${local.brushAdds ? 'Upsample brush: paint to add far pairs' : 'Resample brush: paint to redraw far pairs'} under it${brushOn ? ' (click to turn off)' : ''}`}
+          >
+            <span className="relative">
+              <Brush />
+              {local.brushAdds && <span className="absolute -top-1.5 -right-2 text-xs leading-none font-bold" aria-hidden>+</span>}
+            </span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-6 rounded-l-none rounded-b-none border-l border-border/60 bg-background/85 text-base font-semibold text-muted-foreground hover:text-foreground"
+            style={local.brushAdds ? { color: FORCE_COLORS.fp } : undefined}
+            onClick={() => set('local', (l) => ({ ...l, brushAdds: !l.brushAdds }))}
+            aria-pressed={local.brushAdds}
+            aria-label="Brush adds far pairs (upsampling) rather than redrawing them"
+            title={local.brushAdds ? 'Brush adds far pairs, keeping the old (click to redraw instead)' : 'Brush redraws far pairs (click to add instead, keeping the old)'}
+          >
+            +
+          </Button>
+        </div>
         <span
           className="pointer-events-none absolute right-3 bottom-11 rounded-md bg-foreground/75 px-2 py-0.5 text-xs text-background transition-opacity duration-300 motion-reduce:transition-none"
           style={{ opacity: modeLabelShown ? 1 : 0 }}

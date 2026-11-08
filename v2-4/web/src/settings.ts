@@ -40,9 +40,11 @@ export interface LocalSettings {
   thres: number
   /** Iterations between redraws, auto-resampling off autopilot; LocalMAP's own is 10. */
   resampleEvery: number
+  /** What the brush does: redraw the far pairs of the digits under it (false), or add to them (upsample, true). */
+  brushAdds: boolean
 }
 
-export const DEFAULT_LOCAL: LocalSettings = { autopilotPlays: 'localmap', thres: 10, resampleEvery: 10 }
+export const DEFAULT_LOCAL: LocalSettings = { autopilotPlays: 'localmap', thres: 10, resampleEvery: 10, brushAdds: false }
 
 export const DEFAULT_SETTINGS: Settings = {
   size: '20k',

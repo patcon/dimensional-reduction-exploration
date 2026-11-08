@@ -15,6 +15,8 @@
 //    It should land nearer LocalMAP's than PaCMAP's does, and as pure.
 // 4. A redraw of some points only (the brush's): just their far pairs change, and those redrawn are within the
 //    threshold.
+// 5. Upsampling some points (the brush's other mode): each gains far pairs on top of its own, within the threshold,
+//    never itself, a neighbour or a far partner it has; the sampled far pairs stay as they were; restoring drops them.
 import { readFileSync } from 'node:fs'
 import { Engine } from '../src/engine.ts'
 import { Adam } from '../src/optimisers.ts'
@@ -243,6 +245,40 @@ console.log('a redraw of some points only')
   expect(r.resampled + r.kept === only.length * fpPer, 'counts only those points\' far pairs')
   expect(othersChanged === 0, "leaves every other point's far pairs as they were")
   expect(changed > 0 && tooFar === 0, 'redraws those points within the threshold')
+}
+
+console.log('upsampling some points')
+{
+  const before = new Uint32Array(engine.pairs.fp)
+  const only = Array.from({ length: 200 }, (_, k) => (k * 6007 + 3) % n)
+  const first = engine.upsampleFar(thres, only)
+  const second = engine.upsampleFar(thres, only, 3)
+  const extra = engine.extraFar()
+  const partnersOf = (i: number) => {
+    const out: number[] = []
+    for (let q = 0; q < fpPer; q++) out.push(engine.pairs.fp[(i * fpPer + q) * 2 + 1])
+    return out
+  }
+  const isNeighbour = (i: number, j: number) => {
+    for (let q = 0; q < nbPer; q++) if (pairs.nb[(i * nbPer + q) * 2 + 1] === j) return true
+    return false
+  }
+  const seen = new Map<number, Set<number>>()
+  let bad = 0
+  for (let t = 0; t < extra.length; t += 2) {
+    const i = extra[t], j = extra[t + 1]
+    const mine = seen.get(i) ?? new Set(partnersOf(i))
+    if (i === j || isNeighbour(i, j) || mine.has(j) || dist2(engine.Y, i, j) > thres * thres) bad++
+    mine.add(j)
+    seen.set(i, mine)
+  }
+  console.log(`  ${only.length} points, 1 then 3 each: ${first.resampled} + ${second.resampled} added, ${first.kept + second.kept} found none`)
+  expect(extra.length / 2 === first.resampled + second.resampled && engine.extraCount === extra.length / 2, 'keeps every pair it adds')
+  expect([...seen.keys()].every((i) => only.includes(i)), 'adds to those points only')
+  expect(bad === 0, 'adds partners within the threshold, never itself, a neighbour or one it has')
+  expect(engine.pairs.fp.every((v, k) => v === before[k]), 'leaves the sampled far pairs as they were')
+  engine.restoreFar()
+  expect(engine.extraCount === 0 && engine.extraFar().length === 0, 'restoring drops them')
 }
 
 console.log(failures ? `MISMATCH: ${failures} failed` : 'OK')
