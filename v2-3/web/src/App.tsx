@@ -74,6 +74,12 @@ function partnersOf(pairs: Pairs, i: number) {
   })
 }
 
+/** A digit picked at random from those shown, or null if none are. */
+function randomShown(labels: number[], shown: boolean[]) {
+  const candidates = labels.flatMap((label, i) => (shown[label] ? [i] : []))
+  return candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null
+}
+
 interface PlaygroundProps {
   data: PacmapData
   settings: Settings
@@ -93,14 +99,15 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
   const { size, dim, autoRotate, digitsShown, optimiser, scale, spring, split } = settings
   useWakeLock(settings.wakeLock)
   // The clicked digit, and the one hovered (by the mouse, or a held press), previewed in the plot's corner.
-  const [selected, setSelected] = useState<number | null>(null)
+  // A digit is selected from the start, picked at random, so its pairs' edges show what the forces do.
+  const [selected, setSelected] = useState<number | null>(() => randomShown(meta.labels, digitsShown))
   const [hovered, setHovered] = useState<number | null>(null)
   const pixels = useDigits(dataSize)
-  // Other digits, so whatever was picked is gone.
+  // Other digits, so whatever was picked is gone; another is picked at random.
   const [pickedIn, setPickedIn] = useState(data)
   if (pickedIn !== data) {
     setPickedIn(data)
-    setSelected(null)
+    setSelected(randomShown(data.meta.labels, digitsShown))
     setHovered(null)
   }
   if (selected !== null && !digitsShown[meta.labels[selected]]) setSelected(null)
