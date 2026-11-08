@@ -38,4 +38,6 @@ export interface Meta {
   reference: { iterations: number[] }
   schedule: Schedule
   adam: AdamParams
+  /** LocalMAP's radius its far pairs are redrawn within, and how often (in iterations) they are. */
+  localmap: { lowDistThres: number; resampleEvery: number }
 }

@@ -45,6 +45,8 @@ export function useLoopClock(
   onStep?: (playhead: number, weights: Weights) => void,
   /** Start paused, waiting for resume(), rather than idle, waiting for a force. */
   startPaused = false,
+  /** Called just before each step with the playhead it's about to be taken at. */
+  beforeStep?: (playhead: number) => void,
 ) {
   const [status, setStatus] = useState<ClockStatus>(startPaused ? 'paused' : 'idle')
   const [playhead, setPlayhead] = useState(0)
@@ -60,10 +62,12 @@ export function useLoopClock(
 
   const getWeightsRef = useRef(getWeights)
   const onStepRef = useRef(onStep)
+  const beforeStepRef = useRef(beforeStep)
   const loopRef = useRef(loop)
   useEffect(() => {
     getWeightsRef.current = getWeights
     onStepRef.current = onStep
+    beforeStepRef.current = beforeStep
     loopRef.current = loop
   })
   const statusRef = useRef(status)
@@ -102,6 +106,7 @@ export function useLoopClock(
           if (playheadRef.current === length) playheadRef.current = 0
           owedRef.current -= 1
           prevY.set(engine.Y)
+          beforeStepRef.current?.(playheadRef.current)
           const w = getWeightsRef.current(playheadRef.current)
           engine.step(w)
           onStepRef.current?.(playheadRef.current, w)

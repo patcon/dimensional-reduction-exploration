@@ -25,6 +25,15 @@ export function pacmapWeights(iter: number, s: Schedule): Weights {
   return { nb: 1, mn: 0, fp: -1 }
 }
 
+/**
+ * What LocalMAP adds at an iteration (pacmap.localmap): from just after phase 2 its neighbours' force is
+ * boosted, and every `every` iterations after that, once the step is taken, its far pairs are redrawn.
+ */
+export function localmapAt(iter: number, s: Schedule, every: number): { boost: boolean; resampleAfter: boolean } {
+  const phase3 = iter > s.phases[0] + s.phases[1]
+  return { boost: phase3, resampleAfter: phase3 && iter % every === 0 }
+}
+
 /** The forces applied at each playhead position this loop, for the schedule graph. */
 export class Trail {
   /** NaN where not yet played this loop. */

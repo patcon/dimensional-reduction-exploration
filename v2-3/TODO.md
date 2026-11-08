@@ -4,4 +4,4 @@
 - [ ] Mark resamples on the schedule graph.
 - [ ] A threshold relative to the layout's spread, if the absolute one (LocalMAP's) proves fiddly once forces grow
       the layout.
-- [ ] Sample far pairs within the threshold from a spatial grid, if resampling 65k digits is too slow on phones.
+- [ ] Redraw far pairs in a worker, as at 65k digits a redraw takes 0.2–0.5 s on a laptop, holding up the steps.

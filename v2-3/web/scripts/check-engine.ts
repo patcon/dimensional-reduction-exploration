@@ -12,19 +12,30 @@
 // rearrange, and that magnifies rounding differences into a slightly rotated/scaled but
 // otherwise identical layout. pipeline/v2-3.py's independent numpy replay drifts from
 // PaCMAP by the same amount (~1e-2 by iteration 450), so it's not an engine bug.
+//
+// ALGO=localmap checks against LocalMAP's run instead (reference_localmap_<DIM>d.bin), with its
+// neighbour boost from iteration 201, through iteration 210: the last snapshot before its first
+// far-pair redraw, whose random draws no replay can follow. check:localmap covers the redraws.
+// Its boosted snapshots (210) get a looser bar again: the boost pulls close neighbours hard, which
+// magnifies small differences where PaCMAP's phase 3 damps them. From the same 0.085 (p99)
+// perturbation at iteration 200, numba's own kernels end 10 iterations later at 0.044 under
+// PaCMAP and 0.27 under LocalMAP. The boosted gradient itself matches numba's to ~1e-6.
 import { readFileSync } from 'node:fs'
 import { Engine } from '../src/engine.ts'
 import { Adam } from '../src/optimisers.ts'
-import { pacmapWeights } from '../src/schedule.ts'
+import { localmapAt, pacmapWeights } from '../src/schedule.ts'
 import type { Dim, Meta, Pairs } from '../src/types.ts'
 
-const ITERS = Number(process.env.ITERS ?? 100) // ITERS=450 checks the whole schedule (slower)
+const LOCALMAP = process.env.ALGO === 'localmap'
+// ITERS=450 checks the whole schedule (slower); LocalMAP's run can only be followed to 210.
+const ITERS = LOCALMAP ? Math.min(Number(process.env.ITERS ?? 210), 210) : Number(process.env.ITERS ?? 100)
 const DIM = Number(process.env.DIM ?? 2) as Dim
 const SIZE = process.env.SIZE ?? '20k'
 const PERCENTILE = 99
 // As a fraction of the layout spread: strict through phase 1, loose after (see above).
 const TOLERANCE = 1e-4
 const TOLERANCE_AFTER_PHASE_1 = 1e-2
+const TOLERANCE_BOOSTED = 3e-2
 
 const dir = new URL(`../public/data/${SIZE}/`, import.meta.url)
 const referenceDir = new URL(`../../../pipeline/data/v2-3/${SIZE}/`, import.meta.url)
@@ -40,7 +51,7 @@ const pairs: Pairs = {
   mn: new Uint32Array(read('pairs_mn.bin')),
   fp: new Uint32Array(read('pairs_fp.bin')),
 }
-const reference = new Float32Array(read(`reference_${DIM}d.bin`, referenceDir))
+const reference = new Float32Array(read(`reference${LOCALMAP ? '_localmap' : ''}_${DIM}d.bin`, referenceDir))
 const snapshot = (k: number) => reference.subarray(k * n * DIM, (k + 1) * n * DIM)
 
 let spread = 0
@@ -52,9 +63,15 @@ const targets = new Map(meta.reference.iterations.map((it, k) => [it, k]))
 const phase1 = meta.schedule.phases[0]
 let worst = 0
 let worstAfter = 0
+let worstBoosted = 0
+const phase3 = meta.schedule.phases[0] + meta.schedule.phases[1]
 let elapsed = 0
 for (let itr = 0; itr < ITERS; itr++) {
   const start = performance.now()
+  if (LOCALMAP) {
+    const local = localmapAt(itr, meta.schedule, meta.localmap.resampleEvery)
+    engine.boost = local.boost ? meta.localmap.lowDistThres / 2 : null
+  }
   engine.step(pacmapWeights(itr, meta.schedule))
   elapsed += performance.now() - start
 
@@ -67,15 +84,17 @@ for (let itr = 0; itr < ITERS; itr++) {
   err.sort()
   const p = err[Math.min(n - 1, Math.floor((PERCENTILE / 100) * n))]
   if (itr + 1 <= phase1) worst = Math.max(worst, p / spread)
+  else if (LOCALMAP && itr + 1 > phase3) worstBoosted = Math.max(worstBoosted, p / spread)
   else worstAfter = Math.max(worstAfter, p / spread)
   console.log(`iteration ${String(itr + 1).padStart(4)}: p${PERCENTILE} ${p.toExponential(2)}, max ${err[n - 1].toExponential(2)}`)
 }
 
-const ok = worst < TOLERANCE && worstAfter < TOLERANCE_AFTER_PHASE_1
+const ok = worst < TOLERANCE && worstAfter < TOLERANCE_AFTER_PHASE_1 && worstBoosted < TOLERANCE_BOOSTED
 console.log(`${(elapsed / ITERS).toFixed(1)} ms per iteration (${n} points, ${DIM}D)`)
 console.log(
-  `${ok ? 'OK' : 'MISMATCH'}: p${PERCENTILE} error ${worst.toExponential(2)} of layout spread ${spread.toFixed(2)} ` +
+  `${LOCALMAP ? 'LocalMAP ' : ''}${ok ? 'OK' : 'MISMATCH'}: p${PERCENTILE} error ${worst.toExponential(2)} of layout spread ${spread.toFixed(2)} ` +
     `through phase 1 (tolerance ${TOLERANCE})` +
-    (ITERS > phase1 ? `, ${worstAfter.toExponential(2)} after (tolerance ${TOLERANCE_AFTER_PHASE_1})` : ''),
+    (ITERS > phase1 ? `, ${worstAfter.toExponential(2)} after (tolerance ${TOLERANCE_AFTER_PHASE_1})` : '') +
+    (LOCALMAP && ITERS > phase3 ? `, ${worstBoosted.toExponential(2)} boosted (tolerance ${TOLERANCE_BOOSTED})` : ''),
 )
 process.exit(ok ? 0 : 1)
