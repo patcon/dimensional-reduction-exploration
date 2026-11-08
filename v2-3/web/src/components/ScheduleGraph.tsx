@@ -13,12 +13,16 @@ interface Props {
   current: Weights
   /** Mutated in place as the loop plays; the parent re-renders on every step. */
   trail: Trail
+  /** Where LocalMAP redraws its far pairs over one loop (playhead positions). */
+  localmapResamples: number[]
 }
 
 const HEIGHT = 200
 const M = { top: 10, right: 12, bottom: 22, left: 44 }
 /** Gridline magnitudes, drawn on both sides of 0 when the scale covers them. */
 const GRID = [0.1, 1, 10, 100, 1000]
+/** How tall a far-pair redraw's tick is, up from the bottom. */
+const RESAMPLE_TICK = 14
 
 /** An SVG path through (x, y) points, broken wherever y is NaN. */
 function linePath(xs: number[], ys: number[]) {
@@ -39,7 +43,7 @@ function linePath(xs: number[], ys: number[]) {
  * PaCMAP's force schedule over one loop, on a signed log scale spanning the sliders' ranges
  * (attraction above the middle, repulsion below), with what you've played this loop over it.
  */
-export function ScheduleGraph({ schedule, scale, playhead, current, trail }: Props) {
+export function ScheduleGraph({ schedule, scale, playhead, current, trail, localmapResamples }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   useEffect(() => {
@@ -104,6 +108,17 @@ export function ScheduleGraph({ schedule, scale, playhead, current, trail }: Pro
         {PAIR_TYPES.map((t) => (
           <path key={`played-${t}`} className="sg-played" d={played[t]} stroke={FORCE_COLORS[t]} />
         ))}
+        {/* Far-pair redraws, as ticks up from the bottom: LocalMAP's dashed, yours this loop solid over them. */}
+        {localmapResamples.map((it) => (
+          <line key={`lm-${it}`} className="sg-resample-reference" x1={x(it)} x2={x(it)} y1={M.top + plotH} y2={M.top + plotH - RESAMPLE_TICK} stroke={FORCE_COLORS.fp} />
+        ))}
+        {Array.from(trail.resamples, (on, it) =>
+          on ? (
+            <line key={`rs-${it}`} className="sg-resample" x1={x(it)} x2={x(it)} y1={M.top + plotH} y2={M.top + plotH - RESAMPLE_TICK} stroke={FORCE_COLORS.fp}>
+              <title>far pairs redrawn at iteration {it}</title>
+            </line>
+          ) : null,
+        )}
         <line className="sg-playhead" x1={x(playhead)} x2={x(playhead)} y1={M.top} y2={M.top + plotH} />
         {PAIR_TYPES.map((t) => (
           <circle key={`now-${t}`} cx={x(playhead)} cy={y(toU(current[t], scale))} r={4} fill={FORCE_COLORS[t]}>
@@ -119,7 +134,10 @@ export function ScheduleGraph({ schedule, scale, playhead, current, trail }: Pro
             <span className="swatch" style={{ background: FORCE_COLORS[t] }} /> {FORCE_LABELS[t]}
           </li>
         ))}
-        <li className="text-muted-foreground">dashed: PaCMAP · solid: you, this loop</li>
+        <li>
+          <span className="swatch" style={{ background: FORCE_COLORS.fp, width: 2 }} /> far pairs redrawn
+        </li>
+        <li className="text-muted-foreground">dashed: PaCMAP and LocalMAP · solid: you, this loop</li>
       </ul>
     </div>
   )

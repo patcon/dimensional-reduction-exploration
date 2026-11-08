@@ -90,7 +90,9 @@ pnpm dev
   while the far pairs are local, or the local tab is open). Reset puts PaCMAP's far pairs back.
 - **Schedule graph.** PaCMAP's three weights over one loop (dashed; far pairs below zero,
   as they repel), on a scale spanning the sliders' ranges, with what you've played this loop drawn solid
-  over them.
+  over them. Ticks along its bottom, in the far pairs' colour, mark
+  where far pairs are redrawn: LocalMAP's own (every 10 from 210) dashed, and yours this loop (autopilot's,
+  auto-resampling's or a press of resample) solid.
 - **Optimiser.** PaCMAP's Adam by default. Adam steps at a near-fixed size, so it
   responds to the forces' ratios and signs but barely to their strength. **Adam + kick**
   forgets its state whenever a control moves; **short memory** adapts quickly (smaller

@@ -34,14 +34,22 @@ export function localmapAt(iter: number, s: Schedule, every: number): { boost: b
   return { boost: phase3, resampleAfter: phase3 && iter % every === 0 }
 }
 
-/** The forces applied at each playhead position this loop, for the schedule graph. */
+/** The forces applied at each playhead position this loop, and where the far pairs were redrawn, for the schedule graph. */
 export class Trail {
   /** NaN where not yet played this loop. */
   readonly values: Record<PairType, Float32Array>
+  /** 1 at each playhead position the far pairs were redrawn at this loop. */
+  readonly resamples: Uint8Array
 
   constructor(length: number) {
     const blank = () => new Float32Array(length).fill(NaN)
     this.values = { nb: blank(), mn: blank(), fp: blank() }
+    this.resamples = new Uint8Array(length + 1)
+  }
+
+  /** The far pairs were redrawn at this playhead position. */
+  recordResample(playhead: number) {
+    this.resamples[Math.min(playhead, this.resamples.length - 1)] = 1
   }
 
   /** Record a step's forces; a step at playhead 0 starts a new loop, so it clears the last one. */
@@ -56,5 +64,6 @@ export class Trail {
     this.values.nb.fill(NaN)
     this.values.mn.fill(NaN)
     this.values.fp.fill(NaN)
+    this.resamples.fill(0)
   }
 }

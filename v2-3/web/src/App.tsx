@@ -124,6 +124,11 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     [data, optimisers, dim],
   )
   const length = scheduleLength(meta.schedule)
+  // Where LocalMAP redraws its far pairs over one loop, for the schedule graph.
+  const localmapResamples = useMemo(
+    () => Array.from({ length }, (_, k) => k).filter((k) => localmapAt(k, meta.schedule, meta.localmap.resampleEvery).resampleAfter),
+    [length, meta.schedule, meta.localmap.resampleEvery],
+  )
   const { local } = settings
 
   // Where the far pairs are (global, or redrawn), with the engine's count of changes to them, which the edges follow.
@@ -193,7 +198,10 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
   const onStep = useCallback(
     (playhead: number, w: Weights) => {
       trail.record(playhead, w)
-      if (autopilot ? autopilotLocal(playhead).resampleAfter : autoResample && engine.steps % local.resampleEvery === 0) resample()
+      if (autopilot ? autopilotLocal(playhead).resampleAfter : autoResample && engine.steps % local.resampleEvery === 0) {
+        resample()
+        trail.recordResample(playhead)
+      }
     },
     [trail, autopilot, autopilotLocal, autoResample, engine, local.resampleEvery, resample],
   )
@@ -253,6 +261,12 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     setBoost(on)
   }
 
+  // A redraw by hand (a button, or MIDI), marked on the schedule graph where the playhead is.
+  const resampleNow = () => {
+    resample()
+    trail.recordResample(clock.playhead)
+  }
+
   // A bound force behaves like its slider (including taking over from autopilot); speed drives
   // the current optimiser's speed on the speed slider's 0.1x-10x log scale.
   const midi = useMidi((target, u) => {
@@ -262,7 +276,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
       takeOver()
       store.set(target, u)
     }
-  }, resample)
+  }, resampleNow)
   // Each slider follows how its MIDI control behaves whenever that changes (a layout applied, a
   // control learnt, its 0 point moved): pitch bend springs back, and a control with 0 at the
   // bottom draws its slider unsplit. In between, spring and split are yours to change, and are remembered, so
@@ -460,7 +474,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
                       onChange={(type, u) => store.set(type, u)}
                       header={{
                         nb: <Toggle label="boost" checked={boostShown} onChange={onBoost} />,
-                        fp: <ResampleButton compact far={far} onResample={resample} />,
+                        fp: <ResampleButton compact far={far} onResample={resampleNow} />,
                       }}
                     />
                   </TabsContent>
@@ -469,7 +483,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
                       settings={local}
                       onSettings={(v) => set('local', v)}
                       far={far}
-                      onResample={resample}
+                      onResample={resampleNow}
                       onRestore={restore}
                       autoResample={autoResample}
                       onAutoResample={setAutoResample}
@@ -486,13 +500,14 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
                       wakeLock={settings.wakeLock}
                       onWakeLock={(v) => set('wakeLock', v)}
                     />
-                    <Section title="Schedule" description="PaCMAP's forces over one loop, dashed, with what you've played this loop over them.">
+                    <Section title="Schedule" description="PaCMAP's forces over one loop, dashed (LocalMAP's are the same), with what you've played this loop over them. Ticks along the bottom mark far-pair redraws: LocalMAP's dashed, yours this loop solid.">
                       <ScheduleGraph
                         schedule={meta.schedule}
                         scale={spanning(PAIR_TYPES.map((type) => scale[type]))}
                         playhead={clock.playhead}
                         current={liveWeights}
                         trail={trail}
+                        localmapResamples={localmapResamples}
                       />
                     </Section>
                   </TabsContent>
