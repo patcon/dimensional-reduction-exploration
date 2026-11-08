@@ -302,6 +302,11 @@ export class Engine {
     this.speed = speed
   }
 
+  /** LocalMAP's neighbour boost (its threshold / 2), or null for PaCMAP's kernel. */
+  setBoost(boost: number | null) {
+    this.boost = boost
+  }
+
   /** Swap optimisers mid-run: the layout stays, the new optimiser starts fresh. */
   setOptimiser(optimiser: Optimiser) {
     optimiser.reset()

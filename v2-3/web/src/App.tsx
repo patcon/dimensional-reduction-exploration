@@ -1,24 +1,26 @@
-import { Box, ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet, Plane, Square } from 'lucide-react'
+import { Box, ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet, Plane, Shuffle, Square } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DigitPicker } from './components/DigitPicker'
 import { DigitPreview } from './components/DigitPreview'
 import { ForceSliders } from './components/ForceSliders'
+import { LocalPanel, ResampleButton } from './components/LocalPanel'
 import { MidiPanel } from './components/MidiPanel'
 import { OptimiserPanel } from './components/OptimiserPanel'
 import { Scatter } from './components/Scatter'
 import { ScheduleGraph } from './components/ScheduleGraph'
-import { Section } from './components/controls'
+import { Section, Toggle } from './components/controls'
 import { Button } from './components/ui/button'
 import { Drawer, DrawerContent, DrawerDescription, DrawerHandle, DrawerTitle } from './components/ui/drawer'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { PlaySection, TransportBar, ViewSection } from './components/Transport'
 import { Engine } from './engine'
+import { GLOBAL_FAR, type FarState } from './far'
 import { spanning, toMultiplier, toU } from './forceScale'
 import { InputStore, useControlValues, type ControlValues } from './inputStore'
 import { DEFAULT_OPTIMISER, OptimiserBank } from './optimisers'
 import { useSettings, type SetSetting, type Settings } from './settings'
-import { pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
+import { localmapAt, pacmapWeights, phaseOf, scheduleLength, Trail } from './schedule'
 import { PAIR_TYPES, type Pairs, type PairType, type Weights } from './types'
 import { useData, useDigits, type PacmapData, type SampleSize } from './useData'
 import { useLoopClock } from './useLoopClock'
@@ -39,6 +41,7 @@ const MODE_LABEL_MS = 1200
 /** The drawer's tabs, in order. */
 const TABS = [
   { value: 'forces', label: 'Forces', icon: Magnet },
+  { value: 'local', label: 'Local', icon: Shuffle },
   { value: 'play', label: 'Play', icon: Gauge },
   { value: 'view', label: 'View', icon: Eye },
   { value: 'optimiser', label: 'Optimiser', icon: Footprints },
@@ -103,13 +106,43 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
   if (selected !== null && !digitsShown[meta.labels[selected]]) setSelected(null)
   if (hovered !== null && !digitsShown[meta.labels[hovered]]) setHovered(null)
   const previewed = hovered ?? selected
-  const edges = useMemo(() => (selected === null ? null : partnersOf(data.pairs, selected)), [data.pairs, selected])
   const optimisers = useMemo(() => new OptimiserBank(data.init[dim].length, meta.adam, dim), [data, meta.adam, dim])
   const engine = useMemo(
     () => new Engine(data.pairs, data.init[dim], optimisers.configure(DEFAULT_OPTIMISER), dim),
     [data, optimisers, dim],
   )
   const length = scheduleLength(meta.schedule)
+  const { local } = settings
+
+  // Where the far pairs are (global, or redrawn), with the engine's count of changes to them, which the edges follow.
+  const [far, setFar] = useState<FarState>(GLOBAL_FAR)
+  const [fpVersion, setFpVersion] = useState(engine.fpVersion)
+  // A new engine starts from PaCMAP's global far pairs.
+  const [farFor, setFarFor] = useState(engine)
+  if (farFor !== engine) {
+    setFarFor(engine)
+    setFar(GLOBAL_FAR)
+    setFpVersion(engine.fpVersion)
+  }
+  const edges = useMemo(
+    () => (selected === null ? null : partnersOf(engine.pairs, selected)),
+    // fpVersion: the far pairs change in place.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [engine, fpVersion, selected],
+  )
+  const resample = useCallback(() => {
+    const r = engine.resampleFar(local.thres)
+    setFar({ global: false, last: { ...r, step: engine.steps } })
+    setFpVersion(engine.fpVersion)
+  }, [engine, local.thres])
+  const restore = () => {
+    engine.restoreFar()
+    setFar(GLOBAL_FAR)
+    setFpVersion(engine.fpVersion)
+  }
+  // Played, like the forces, so not remembered: LocalMAP's neighbour boost, and redrawing far pairs every so often.
+  const [boost, setBoost] = useState(false)
+  const [autoResample, setAutoResample] = useState(false)
 
   useEffect(() => {
     engine.setSpeed(optimiser.speed[optimiser.kind])
@@ -127,15 +160,39 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
       autopilot ? pacmapWeights(playhead, meta.schedule) : mapValues(store.get(), (u, type) => toMultiplier(u, scale[type])),
     [autopilot, meta.schedule, store, scale],
   )
-  // What's been played this loop, for the schedule graph; cleared as the loop wraps.
+  // LocalMAP's additions at a playhead under autopilot: none when it plays PaCMAP.
+  const autopilotLocal = useCallback(
+    (playhead: number) =>
+      local.autopilotPlays === 'localmap'
+        ? localmapAt(playhead, meta.schedule, meta.localmap.resampleEvery)
+        : { boost: false, resampleAfter: false },
+    [local.autopilotPlays, meta.schedule, meta.localmap.resampleEvery],
+  )
+  const beforeStep = useCallback(
+    (playhead: number) => {
+      const on = autopilot ? autopilotLocal(playhead).boost : boost
+      engine.setBoost(on ? local.thres / 2 : null)
+    },
+    [autopilot, autopilotLocal, boost, engine, local.thres],
+  )
+  // What's been played this loop, for the schedule graph; cleared as the loop wraps. Then LocalMAP's redraws:
+  // on its schedule under autopilot, or every so many steps when auto-resampling.
   const trail = useMemo(() => new Trail(length), [length])
-  const onStep = useCallback((playhead: number, w: Weights) => trail.record(playhead, w), [trail])
+  const onStep = useCallback(
+    (playhead: number, w: Weights) => {
+      trail.record(playhead, w)
+      if (autopilot ? autopilotLocal(playhead).resampleAfter : autoResample && engine.steps % local.resampleEvery === 0) resample()
+    },
+    [trail, autopilot, autopilotLocal, autoResample, engine, local.resampleEvery, resample],
+  )
   // Autopilot plays PaCMAP's schedule once and stops; manual play loops.
-  const clock = useLoopClock(engine, length, getWeights, !autopilot, settings.rate, settings.interpolate, onStep, true)
-  // The Reset button: back to the start, stopped there until Start simulation.
+  const clock = useLoopClock(engine, length, getWeights, !autopilot, settings.rate, settings.interpolate, onStep, true, beforeStep)
+  // The Reset button: back to the start (the initial layout, PaCMAP's far pairs), stopped there until Start simulation.
   const reset = () => {
     trail.clear()
     clock.reset(true)
+    setFar(GLOBAL_FAR)
+    setFpVersion(engine.fpVersion)
   }
   // A new engine (another dimension or sample size) starts from its own initial layout, so the
   // loop starts over too: in an effect, once the old engine's clock has stopped stepping.
@@ -165,11 +222,17 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     ? mapValues(pacmapWeights(clock.playhead, meta.schedule), (w, type) => toU(w, scale[type]))
     : controls
   const liveWeights = getWeights(clock.playhead)
-  // Leaving autopilot, by grabbing a slider or pressing Manual, keeps its forces where they are.
+  const boostShown = autopilot ? autopilotLocal(clock.playhead).boost : boost
+  // Leaving autopilot, by grabbing a slider or pressing Manual, keeps its forces (and boost) where they are.
   const takeOver = () => {
     if (!autopilot) return
     store.setAll(shown)
+    setBoost(boostShown)
     setAutopilot(false)
+  }
+  const onBoost = (on: boolean) => {
+    takeOver()
+    setBoost(on)
   }
 
   // A bound force behaves like its slider (including taking over from autopilot); speed drives
@@ -258,6 +321,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
           onHover={setHovered}
           edges={edges}
           weights={liveWeights}
+          reach={!far.global || tab === 'local' ? local.thres : null}
           corner={
             <DigitPreview
               pixels={pixels}
@@ -364,7 +428,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
                         onClick={() => (autopilot ? takeOver() : setAutopilot(true))}
                         aria-pressed={autopilot}
                       >
-                        <Plane /> autopilot
+                        <Plane /> autopilot · {local.autopilotPlays === 'localmap' ? 'LocalMAP' : 'PaCMAP'}
                       </Button>
                       <span className="text-right text-xs text-muted-foreground">↑ attract · ↓ repel, PaCMAP's own marked</span>
                     </div>
@@ -379,6 +443,23 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
                       faderZero={faderZero}
                       onGrab={takeOver}
                       onChange={(type, u) => store.set(type, u)}
+                      header={{
+                        nb: <Toggle label="boost" checked={boostShown} onChange={onBoost} />,
+                        fp: <ResampleButton compact far={far} onResample={resample} />,
+                      }}
+                    />
+                  </TabsContent>
+                  <TabsContent value="local">
+                    <LocalPanel
+                      settings={local}
+                      onSettings={(v) => set('local', v)}
+                      far={far}
+                      onResample={resample}
+                      onRestore={restore}
+                      autoResample={autoResample}
+                      onAutoResample={setAutoResample}
+                      boost={boostShown}
+                      onBoost={onBoost}
                     />
                   </TabsContent>
                   <TabsContent value="play" className="flex flex-col gap-8">
@@ -436,9 +517,10 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
           <SheetHeader>
             <SheetTitle>Playable LocalMAP</SheetTitle>
             <SheetDescription>
-              PaCMAP's optimisation, live in the browser on {meta.nSamples.toLocaleString()} MNIST digits. The neighbour,
-              mid-near and far pairs are fixed; the forces on them are yours to play. A loop runs over PaCMAP's
-              450-iteration schedule; autopilot plays PaCMAP's own forces along it.
+              PaCMAP's optimisation, live in the browser on {meta.nSamples.toLocaleString()} MNIST digits, with LocalMAP's
+              additions. The forces on the neighbour, mid-near and far pairs are yours to play, and the far pairs can be
+              redrawn from the digits near each one, as LocalMAP does. A loop runs over PaCMAP's 450-iteration schedule;
+              autopilot plays PaCMAP's or LocalMAP's own run along it.
             </SheetDescription>
           </SheetHeader>
           <div className="flex flex-col gap-2 px-4 text-sm text-muted-foreground">

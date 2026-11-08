@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { formatMultiplier, toMultiplier, toU, type ForceScale } from '../forceScale'
 import { FORCE_COLORS, FORCE_LABELS } from '../palette'
 import { PAIR_TYPES, type PairType } from '../types'
@@ -222,12 +222,23 @@ interface Props {
   faderZero: Record<PairType, Zero | null>
   onGrab: () => void
   onChange: (type: PairType, u: number) => void
+  /** Above a slider, its own extra controls; the row keeps its height above the others, so they line up. */
+  header?: Partial<Record<PairType, ReactNode>>
 }
 
 /** The three forces side by side, each with its options behind a button below it. */
-export function ForceSliders({ values, scale, onScale, spring, onSpring, split, onSplit, faderZero, onGrab, onChange }: Props) {
+export function ForceSliders({ values, scale, onScale, spring, onSpring, split, onSplit, faderZero, onGrab, onChange, header }: Props) {
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-1 text-sm" aria-label="Forces">
+      {header && (
+        <div className="flex justify-center gap-3">
+          {PAIR_TYPES.map((type) => (
+            <div key={type} className="flex min-w-0 flex-1 justify-center">
+              {header[type]}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 justify-center gap-3">
         {PAIR_TYPES.map((type) => (
           <ForceSlider

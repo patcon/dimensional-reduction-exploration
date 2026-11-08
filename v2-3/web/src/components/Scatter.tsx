@@ -29,6 +29,11 @@ interface Props {
   edges: Record<PairType, Uint32Array> | null
   /** The forces now, which style the edges: solid attracting, dashed repelling, left out at no force. */
   weights: Weights
+  /**
+   * A dashed ring this far from the selected digit, in layout units (LocalMAP's threshold: the far pairs it
+   * may draw), or null for none. In 3D it's drawn as a circle at the digit's depth.
+   */
+  reach?: number | null
   className?: string
   /**
    * How much of the plot's bottom is covered (by a drawer, say), in CSS pixels, read every frame as it may be moving.
@@ -142,6 +147,8 @@ function makeScratch(n: number) {
     bucket: new Uint16Array(n),
     starts: new Uint32Array(DEPTH_BUCKETS + 1),
     sorted: new Uint32Array(n),
+    /** Canvas pixels per layout unit at each point, before zooming (in 3D, nearer is bigger). */
+    unit: new Float32Array(n),
   }
 }
 
@@ -172,7 +179,7 @@ function background(el: Element) {
  * Clicking a digit selects it and clicking away selects none; the mouse hovers digits, and holding a press still
  * hovers digits picked at random around it (see JITTER_RADIUS), inside a ring drawn there.
  */
-export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, className, coveredBottom }: Props) {
+export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, reach = null, className, coveredBottom }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   /** The rings around the selected and hovered digits, over the points, so they move without redrawing them. */
@@ -195,9 +202,9 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   /** Per-point working space for a draw, reused between draws. */
   const scratchRef = useRef<ReturnType<typeof makeScratch>>(null)
   /** How the last draw was scaled, to find its points again: device pixels per CSS pixel, and the dot's size. */
-  const drawnRef = useRef({ dpr: 1, dot: 1 })
+  const drawnRef = useRef({ dpr: 1, dot: 1, zoom: 1 })
   /** What the rings and the hold's jitter read, as they run outside a render. */
-  const live = useRef({ selected, hovered, onHover })
+  const live = useRef({ selected, hovered, onHover, reach })
 
   /** The digit nearest a canvas point (CSS pixels) as last drawn, within PICK_RADIUS, or null. */
   const pickAt = (x: number, y: number): number | null => {
@@ -246,7 +253,16 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
       ctx.strokeStyle = style.getPropertyValue(faint ? '--muted-foreground' : '--foreground')
       ctx.stroke()
     }
-    const { selected, hovered } = live.current
+    const { selected, hovered, reach } = live.current
+    if (selected !== null && reach && selected < scratch.sx.length) {
+      ctx.beginPath()
+      ctx.arc(scratch.sx[selected] + dot / 2, scratch.sy[selected] + dot / 2, reach * scratch.unit[selected] * drawnRef.current.zoom, 0, 2 * Math.PI)
+      ctx.setLineDash([3 * dpr, 4 * dpr])
+      ctx.lineWidth = dpr
+      ctx.strokeStyle = style.getPropertyValue('--muted-foreground')
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
     if (selected !== null && edges && selected < scratch.sx.length) {
       const x0 = scratch.sx[selected] + dot / 2, y0 = scratch.sy[selected] + dot / 2
       for (const type of EDGE_ORDER) {
@@ -271,10 +287,10 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
   }
   // First of the effects, so the others see this render's.
   useEffect(() => {
-    live.current = { selected, hovered, onHover }
+    live.current = { selected, hovered, onHover, reach }
     drawMarks.current = ringDigits
   })
-  useEffect(() => drawMarks.current(), [selected, hovered, edges, weights])
+  useEffect(() => drawMarks.current(), [selected, hovered, edges, weights, reach])
 
   useEffect(() => {
     const el = wrapRef.current!
@@ -329,11 +345,11 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
     const pad = PAD * dpr
     const padTop = PAD_TOP * dpr
     const dot = Math.max(1, Math.round(DOT * dpr))
-    drawnRef.current = { dpr, dot }
+    drawnRef.current = { dpr, dot, zoom: viewRef.current.zoom }
     const n = labels.length
     if (scratchRef.current?.sx.length !== n) scratchRef.current = makeScratch(n)
     const scratch = scratchRef.current
-    const { sx, sy, level } = scratch
+    const { sx, sy, level, unit } = scratch
     let drawOrder: Uint32Array = order
 
     if (dim === 2) {
@@ -355,6 +371,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
         sy[i] = h - offY - (Y[2 * i + 1] - minY) * scale - dot
       }
       level.fill(0)
+      unit.fill(scale)
     } else {
       // Centre on the bounding box, and fit the sphere around it that holds every point.
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity
@@ -391,6 +408,7 @@ export function Scatter({ Y, dim, labels, shown, version, autoRotate = false, ch
         const persp = (D * scale) / (D - z2)
         sx[i] = midX + x1 * persp
         sy[i] = midY - y2 * persp
+        unit[i] = persp
         // 0 nearest, 1 farthest.
         const far = Math.min(1, Math.max(0, (R - z2) / (2 * R)))
         level[i] = Math.round(far * (FADE_LEVELS - 1))

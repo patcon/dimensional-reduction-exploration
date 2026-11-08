@@ -1,4 +1,7 @@
-/** Every setting on the page as one plain object, remembered in the browser. What's played (the forces, autopilot) isn't. */
+/**
+ * Every setting on the page as one plain object, remembered in the browser. What's played (the forces, autopilot,
+ * the neighbour boost, auto-resampling, the far pairs) isn't.
+ */
 
 import { useEffect, useState } from 'react'
 import { DEFAULT_SCALE, type ForceScale } from './forceScale.ts'
@@ -23,7 +26,21 @@ export interface Settings {
   optimiser: OptimiserSettings
   /** Keep the screen from dimming or locking while the page is open. */
   wakeLock: boolean
+  /** LocalMAP: which algorithm autopilot plays, the radius far pairs are redrawn within, and how often auto-resampling redraws them. */
+  local: LocalSettings
 }
+
+export type Algorithm = 'pacmap' | 'localmap'
+
+export interface LocalSettings {
+  autopilotPlays: Algorithm
+  /** In layout units; LocalMAP's own is 10. Also sets the neighbour boost, to thres / 2, as LocalMAP does. */
+  thres: number
+  /** Iterations between redraws, auto-resampling off autopilot; LocalMAP's own is 10. */
+  resampleEvery: number
+}
+
+export const DEFAULT_LOCAL: LocalSettings = { autopilotPlays: 'localmap', thres: 10, resampleEvery: 10 }
 
 export const DEFAULT_SETTINGS: Settings = {
   size: '20k',
@@ -37,6 +54,7 @@ export const DEFAULT_SETTINGS: Settings = {
   interpolate: true,
   optimiser: DEFAULT_OPTIMISER,
   wakeLock: false,
+  local: DEFAULT_LOCAL,
 }
 
 /** Fills in whatever saved settings lack (from an older version, say) with the defaults. */
@@ -50,6 +68,7 @@ function completeSettings(partial: Partial<Settings>): Settings {
     scale: { ...d.scale, ...partial.scale },
     spring: { ...d.spring, ...partial.spring },
     split: { ...d.split, ...partial.split },
+    local: { ...d.local, ...partial.local },
     optimiser: { ...d.optimiser, ...o, momentum: { ...d.optimiser.momentum, ...o?.momentum }, speed: { ...d.optimiser.speed, ...o?.speed } },
   }
 }
