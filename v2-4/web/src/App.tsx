@@ -1,4 +1,4 @@
-import { Box, Brush, ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet, Plane, Scale, Shuffle, Square } from 'lucide-react'
+import { Box, Brush, Hand, ChevronDown, ChevronUp, Eye, Footprints, Gauge, Info, KeyboardMusic, Magnet, Plane, Scale, Shuffle, Square } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DigitPicker } from './components/DigitPicker'
 import { DigitPreview } from './components/DigitPreview'
@@ -180,7 +180,8 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
   // The newest, for rendering.
   const [lastCheckpoint, setLastCheckpoint] = useState<Saved | null>(null)
   const untouchedSince = useCallback(
-    (c: Saved) => engine.steps === c.engine.steps && engine.fpVersion === c.engine.fpVersion,
+    (c: Saved) =>
+      engine.steps === c.engine.steps && engine.fpVersion === c.engine.fpVersion && engine.layoutVersion === c.engine.layoutVersion,
     [engine],
   )
   const takeCheckpoint = useCallback(() => {
@@ -206,8 +207,11 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     setFar({ global: false, last: { ...r, step: engine.steps }, extra: engine.extraCount })
     setFpVersion(engine.fpVersion)
   }, [engine, local.thres, setFar])
-  // The brush: on, painting redraws only the far pairs of the digits under it, or (upsampling) adds one to each.
-  const [brushOn, setBrushOn] = useState(false)
+  // The tool pressing the plot uses, besides turning and panning: the brush (on, painting redraws only the far pairs
+  // of the digits under it, or, upsampling, adds one to each), or the grab (dragging digits about by hand).
+  const [tool, setTool] = useState<'brush' | 'grab' | null>(null)
+  const brushOn = tool === 'brush'
+  const grabOn = tool === 'grab'
   const paintResample = useCallback(
     (points: number[]) => {
       const added = local.brushAdds
@@ -463,6 +467,21 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
           follow={settings.followSelected ? selected : null}
           // Painting takes over from autopilot, as touching a force does, and stops auto-resampling: from then on only
           // brushed digits' far pairs are redrawn.
+          // Grabbed digits are held where they're dragged to (their centroid), the forces acting on and around them as
+          // ever, so what they're paired with follows or is pushed off. Each grab can be stepped back from.
+          grab={
+            grabOn
+              ? {
+                  onStroke: takeCheckpoint,
+                  onGrab: (id, points) => engine.grab(id, points),
+                  onDrag: (id, delta) => {
+                    const moved = engine.moveGrab(id, delta)
+                    if (moved) clock.shifted(moved, delta)
+                  },
+                  onRelease: (id) => engine.release(id),
+                }
+              : null
+          }
           brush={
             brushOn
               ? {
@@ -511,14 +530,27 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
         </Button>
         {/* The brush: painting the plot redraws the far pairs of the digits under it, and no others; with + beside it on,
             it adds far pairs to them instead (upsampling), keeping those they have. */}
-        <div className="pointer-events-auto absolute bottom-0 left-14 flex" role="group" aria-label="Brush">
+        <div className="pointer-events-none absolute bottom-0 left-14 flex gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="pointer-events-auto rounded-b-none bg-background/85 text-muted-foreground hover:text-foreground"
+          style={grabOn ? { background: 'var(--foreground)', color: 'var(--background)' } : undefined}
+          onClick={() => setTool(grabOn ? null : 'grab')}
+          aria-pressed={grabOn}
+          aria-label="Grab: drag digits about, a few at a time, one group per finger"
+          title={`Grab: drag digits to pull clusters apart or push them together${grabOn ? ' (click to turn off)' : ''}`}
+        >
+          <Hand />
+        </Button>
+        <div className="pointer-events-auto flex" role="group" aria-label="Brush">
           <Button
             variant="ghost"
             size="icon"
             className="rounded-r-none rounded-b-none bg-background/85 text-muted-foreground hover:text-foreground"
             // On, it takes the far pairs' colour, as its ring does.
             style={brushOn ? { background: FORCE_COLORS.fp, color: 'white' } : undefined}
-            onClick={() => setBrushOn(!brushOn)}
+            onClick={() => setTool(brushOn ? null : 'brush')}
             aria-pressed={brushOn}
             aria-label={`${local.brushAdds ? 'Upsample' : 'Resample'} brush: paint the plot to ${local.brushAdds ? 'add far pairs to' : 'redraw the far pairs of'} the digits under it`}
             title={`${local.brushAdds ? 'Upsample brush: paint to add far pairs' : 'Resample brush: paint to redraw far pairs'} under it${brushOn ? ' (click to turn off)' : ''}`}
@@ -540,6 +572,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
           >
             +
           </Button>
+        </div>
         </div>
         <span
           className="pointer-events-none absolute right-3 bottom-11 rounded-md bg-foreground/75 px-2 py-0.5 text-xs text-background transition-opacity duration-300 motion-reduce:transition-none"

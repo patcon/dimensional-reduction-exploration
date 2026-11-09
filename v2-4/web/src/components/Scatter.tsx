@@ -50,6 +50,19 @@ interface Props {
    * `onStroke` is called as each press begins, before it first paints.
    */
   brush?: { radius: number; onPaint: (points: number[]) => void; onStroke?: () => void } | null
+  /**
+   * The grab tool, or null when off: pressing on shown digits takes hold of those within GRAB_RADIUS of the press (in
+   * 3D, a ball about the nearest of them, the ring's size at its depth) and dragging moves them, `onDrag` given the
+   * move in layout units: in 3D, across the screen at the group's depth (along the view's right and up). Each finger
+   * holds its own group, by its pointer id; pressing where there are none turns, pans and pinches as ever. A press
+   * let go without dragging selects, as a click does. `onStroke` is called as each grab begins, before `onGrab`.
+   */
+  grab?: {
+    onGrab: (id: number, points: number[]) => void
+    onDrag: (id: number, delta: number[]) => void
+    onRelease: (id: number) => void
+    onStroke?: () => void
+  } | null
   /** A point to keep at the plot's middle (the view pans to follow it), or null to centre on the layout's centroid. */
   follow?: number | null
 }
@@ -74,6 +87,8 @@ const SPIN = 0.25
 const DRAG_TURN = 0.008
 /** While the brush is held, it paints at most this often, in milliseconds (each paint redraws far pairs). */
 const PAINT_MS = 120
+/** The grab tool's reach around the pointer, in CSS pixels. */
+const GRAB_RADIUS = 22
 /** How far zoom can go, as a multiple of the fitted size. */
 const ZOOM_RANGE = [0.1, 500]
 /** Zoom per pixel of wheel scroll. */
@@ -196,7 +211,7 @@ function background(el: Element, variable = '--background', fallback = '#ffffff'
  * Clicking a digit selects it and clicking away selects none; the mouse hovers digits, and holding a press still
  * hovers digits picked at random around it (see JITTER_RADIUS), inside a ring drawn there.
  */
-export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, reach = null, className, coveredBottom, follow = null, brush = null }: Props) {
+export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRotate = false, children, corner, selected, hovered, onSelect, onHover, edges, weights, reach = null, className, coveredBottom, follow = null, brush = null, grab = null }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   /** The rings around the selected and hovered digits, over the points, so they move without redrawing them. */
@@ -231,6 +246,10 @@ export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRo
   const brushAtRef = useRef<{ x: number; y: number } | null>(null)
   /** What a draw does once done, for the brush: kept current each render, as the draw effect reads it. */
   const afterDrawRef = useRef(() => {})
+  /** The grab tool's hover ring, following the mouse. */
+  const grabRingRef = useRef<HTMLDivElement>(null)
+  /** Groups held by the grab tool, by pointer id: the points, where the pointer was last, where it went down, and whether it has dragged. */
+  const grabsRef = useRef(new Map<number, { points: number[]; x: number; y: number; x0: number; y0: number; far: boolean }>())
   /** What the rings and the hold's jitter read, as they run outside a render. */
   const live = useRef({ selected, hovered, onHover, reach })
 
@@ -312,6 +331,25 @@ export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRo
     }
     if (hovered !== selected) ring(hovered, true)
     ring(selected, false)
+    // Each held group, ringed about its centroid as drawn.
+    for (const { points } of grabsRef.current.values()) {
+      let x = 0, y = 0
+      for (const i of points) {
+        x += scratch.sx[i]
+        y += scratch.sy[i]
+      }
+      const m = points.length
+      if (!m) continue
+      ctx.beginPath()
+      ctx.arc(x / m + dot / 2, y / m + dot / 2, GRAB_RADIUS * dpr, 0, 2 * Math.PI)
+      ctx.fillStyle = style.getPropertyValue('--foreground')
+      ctx.globalAlpha = 0.08
+      ctx.fill()
+      ctx.globalAlpha = 1
+      ctx.lineWidth = 1.5 * dpr
+      ctx.strokeStyle = style.getPropertyValue('--foreground')
+      ctx.stroke()
+    }
   }
   // First of the effects, so the others see this render's.
   useEffect(() => {
@@ -619,8 +657,95 @@ export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRo
     if (brushRingRef.current) brushRingRef.current.hidden = true
   }, [brush])
 
+  /** CSS pixels per layout unit at a group's depth (its points' mean), as last drawn. */
+  const unitAt = (points: ArrayLike<number>) => {
+    const scratch = scratchRef.current
+    if (!scratch || !points.length) return 0
+    let u = 0
+    for (let t = 0; t < points.length; t++) u += scratch.unit[points[t]]
+    return ((u / points.length) * drawnRef.current.zoom) / drawnRef.current.dpr
+  }
+  /**
+   * A move on screen (CSS pixels, down positive) as a move in the layout, at a depth drawn `unit` CSS pixels per layout
+   * unit. In 3D it's in the plane facing the viewer there: along the screen's right, (cos yaw, 0, sin yaw), and up,
+   * (sin pitch sin yaw, cos pitch, −sin pitch cos yaw), the inverse of the turn the draw makes, so what's dragged keeps
+   * under the pointer and never moves toward or away from the viewer.
+   */
+  const layoutMove = (dx: number, dy: number, unit: number) => {
+    if (!unit) return Array<number>(dim).fill(0)
+    const right = dx / unit, up = -dy / unit
+    if (dim === 2) return [right, up]
+    const { yaw, pitch } = viewRef.current
+    const cosY = Math.cos(yaw), sinY = Math.sin(yaw), cosP = Math.cos(pitch), sinP = Math.sin(pitch)
+    return [right * cosY + up * sinP * sinY, up * cosP, right * sinY - up * sinP * cosY]
+  }
+  /**
+   * The shown digits a grab at a canvas point (CSS pixels) takes hold of: in 2D, those drawn within GRAB_RADIUS of it.
+   * In 3D, the nearest drawn there is found, and those within a ball about the point under the pointer at its depth,
+   * GRAB_RADIUS across there, are taken: a clump at one depth, not everything in line behind it.
+   */
+  const underGrab = (x: number, y: number) => {
+    const scratch = scratchRef.current
+    if (!scratch) return []
+    const { dpr, dot } = drawnRef.current
+    const px = x * dpr - dot / 2, py = y * dpr - dot / 2
+    const r2 = (GRAB_RADIUS * dpr) ** 2
+    const inRing: number[] = []
+    let seed = -1
+    for (let i = 0; i < scratch.sx.length; i++) {
+      if (!shown[labels[i]]) continue
+      const d2 = (scratch.sx[i] - px) ** 2 + (scratch.sy[i] - py) ** 2
+      if (d2 > r2) continue
+      inRing.push(i)
+      if (seed === -1 || scratch.bucket[i] > scratch.bucket[seed]) seed = i
+    }
+    if (dim === 2 || seed === -1) return inRing
+    const unit = unitAt([seed])
+    const shift = layoutMove((px - scratch.sx[seed]) / dpr, (py - scratch.sy[seed]) / dpr, unit)
+    const c = [0, 1, 2].map((d) => Y[seed * 3 + d] + shift[d])
+    const reach2 = (GRAB_RADIUS / unit) ** 2
+    const out: number[] = []
+    for (let i = 0; i < labels.length; i++) {
+      if (!shown[labels[i]]) continue
+      const d2 = (Y[3 * i] - c[0]) ** 2 + (Y[3 * i + 1] - c[1]) ** 2 + (Y[3 * i + 2] - c[2]) ** 2
+      if (d2 <= reach2) out.push(i)
+    }
+    return out
+  }
+  const placeGrabRing = (x: number, y: number) => {
+    const ring = grabRingRef.current
+    if (!ring) return
+    ring.style.transform = `translate(${x}px, ${y}px)`
+    ring.hidden = false
+  }
+  const releaseGrab = (id: number) => {
+    if (!grabsRef.current.delete(id)) return
+    grab?.onRelease(id)
+    drawMarks.current()
+  }
+  // Off: let go of whatever's held, and no ring.
+  useEffect(() => {
+    if (grab) return
+    grabsRef.current.clear()
+    if (grabRingRef.current) grabRingRef.current.hidden = true
+    drawMarks.current()
+  }, [grab])
+
   const onPointerDown = (e: PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
+    // The grab tool takes hold with the main button (or any finger) where there are digits, each pointer on its own.
+    if (grab && e.button === 0) {
+      const { x, y } = at(e)
+      const points = underGrab(x, y)
+      if (points.length) {
+        grabsRef.current.set(e.pointerId, { points, x, y, x0: x, y0: y, far: false })
+        if (grabRingRef.current) grabRingRef.current.hidden = true
+        grab.onStroke?.()
+        grab.onGrab(e.pointerId, points)
+        drawMarks.current()
+        return
+      }
+    }
     pointersRef.current.set(e.pointerId, at(e))
     // The brush paints with one pointer's main button; a second finger pinches as ever.
     if (brush && pointersRef.current.size === 1 && e.button === 0) {
@@ -647,6 +772,16 @@ export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRo
     const pointers = pointersRef.current
     const last = pointers.get(e.pointerId)
     const now = at(e)
+    const held = grabsRef.current.get(e.pointerId)
+    if (held) {
+      if (!held.far && Math.hypot(now.x - held.x0, now.y - held.y0) > CLICK_SLOP) held.far = true
+      const move = layoutMove(now.x - held.x, now.y - held.y, unitAt(held.points))
+      held.x = now.x
+      held.y = now.y
+      grab?.onDrag(e.pointerId, move)
+      return
+    }
+    if (grab && !last && e.pointerType === 'mouse') placeGrabRing(now.x, now.y)
     if (brush && pointers.size <= 1) placeBrush(now.x, now.y)
     if (paintRef.current) {
       pointers.set(e.pointerId, now)
@@ -694,6 +829,14 @@ export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRo
     }
   }
   const onPointerUp = (e: PointerEvent) => {
+    const grabbed = grabsRef.current.get(e.pointerId)
+    if (grabbed) {
+      releaseGrab(e.pointerId)
+      if (e.pointerType === 'mouse') placeGrabRing(grabbed.x, grabbed.y)
+      // Let go where it was taken, it was a click: select the digit there, as ever.
+      if (!grabbed.far && e.type === 'pointerup') onSelect(pickAt(grabbed.x0, grabbed.y0))
+      return
+    }
     pointersRef.current.delete(e.pointerId)
     if (paintRef.current) {
       stopPainting()
@@ -715,6 +858,7 @@ export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRo
   }
   const onPointerLeave = () => {
     if (!pointersRef.current.size && brushRingRef.current) brushRingRef.current.hidden = true
+    if (grabRingRef.current) grabRingRef.current.hidden = true
     if (!pointersRef.current.size && !holdRef.current.at) onHover(null)
   }
   const resetView = () => {
@@ -735,7 +879,7 @@ export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRo
         onPointerLeave={onPointerLeave}
         onDoubleClick={resetView}
         onContextMenu={(e) => e.preventDefault()}
-        className={brush ? 'brushing' : hovered !== null ? 'over-digit' : undefined}
+        className={brush ? 'brushing' : grab ? 'grabbing' : hovered !== null ? 'over-digit' : undefined}
       />
       <canvas ref={marksRef} className="scatter-marks" style={{ width: size.width, height: size.height }} />
       <div
@@ -745,6 +889,12 @@ export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRo
         style={{ width: JITTER_RADIUS * 2, height: JITTER_RADIUS * 2, margin: -JITTER_RADIUS }}
       />
       <div ref={brushRingRef} hidden className="scatter-brush" />
+      <div
+        ref={grabRingRef}
+        hidden
+        className="scatter-grab"
+        style={{ width: GRAB_RADIUS * 2, height: GRAB_RADIUS * 2, margin: -GRAB_RADIUS }}
+      />
       {children && <div className="scatter-overlay">{children}</div>}
       {corner && <div className="scatter-corner">{corner}</div>}
       {moved && (

@@ -20,6 +20,12 @@ const STEP_BUDGET_MS = 25
 /** How often the layout is redrawn, whatever the step rate. */
 const DRAW_FPS = 30
 
+/** Moves `points` of layout Y (row-major, delta.length per point) by `delta`. */
+function shiftPoints(Y: Float32Array, points: ArrayLike<number>, delta: ArrayLike<number>) {
+  const dim = delta.length
+  for (let t = 0; t < points.length; t++) for (let d = 0; d < dim; d++) Y[points[t] * dim + d] += delta[d]
+}
+
 const anyForce = (w: Weights) => PAIR_TYPES.some((type) => w[type] !== 0)
 
 /**
@@ -184,8 +190,18 @@ export function useLoopClock(
     setPlayhead(playheadRef.current)
   }, [engine, length, prevY])
 
+  /**
+   * After the engine's layout was moved by hand between steps (`points` shifted by `delta`, a grab dragged): what's
+   * drawn moves with them straight away, mid-glide too, whether or not the loop is running.
+   */
+  const shifted = useCallback((points: ArrayLike<number>, delta: ArrayLike<number>) => {
+    shiftPoints(prevY, points, delta)
+    shiftPoints(display, points, delta)
+    setVersion((v) => v + 1)
+  }, [prevY, display])
+
   return {
     status, playhead, steps: engine.steps,
-    display, version, pause, resume, reset, rewound,
+    display, version, pause, resume, reset, rewound, shifted,
   }
 }

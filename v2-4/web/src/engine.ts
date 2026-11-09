@@ -170,6 +170,18 @@ export interface Checkpoint {
   extraOf: (number[] | undefined)[]
   extraCount: number
   rng: number
+  /** The engine's layoutVersion when taken, to tell whether the layout has been moved by hand since. */
+  layoutVersion: number
+}
+
+/**
+ * Points held by a grab (see Engine.grab): which, and where their centroid is held, in layout units. After every step
+ * the group is shifted, all together, so its centroid is back there; inside it, and all about it, the forces act as
+ * ever, so what it holds can still change shape, and the points it's paired with feel it wherever it's taken.
+ */
+interface Grab {
+  points: Uint32Array
+  target: Float64Array
 }
 
 /**
@@ -226,6 +238,10 @@ export class Engine {
   /** Steps taken since the last reset. */
   steps = 0
   private rng = new Mulberry32(SEED)
+  /** Groups of points held where they're dragged to, by id (a pointer, say); see grab(). */
+  private grabs = new Map<number, Grab>()
+  /** Bumped whenever the layout is moved by hand (a grab dragged) or put back to a checkpoint. */
+  layoutVersion = 0
 
   constructor(pairs: Pairs, init: Float32Array, optimiser: Optimiser, dim = 2) {
     this.dim = dim
@@ -246,6 +262,7 @@ export class Engine {
     this.steps = 0
     this.boost = null
     this.rng = new Mulberry32(SEED)
+    this.grabs.clear()
     this.restoreFar()
   }
 
@@ -266,6 +283,7 @@ export class Engine {
       extraOf: same ? previous.extraOf : this.extraOf.map((partners) => partners && [...partners]),
       extraCount: this.extraCount,
       rng: this.rng.state,
+      layoutVersion: this.layoutVersion,
     }
   }
 
@@ -288,6 +306,64 @@ export class Engine {
     this.rng.state = c.rng
     this.fpVersion++
     c.fpVersion = this.fpVersion
+    // What was held is let go: its points are elsewhere now.
+    this.grabs.clear()
+    this.layoutVersion++
+    c.layoutVersion = this.layoutVersion
+  }
+
+  /**
+   * Holds `points` where they are, as one group under `id` (a grab by that id already is let go first): from now on
+   * their centroid stays where it's put (moveGrab), as a dragged node in a force-directed graph does, until release().
+   */
+  grab(id: number, points: ArrayLike<number>) {
+    const held = Uint32Array.from(points)
+    this.grabs.delete(id)
+    if (held.length) this.grabs.set(id, { points: held, target: this.centroidOf(held) })
+  }
+
+  /**
+   * Moves a grab's group by `delta` (layout units), all together, and holds it there; returns the points moved, or
+   * null if nothing is held under `id`. Counts as moving the layout by hand (layoutVersion).
+   */
+  moveGrab(id: number, delta: ArrayLike<number>): Uint32Array | null {
+    const grab = this.grabs.get(id)
+    if (!grab) return null
+    const { Y, dim } = this
+    for (let d = 0; d < dim; d++) grab.target[d] += delta[d]
+    for (const i of grab.points) for (let d = 0; d < dim; d++) Y[i * dim + d] += delta[d]
+    this.layoutVersion++
+    return grab.points
+  }
+
+  /** Lets go of a grab's group: the forces alone move it from here on. */
+  release(id: number) {
+    this.grabs.delete(id)
+  }
+
+  /** How many grabs are holding points. */
+  get grabbed() {
+    return this.grabs.size
+  }
+
+  private centroidOf(points: Uint32Array) {
+    const { Y, dim } = this
+    const c = new Float64Array(dim)
+    for (const i of points) for (let d = 0; d < dim; d++) c[d] += Y[i * dim + d]
+    for (let d = 0; d < dim; d++) c[d] /= points.length
+    return c
+  }
+
+  /** Shifts each grab's group so its centroid is where it's held (after a step has moved it). */
+  private holdGrabs() {
+    const { Y, dim } = this
+    for (const { points, target } of this.grabs.values()) {
+      const c = this.centroidOf(points)
+      for (let d = 0; d < dim; d++) {
+        const shift = target[d] - c[d]
+        for (const i of points) Y[i * dim + d] += shift
+      }
+    }
   }
 
   /** Puts PaCMAP's global far pairs back, and drops any added. */
@@ -596,6 +672,7 @@ export class Engine {
   step(w: Weights) {
     this.gradient(w)
     this.optimiser.step(this.Y, this.grad, this.speed)
+    if (this.grabs.size) this.holdGrabs()
     this.steps++
   }
 }

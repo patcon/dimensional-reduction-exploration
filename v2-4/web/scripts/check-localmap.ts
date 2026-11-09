@@ -19,6 +19,8 @@
 //    never itself, a neighbour or a far partner it has; the sampled far pairs stay as they were; restoring drops them.
 // 6. Checkpoints: played on from a checkpoint (redraws, brushing and upsampling included) and then put back to it, the
 //    engine plays the same again, bit for bit, and a checkpoint taken while the far pairs are unchanged shares them.
+// 7. Grabs: a grabbed group's centroid stays where it's held as the engine steps, moves with it when dragged, and
+//    is free once let go; the digits paired with it follow it; a checkpoint lets go of it.
 import { readFileSync } from 'node:fs'
 import { Engine } from '../src/engine.ts'
 import { Adam } from '../src/optimisers.ts'
@@ -311,6 +313,61 @@ console.log('checkpoints')
   const same = (a: ArrayLike<number>, b: ArrayLike<number>) => a.length === b.length && Array.prototype.every.call(a, (v: number, k: number) => v === b[k])
   expect(same(first.Y, again.Y), 'plays the same layout again from it')
   expect(same(first.fp, again.fp) && same(first.extra, again.extra), 'draws the same far pairs again from it')
+}
+
+console.log('grabs')
+{
+  const e = newEngine()
+  for (let it = 0; it < 250; it++) e.step(pacmapWeights(it, meta.schedule))
+  // A clump: the 30 digits nearest digit 0.
+  const byDistance = Array.from({ length: n }, (_, i) => i).sort((a, b) => dist2(e.Y, 0, a) - dist2(e.Y, 0, b))
+  const clump = byDistance.slice(0, 30)
+  const centroid = () => {
+    const c = Array<number>(DIM).fill(0)
+    for (const i of clump) for (let d = 0; d < DIM; d++) c[d] += e.Y[i * DIM + d] / clump.length
+    return c
+  }
+  const gap = (a: number[], b: number[]) => Math.hypot(...a.map((v, d) => v - b[d]))
+  const start = centroid()
+  const c = e.checkpoint()
+  e.grab(7, clump)
+  for (let it = 250; it < 260; it++) e.step(pacmapWeights(it, meta.schedule))
+  expect(gap(centroid(), start) < 1e-3, 'holds the centroid where it was as the engine steps')
+  // A drag, a little each step, as a finger's is: 0.5 a step, 20 in all.
+  const delta = Array<number>(DIM).fill(0)
+  delta[0] = 0.5
+  const version = e.layoutVersion
+  const moved = e.moveGrab(7, delta)
+  expect(moved?.length === clump.length && e.layoutVersion > version, 'moves the group, counting as a move by hand')
+  expect(gap(centroid(), start.map((v, d) => v + delta[d])) < 1e-3, 'moves its centroid by the drag')
+  // Its neighbours not grabbed, before and after being dragged.
+  const nbOf = new Set<number>()
+  for (const i of clump) for (let q = 0; q < nbPer; q++) nbOf.add(pairs.nb[(i * nbPer + q) * 2 + 1])
+  for (const i of clump) nbOf.delete(i)
+  const meanX = () => [...nbOf].reduce((a, i) => a + e.Y[i * DIM], 0) / nbOf.size
+  const before = meanX()
+  for (let it = 260; it < 299; it++) {
+    e.step(pacmapWeights(it, meta.schedule))
+    e.moveGrab(7, delta)
+  }
+  const target = start.map((v, d) => v + 40 * delta[d])
+  e.step(pacmapWeights(299, meta.schedule))
+  expect(gap(centroid(), target) < 1e-3, 'holds it there')
+  const followed = meanX() - before
+  // The same steps from the same point with nothing held, to tell following from drifting.
+  const after = new Float32Array(e.Y)
+  e.restoreCheckpoint(c)
+  for (let it = 250; it < 300; it++) e.step(pacmapWeights(it, meta.schedule))
+  const drifted = meanX() - before
+  expect(followed > drifted + 2, `its neighbours follow it (moved ${followed.toFixed(1)} of 20, ${drifted.toFixed(1)} with nothing held)`)
+  e.Y.set(after)
+  e.grab(7, clump)
+  e.release(7)
+  for (let it = 300; it < 310; it++) e.step(pacmapWeights(it, meta.schedule))
+  expect(gap(centroid(), target) > 1e-2, 'lets it go when released')
+  e.grab(8, clump)
+  e.restoreCheckpoint(c)
+  expect(e.grabbed === 0 && gap(centroid(), start) === 0, 'a checkpoint puts it back and lets go')
 }
 
 console.log(failures ? `MISMATCH: ${failures} failed` : 'OK')

@@ -68,6 +68,26 @@ pairs are kept apart from the sampled ones (the engine assumes each digit has th
 pairs' force and lean, and outlast resampling; restore global and reset drop them. The brush icon wears a + while
 upsampling, the choice is remembered, and the readout counts what's been added in all.
 
+**The grab tool** (✋, between ⓘ and the brush) drags digits about by hand, to pull a cluster apart or push torn
+pieces back within reach of each other, as a force-directed graph lets you drag its nodes. On, pressing where there are
+shown digits takes hold of those within 22 CSS pixels of the press (a dashed ring follows the mouse to show how much),
+and dragging moves them. Each finger holds its own group, so two can pull two clumps apart at once; a press where there
+are none turns, pans and pinches as ever, and a press let go without dragging selects, as a click does. A grab is
+stepped back from like a brush stroke.
+
+What's held is held as d3 holds a dragged node: after every step the group is shifted, all together, so its centroid
+is back where the pointer has put it (`Engine.grab`/`moveGrab`/`release`). Inside the group and all round it the forces
+act as ever, so the group can still change shape, and whatever it's paired with feels it where it's taken. It moves
+straight away, paused too, so a map can be rearranged before playing on. Grabbing doesn't take over from autopilot (it
+doesn't touch the forces). PaCMAP's attraction is short-ranged (its neighbour kernel falls off about as 1/d³), so a
+slow drag brings neighbours along and a sudden long one tears the group free: at 0.5 a step its neighbours follow about
+a quarter of the way (4.6 of 20 at 10k, against 1.4 drifting with nothing held).
+
+In 3D a drag moves the group across the screen at its own depth, along the view's right and up turned back into the
+layout, so it stays under the pointer and never moves toward or away from the viewer; turn the view to move it in
+depth. A grab takes the nearest digit under the ring and those within a ball about the point under the pointer at that
+digit's depth, the ring's size there: a clump at one depth, not everything in line behind it.
+
 What follows is v2.3's.
 
 ## v2.3 — Playable LocalMAP
@@ -265,4 +285,5 @@ or connect over Wi-Fi with a
   sampler (as many redrawn, as far apart, as often the same digit), and plays a whole LocalMAP run: it lands nearer
   LocalMAP's layout than PaCMAP's does (10-NN shared 53% vs 28% at 10k in 2D, 65% vs 45% in 3D) and as pure.
   It also checks that a run played on from a checkpoint and then put back to it plays again bit for bit, redraws,
-  brushing and upsampling included.
+  brushing and upsampling included, and that a grab holds its group where it's dragged, brings its neighbours along
+  on a slow drag, and lets go when released.
