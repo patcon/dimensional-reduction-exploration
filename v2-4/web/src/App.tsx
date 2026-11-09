@@ -15,7 +15,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHandle, DrawerTitle } f
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { PlaySection, TransportBar, ViewSection } from './components/Transport'
-import { Engine } from './engine'
+import { Engine, type Checkpoint } from './engine'
 import { GLOBAL_FAR, type FarState } from './far'
 import { FORCE_COLORS } from './palette'
 import { spanning, toMultiplier, toU } from './forceScale'
@@ -100,6 +100,17 @@ function randomShown(labels: number[], shown: boolean[]) {
   return candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null
 }
 
+/** A checkpoint is taken every so many iterations as the loop steps (and before each brush stroke or redraw by hand). */
+const CHECKPOINT_EVERY = 25
+/** Checkpoints kept at most, the oldest dropped first: with one every 25 iterations, a loop's worth and more. */
+const CHECKPOINTS_KEPT = 40
+
+/** A point to step back to: the engine there, and the far pairs' readout with it. */
+interface Saved {
+  engine: Checkpoint
+  far: FarState
+}
+
 interface PlaygroundProps {
   data: PacmapData
   settings: Settings
@@ -147,15 +158,43 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
   const { local } = settings
 
   // Where the far pairs are (global, or redrawn), with the engine's count of changes to them, which the edges follow.
-  const [far, setFar] = useState<FarState>(GLOBAL_FAR)
+  const [far, setFarState] = useState<FarState>(GLOBAL_FAR)
+  // Kept in a ref as well, for checkpoints taken between renders (as the loop steps).
+  const farRef = useRef<FarState>(GLOBAL_FAR)
+  const setFar = useCallback((f: FarState) => {
+    farRef.current = f
+    setFarState(f)
+  }, [])
   const [fpVersion, setFpVersion] = useState(engine.fpVersion)
   // A new engine starts from PaCMAP's global far pairs.
   const [farFor, setFarFor] = useState(engine)
   if (farFor !== engine) {
     setFarFor(engine)
-    setFar(GLOBAL_FAR)
+    setFarState(GLOBAL_FAR)
     setFpVersion(engine.fpVersion)
   }
+  // Checkpoints to step back to, newest last. Stepping back puts the newest back, or, if nothing has happened since
+  // it was taken (or put back), drops it and puts back the one before, so pressing again goes further back. Playing
+  // on from one takes new checkpoints after it: what came after it before is gone.
+  const checkpoints = useRef<Saved[]>([])
+  // The newest, for rendering.
+  const [lastCheckpoint, setLastCheckpoint] = useState<Saved | null>(null)
+  const untouchedSince = useCallback(
+    (c: Saved) => engine.steps === c.engine.steps && engine.fpVersion === c.engine.fpVersion,
+    [engine],
+  )
+  const takeCheckpoint = useCallback(() => {
+    const stack = checkpoints.current
+    const last = stack.at(-1)
+    if (last && untouchedSince(last)) return
+    stack.push({ engine: engine.checkpoint(last?.engine), far: farRef.current })
+    if (stack.length > CHECKPOINTS_KEPT) stack.shift()
+    setLastCheckpoint(stack.at(-1)!)
+  }, [engine, untouchedSince])
+  const clearCheckpoints = useCallback(() => {
+    checkpoints.current = []
+    setLastCheckpoint(null)
+  }, [])
   const edges = useMemo(
     () => (selected === null ? null : partnersOf(engine.pairs, selected, engine.extraFar())),
     // fpVersion: the far pairs change in place.
@@ -166,7 +205,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     const r = engine.resampleFar(local.thres)
     setFar({ global: false, last: { ...r, step: engine.steps }, extra: engine.extraCount })
     setFpVersion(engine.fpVersion)
-  }, [engine, local.thres])
+  }, [engine, local.thres, setFar])
   // The brush: on, painting redraws only the far pairs of the digits under it, or (upsampling) adds one to each.
   const [brushOn, setBrushOn] = useState(false)
   const paintResample = useCallback(
@@ -176,9 +215,10 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
       setFar({ global: false, last: { ...r, step: engine.steps, painted: points.length, added }, extra: engine.extraCount })
       setFpVersion(engine.fpVersion)
     },
-    [engine, local.thres, local.brushAdds],
+    [engine, local.thres, local.brushAdds, setFar],
   )
   const restore = () => {
+    takeCheckpoint()
     engine.restoreFar()
     setFar(GLOBAL_FAR)
     setFpVersion(engine.fpVersion)
@@ -226,10 +266,11 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
   )
   const beforeStep = useCallback(
     () => {
+      if (engine.steps % CHECKPOINT_EVERY === 0) takeCheckpoint()
       const on = autopilot ? autopilotLocal(engine.steps).boost : boost
       engine.setBoost(on ? local.thres / 2 : null)
     },
-    [autopilot, autopilotLocal, boost, engine, local.thres],
+    [autopilot, autopilotLocal, boost, engine, local.thres, takeCheckpoint],
   )
   // What's been played this loop, for the schedule graph; cleared as the loop wraps. Then LocalMAP's redraws:
   // on its schedule under autopilot, or every so many steps when auto-resampling.
@@ -251,9 +292,27 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
   const reset = () => {
     trail.clear()
     clock.reset(true)
+    clearCheckpoints()
     setFar(GLOBAL_FAR)
     setFpVersion(engine.fpVersion)
   }
+  // The step-back button: back to the last checkpoint (see `checkpoints`), paused there.
+  const rewind = clock.rewound
+  const stepBack = () => {
+    const stack = checkpoints.current
+    let to = stack.at(-1)
+    if (to && untouchedSince(to) && stack.length > 1) {
+      stack.pop()
+      to = stack.at(-1)
+    }
+    if (!to) return
+    engine.restoreCheckpoint(to.engine)
+    setFar(to.far)
+    setFpVersion(engine.fpVersion)
+    rewind()
+    setLastCheckpoint(to)
+  }
+  const canStepBack = lastCheckpoint !== null && (checkpoints.current.length > 1 || !untouchedSince(lastCheckpoint))
   // A new engine (another dimension or sample size) starts from its own initial layout, so the
   // loop starts over too: in an effect, once the old engine's clock has stopped stepping.
   const lastEngine = useRef(engine)
@@ -263,7 +322,9 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
     lastEngine.current = engine
     trail.clear()
     resetClock()
-  }, [engine, trail, resetClock])
+    farRef.current = GLOBAL_FAR
+    clearCheckpoints()
+  }, [engine, trail, resetClock, clearCheckpoints])
 
   // Tell the optimiser when a control has moved far enough (only the kicking Adam listens).
   useEffect(() => {
@@ -306,6 +367,7 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
 
   // A redraw by hand (a button, or MIDI), marked on the schedule graph where the playhead is.
   const resampleNow = () => {
+    takeCheckpoint()
     resample()
     trail.recordResample(clock.playhead)
   }
@@ -405,6 +467,8 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
             brushOn
               ? {
                   radius: local.thres,
+                  // Each stroke can be stepped back from.
+                  onStroke: takeCheckpoint,
                   onPaint: (points) => {
                     takeOver()
                     setAutoResample(false)
@@ -521,6 +585,8 @@ function Playground({ data, settings, set, onResetSettings, dataSize, loading, l
               onPause={clock.pause}
               onResume={clock.resume}
               onReset={reset}
+              onStepBack={stepBack}
+              canStepBack={canStepBack}
               loading={loading}
               loadError={loadError}
               size={size}

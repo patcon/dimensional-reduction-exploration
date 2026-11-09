@@ -1,4 +1,4 @@
-import { Pause, Play, RotateCcw } from 'lucide-react'
+import { Pause, Play, RotateCcw, SkipBack } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import type { Algorithm } from '../settings'
@@ -23,6 +23,9 @@ interface BarProps {
   onPause: () => void
   onResume: () => void
   onReset: () => void
+  /** Back to the last checkpoint, paused there; pressed again, the one before. */
+  onStepBack: () => void
+  canStepBack: boolean
   loading: boolean
   loadError?: string
   size: SampleSize
@@ -32,7 +35,7 @@ interface BarProps {
 
 const ALGORITHM_NAMES: Record<Algorithm, string> = { localmap: 'LocalMAP', pacmap: 'PaCMAP' }
 
-/** Play/pause, reset, and where the loop is up to in PaCMAP's schedule, phase by phase. */
+/** Play/pause, reset, step back, and where the loop is up to in PaCMAP's schedule, phase by phase. */
 export function TransportBar(p: BarProps) {
   const stopped = p.status === 'paused' || p.status === 'ended'
   const start = stopped && p.steps === 0
@@ -51,6 +54,16 @@ export function TransportBar(p: BarProps) {
       </Button>
       <Button variant="ghost" size="icon-sm" onClick={p.onReset} disabled={p.steps === 0} aria-label="Reset to the initial layout">
         <RotateCcw />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={p.onStepBack}
+        disabled={!p.canStepBack}
+        aria-label="Step back to the last checkpoint"
+        title="Step back to the last checkpoint (taken every 25 iterations, and before each brush stroke or redraw), paused there"
+      >
+        <SkipBack />
       </Button>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         {/* The schedule's three phases, filled as far as the playhead. */}

@@ -17,6 +17,8 @@
 //    threshold.
 // 5. Upsampling some points (the brush's other mode): each gains far pairs on top of its own, within the threshold,
 //    never itself, a neighbour or a far partner it has; the sampled far pairs stay as they were; restoring drops them.
+// 6. Checkpoints: played on from a checkpoint (redraws, brushing and upsampling included) and then put back to it, the
+//    engine plays the same again, bit for bit, and a checkpoint taken while the far pairs are unchanged shares them.
 import { readFileSync } from 'node:fs'
 import { Engine } from '../src/engine.ts'
 import { Adam } from '../src/optimisers.ts'
@@ -279,6 +281,36 @@ console.log('upsampling some points')
   expect(engine.pairs.fp.every((v, k) => v === before[k]), 'leaves the sampled far pairs as they were')
   engine.restoreFar()
   expect(engine.extraCount === 0 && engine.extraFar().length === 0, 'restoring drops them')
+}
+
+console.log('checkpoints')
+{
+  const e = newEngine()
+  const play = (from: number, to: number) => {
+    for (let it = from; it < to; it++) {
+      e.setBoost(localmapAt(it, meta.schedule, meta.localmap.resampleEvery).boost ? thres / 2 : null)
+      e.step(pacmapWeights(it, meta.schedule))
+      if (localmapAt(it, meta.schedule, meta.localmap.resampleEvery).resampleAfter) e.resampleFar(thres)
+    }
+  }
+  play(0, 205)
+  const c = e.checkpoint()
+  const shared = e.checkpoint(c)
+  expect(shared.fp === c.fp, 'a checkpoint with the far pairs unchanged shares them')
+  const run = () => {
+    play(205, 230)
+    e.resampleFar(thres, Array.from({ length: 100 }, (_, k) => (k * 31) % n))
+    e.upsampleFar(thres, Array.from({ length: 100 }, (_, k) => (k * 53) % n), 2)
+    play(230, 240)
+    return { Y: new Float32Array(e.Y), fp: new Uint32Array(e.pairs.fp), extra: new Uint32Array(e.extraFar()) }
+  }
+  const first = run()
+  e.restoreCheckpoint(c)
+  expect(e.steps === 205 && e.extraCount === 0, 'puts back the step count and drops what was added since')
+  const again = run()
+  const same = (a: ArrayLike<number>, b: ArrayLike<number>) => a.length === b.length && Array.prototype.every.call(a, (v: number, k: number) => v === b[k])
+  expect(same(first.Y, again.Y), 'plays the same layout again from it')
+  expect(same(first.fp, again.fp) && same(first.extra, again.extra), 'draws the same far pairs again from it')
 }
 
 console.log(failures ? `MISMATCH: ${failures} failed` : 'OK')

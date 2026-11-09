@@ -131,6 +131,12 @@ pnpm dev
   PaCMAP's 450-iteration schedule at the chosen rate (1–60 it/s; at 20k about 30 is the
   most this machine manages, at 65k about 13) and wraps, with the layout carrying on. **smooth** glides between
   steps at 30 fps. Reset returns to the initial layout and stops there until you start it again.
+- **Step back.** ⏮ beside reset goes back to the last checkpoint and pauses there, to try again from it; press
+  it again to go further back. A checkpoint is taken every 25 iterations as the loop plays, and before each brush
+  stroke, resample or restore by hand, 40 kept at most. It puts back the layout, the optimiser's state, the far pairs
+  (redrawn and added ones too) and where their draws were up to, so playing on from it the same way does the same
+  again. The forces, autopilot and settings stay as they are. Playing on from a checkpoint drops those after it, and
+  reset drops them all.
 - **2D / 3D.** The same pairs laid out in two or three dimensions; switching starts over
   from that dimension's initial layout (PaCMAP's first two or three principal components).
   In 3D, drag the plot to turn it, or turn on **auto-rotate** to spin it. Nearer points are
@@ -258,3 +264,5 @@ or connect over Wi-Fi with a
   `pnpm run check:localmap` checks a redraw's rules on LocalMAP's layouts, compares it with a port of PaCMAP's
   sampler (as many redrawn, as far apart, as often the same digit), and plays a whole LocalMAP run: it lands nearer
   LocalMAP's layout than PaCMAP's does (10-NN shared 53% vs 28% at 10k in 2D, 65% vs 45% in 3D) and as pure.
+  It also checks that a run played on from a checkpoint and then put back to it plays again bit for bit, redraws,
+  brushing and upsampling included.

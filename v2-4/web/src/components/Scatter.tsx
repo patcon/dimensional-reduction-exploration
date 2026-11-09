@@ -47,8 +47,9 @@ interface Props {
    * The resample brush, or null when off: a ring `radius` layout units across (at the map's middle depth, in 3D)
    * follows the pointer, and pressing and dragging paints with it instead of turning or panning, calling `onPaint`
    * with the shown digits under it (in 3D, those drawn inside it, at their own depth) every PAINT_MS while held.
+   * `onStroke` is called as each press begins, before it first paints.
    */
-  brush?: { radius: number; onPaint: (points: number[]) => void } | null
+  brush?: { radius: number; onPaint: (points: number[]) => void; onStroke?: () => void } | null
   /** A point to keep at the plot's middle (the view pans to follow it), or null to centre on the layout's centroid. */
   follow?: number | null
 }
@@ -625,6 +626,7 @@ export function Scatter({ Y, dim, labels, shown, colored = true, version, autoRo
     if (brush && pointersRef.current.size === 1 && e.button === 0) {
       const { x, y } = at(e)
       paintRef.current = { last: 0 }
+      brush.onStroke?.()
       brushRingRef.current?.setAttribute('data-painting', '')
       placeBrush(x, y)
       paint(x, y, true)

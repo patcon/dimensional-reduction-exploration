@@ -6,6 +6,10 @@ export interface Optimiser {
   step(Y: Float32Array, grad: Float32Array, speed: number): void
   /** Forget all internal state. */
   reset(): void
+  /** A copy of its internal state, to put back with restore() (a checkpoint). */
+  snapshot(): unknown
+  /** Puts back a state snapshot() took of this optimiser. */
+  restore(state: unknown): void
   /** Called when an input moves; only the kicking Adam cares. */
   onControlChange?(): void
 }
@@ -46,6 +50,17 @@ export class Adam implements Optimiser {
     this.m.fill(0)
     this.v.fill(0)
     this.t = 0
+  }
+
+  snapshot() {
+    return { m: new Float32Array(this.m), v: new Float32Array(this.v), t: this.t }
+  }
+
+  restore(state: unknown) {
+    const s = state as ReturnType<Adam['snapshot']>
+    this.m.set(s.m)
+    this.v.set(s.v)
+    this.t = s.t
   }
 
   onControlChange() {
@@ -97,6 +112,14 @@ export class Momentum implements Optimiser {
 
   reset() {
     this.vel.fill(0)
+  }
+
+  snapshot() {
+    return new Float32Array(this.vel)
+  }
+
+  restore(state: unknown) {
+    this.vel.set(state as Float32Array)
   }
 }
 

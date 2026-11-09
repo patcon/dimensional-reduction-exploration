@@ -24,12 +24,15 @@ const LIST_UP_TO = 256
 /** The seed the far-pair draws start from, on every reset, so a run repeats. */
 const SEED = 0
 
-/** mulberry32: a small, fast, seedable PRNG, returning floats in [0, 1). */
-function mulberry32(seed: number) {
-  let a = seed >>> 0
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0
-    let t = a
+/** mulberry32: a small, fast, seedable PRNG, returning floats in [0, 1). Its state is one number, to checkpoint. */
+class Mulberry32 {
+  state: number
+  constructor(seed: number) {
+    this.state = seed >>> 0
+  }
+  next() {
+    this.state = (this.state + 0x6d2b79f5) >>> 0
+    let t = this.state
     t = Math.imul(t ^ (t >>> 15), t | 1)
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
@@ -151,6 +154,25 @@ export interface Resample {
 }
 
 /**
+ * The engine at one step, to go back to (see Engine.checkpoint): the layout, the optimiser's state, the far pairs
+ * and those added, and where the far-pair draws were up to. The far pairs are shared with the checkpoint before
+ * when they haven't changed since, so a run of checkpoints between redraws holds one copy.
+ */
+export interface Checkpoint {
+  steps: number
+  Y: Float32Array
+  optimiser: Optimiser
+  optimiserState: unknown
+  /** The engine's fpVersion when taken, to tell whether the far pairs have changed since. */
+  fpVersion: number
+  fpGlobal: boolean
+  fp: Uint32Array
+  extraOf: (number[] | undefined)[]
+  extraCount: number
+  rng: number
+}
+
+/**
  * PaCMAP's optimisation, one step at a time with live weights: the gradient is computed here, and a
  * swappable optimiser turns it into a step. Runs in 2D or 3D (`dim`). Float32 storage throughout,
  * like pacmap's numba kernels.
@@ -203,7 +225,7 @@ export class Engine {
   speed = 1
   /** Steps taken since the last reset. */
   steps = 0
-  private random = mulberry32(SEED)
+  private rng = new Mulberry32(SEED)
 
   constructor(pairs: Pairs, init: Float32Array, optimiser: Optimiser, dim = 2) {
     this.dim = dim
@@ -223,8 +245,49 @@ export class Engine {
     this.optimiser.reset()
     this.steps = 0
     this.boost = null
-    this.random = mulberry32(SEED)
+    this.rng = new Mulberry32(SEED)
     this.restoreFar()
+  }
+
+  /**
+   * The engine as it is now, to go back to with restoreCheckpoint(). Pass the last checkpoint taken, and if the far
+   * pairs haven't changed since, this one shares its copy of them.
+   */
+  checkpoint(previous?: Checkpoint): Checkpoint {
+    const same = previous && previous.fpVersion === this.fpVersion
+    return {
+      steps: this.steps,
+      Y: new Float32Array(this.Y),
+      optimiser: this.optimiser,
+      optimiserState: this.optimiser.snapshot(),
+      fpVersion: this.fpVersion,
+      fpGlobal: this.fpGlobal,
+      fp: same ? previous.fp : this.fpGlobal ? this.globalFp : new Uint32Array(this.pairs.fp),
+      extraOf: same ? previous.extraOf : this.extraOf.map((partners) => partners && [...partners]),
+      extraCount: this.extraCount,
+      rng: this.rng.state,
+    }
+  }
+
+  /**
+   * Back to a checkpoint: its layout, step count, far pairs (and those added) and draws. The optimiser's state comes
+   * back if it's still the one the checkpoint was taken with; another (switched to since) starts fresh, as on a
+   * switch. The far pairs count as changed (fpVersion moves on), and the checkpoint takes on the new version, so it
+   * can tell whether they've changed again since.
+   */
+  restoreCheckpoint(c: Checkpoint) {
+    this.Y.set(c.Y)
+    this.steps = c.steps
+    if (this.optimiser === c.optimiser) this.optimiser.restore(c.optimiserState)
+    else this.optimiser.reset()
+    this.pairs.fp.set(c.fp)
+    this.fpGlobal = c.fpGlobal
+    this.extraOf = c.extraOf.map((partners) => partners && [...partners])
+    this.extraCount = c.extraCount
+    this.extraFlat = null
+    this.rng.state = c.rng
+    this.fpVersion++
+    c.fpVersion = this.fpVersion
   }
 
   /** Puts PaCMAP's global far pairs back, and drops any added. */
@@ -324,7 +387,7 @@ export class Engine {
    * one of its neighbours, or a partner already drawn this time; with `barFar`, nor one of its far partners now.
    */
   private drawNear(thres: number, points: ArrayLike<number> | undefined, per: number, barFar: boolean, place: (i: number, k: number, j: number) => void) {
-    const { n, dim, Y, random } = this
+    const { n, dim, Y, rng } = this
     const nb = this.pairs.nb
     const fp = this.pairs.fp
     const nbPer = nb.length / 2 / n
@@ -365,14 +428,14 @@ export class Engine {
         let j = -1
         if (listed >= 0) {
           if (k < listed) {
-            const r = k + Math.floor(random() * (listed - k))
+            const r = k + Math.floor(rng.next() * (listed - k))
             j = list[r]
             list[r] = list[k]
             list[k] = j
           }
         } else
           for (let tries = 0; tries < MAX_TRIES; tries++) {
-            const c = grid.pick(Math.floor(random() * pool))
+            const c = grid.pick(Math.floor(rng.next() * pool))
             if (barred[c] === i || !near(i, c)) continue
             j = c
             barred[c] = i

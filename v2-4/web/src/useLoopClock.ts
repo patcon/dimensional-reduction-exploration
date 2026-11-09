@@ -170,8 +170,22 @@ export function useLoopClock(
     setPlayhead(0)
   }, [engine, prevY])
 
+  /**
+   * After the engine is put back to an earlier step (a checkpoint): the playhead follows its step count, the layout is
+   * drawn as it is, without gliding, and the loop pauses there, for resume() to carry on from.
+   */
+  const rewound = useCallback(() => {
+    prevY.set(engine.Y)
+    owedRef.current = 0
+    playheadRef.current = engine.steps % length
+    dirtyRef.current = true
+    statusRef.current = 'paused'
+    setStatus('paused')
+    setPlayhead(playheadRef.current)
+  }, [engine, length, prevY])
+
   return {
     status, playhead, steps: engine.steps,
-    display, version, pause, resume, reset,
+    display, version, pause, resume, reset, rewound,
   }
 }
