@@ -173,8 +173,7 @@ export function GraphViz(props: GraphVizProps) {
     const ringDotsGeo = new THREE.BufferGeometry()
     ringDotsGeo.setAttribute('position', new THREE.BufferAttribute(ringDotsArr, 3))
     const ringDotsMat = new THREE.PointsMaterial({ color: 0x3a3935, size: RING_DOT_SIZE, sizeAttenuation: true, transparent: true })
-    const ringDots = new THREE.Points(ringDotsGeo, ringDotsMat)
-    scene.add(ringDots)
+    scene.add(new THREE.Points(ringDotsGeo, ringDotsMat))
 
     const buffer = (verts: number) => {
       const geo = new THREE.BufferGeometry()
@@ -331,14 +330,13 @@ export function GraphViz(props: GraphVizProps) {
 
       const depth = Math.max(to3d, toTs)
       outerRing.material.opacity = 0.8
-      outerRing.visible = ringDots.visible = view.circle
       zAxis.geometry.attributes.position.setZ(1, -trailDepth)
       zAxis.geometry.attributes.position.needsUpdate = true
       zAxis.material.opacity = depth * 0.45
       ghostRings.forEach((r, i) => {
         r.position.z = (-trailDepth * (i + 1)) / 3 - r.geometry.attributes.position.getZ(0)
         r.material.opacity = to3d * (0.12 - i * 0.03)
-        r.visible = view.circle && to3d > 0.02
+        r.visible = to3d > 0.02
       })
 
       // ── Phones: where they are, and their colours ──
@@ -420,7 +418,7 @@ export function GraphViz(props: GraphVizProps) {
         }
       }
       dots.geo.setDrawRange(0, n)
-      rings.geo.setDrawRange(0, view.rings ? n : 0)
+      rings.geo.setDrawRange(0, view.groupRings ? n : 0)
       liveRings.geo.setDrawRange(0, nLive)
       touchRings.geo.setDrawRange(0, nTouch)
       focus.geo.setDrawRange(0, focusShown ? 1 : 0)

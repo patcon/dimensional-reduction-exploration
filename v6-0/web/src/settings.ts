@@ -18,9 +18,7 @@ export interface ViewSettings {
   dots: ColorBy
   trails: ColorBy
   /** A ring round each dot in its detected group's colour. */
-  rings: boolean
-  /** The circle round the graph, with its fainter copies receding behind it in 3d. */
-  circle: boolean
+  groupRings: boolean
   edges: boolean
   /** How far back trails reach, in seconds of song time. */
   trailSeconds: number
@@ -53,7 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
   crowd: { count: 60, jitter: 0.05, lagSpread: 0.06, noise: 0.05, miss: 0, sync: 0.85, shuffleSeats: false },
   analysis: { quality: 'cpm', gamma: 0.4, graph: 'full', k: 10, warm: true, align: false, lagTol: 0.15 },
   layout: DEFAULT_LAYOUT,
-  view: { mode: '3d', dots: 'valence', trails: 'valence', rings: true, circle: false, edges: true, trailSeconds: 8, dotSize: 12, trailWidth: 3 },
+  view: { mode: '3d', dots: 'valence', trails: 'valence', groupRings: false, edges: true, trailSeconds: 8, dotSize: 12, trailWidth: 3 },
   speed: 1,
   minGroupShare: 0.1,
   soundMode: 'chord',

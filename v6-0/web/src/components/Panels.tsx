@@ -303,8 +303,7 @@ export function ViewTab({ settings, patch }: Editor) {
         <Field label="trails">
           <Segmented options={COLOR_OPTIONS} value={view.trails} onChange={(trails) => set({ trails })} labels={COLOR_BY_LABELS} className="flex-wrap" />
         </Field>
-        <Toggle label="Rings in each dot's group colour" checked={view.rings} onChange={(rings) => set({ rings })} note="Or its true pattern's, while dots are coloured by group." />
-        <Toggle label="Circle round the graph" checked={view.circle} onChange={(circle) => set({ circle })} note="And its copies receding behind it, in 3d." />
+        <Toggle label="Rings in each dot's group colour" checked={view.groupRings} onChange={(groupRings) => set({ groupRings })} note="Or its true pattern's, while dots are coloured by group." />
         <Toggle label="Edges" checked={view.edges} onChange={(edges) => set({ edges })} note="The graph Leiden groups on: k nearest, or every pair at least as alike as γ." />
         <Slider label="trail length" value={view.trailSeconds} min={2} max={24} step={1} onChange={(trailSeconds) => set({ trailSeconds })} format={(v) => `${v} s`} />
         <Slider label="trail width" value={view.trailWidth} min={0.5} max={10} step={0.5} onChange={(trailWidth) => set({ trailWidth })} />
