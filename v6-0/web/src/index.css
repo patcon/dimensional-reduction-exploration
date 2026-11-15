@@ -1,0 +1,158 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Dark follows the system, as the page always has. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+/* shadcn/ui's stone theme. */
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.147 0.004 49.25);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.147 0.004 49.25);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.147 0.004 49.25);
+  --primary: oklch(0.216 0.006 56.043);
+  --primary-foreground: oklch(0.985 0.001 106.423);
+  --secondary: oklch(0.97 0.001 106.424);
+  --secondary-foreground: oklch(0.216 0.006 56.043);
+  --muted: oklch(0.97 0.001 106.424);
+  --muted-foreground: oklch(0.553 0.013 58.071);
+  --accent: oklch(0.97 0.001 106.424);
+  --accent-foreground: oklch(0.216 0.006 56.043);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.923 0.003 48.717);
+  --input: oklch(0.923 0.003 48.717);
+  --ring: oklch(0.709 0.01 56.259);
+
+  /* The page's own. The followed digit and the playhead, wherever they're drawn. */
+  --highlight: #e11d48;
+  /* The play button, to draw the eye before anything has run. */
+  --go: #15803d;
+  --go-hover: #166534;
+  --on-go: #ffffff;
+  /* Valence, as in the reaction canvas's visualiser. */
+  --agree: #22c55e;
+  --disagree: #ef4444;
+  /* The visualiser stays dark in either theme: its neutral colour is its background. */
+  --viz: #0f0f0e;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: oklch(0.147 0.004 49.25);
+    --foreground: oklch(0.985 0.001 106.423);
+    --card: oklch(0.216 0.006 56.043);
+    --card-foreground: oklch(0.985 0.001 106.423);
+    --popover: oklch(0.216 0.006 56.043);
+    --popover-foreground: oklch(0.985 0.001 106.423);
+    --primary: oklch(0.923 0.003 48.717);
+    --primary-foreground: oklch(0.216 0.006 56.043);
+    --secondary: oklch(0.268 0.007 34.298);
+    --secondary-foreground: oklch(0.985 0.001 106.423);
+    --muted: oklch(0.268 0.007 34.298);
+    --muted-foreground: oklch(0.709 0.01 56.259);
+    --accent: oklch(0.268 0.007 34.298);
+    --accent-foreground: oklch(0.985 0.001 106.423);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.553 0.013 58.071);
+
+    --highlight: #fb7185;
+    --go: #22c55e;
+    --go-hover: #4ade80;
+    --on-go: #052e16;
+    --agree: #50ff8c;
+    --disagree: #ff503c;
+  }
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-highlight: var(--highlight);
+  --color-go: var(--go);
+  --color-go-hover: var(--go-hover);
+  --color-on-go: var(--on-go);
+  --color-viz: var(--viz);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  /* One screen, nothing to scroll: the visualiser fills what the drawer leaves. */
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    @apply bg-viz font-sans text-foreground;
+  }
+}
+
+.num { font-variant-numeric: tabular-nums; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: baseline; }
+
+/* ── The visualiser ── */
+.viz-canvas { position: absolute; inset: 0; touch-action: none; }
+.viz-canvas canvas { display: block; width: 100%; height: 100%; }
+
+/* ── The followed digit ── (canvases take the highlight from their CSS colour) */
+.digit-preview { display: flex; gap: 12px; align-items: flex-start; min-height: 128px; color: var(--highlight); font-size: 0.875rem; }
+.digit-image { image-rendering: pixelated; border: 1px solid var(--border); background: #000; flex-shrink: 0; cursor: crosshair; touch-action: none; color: var(--highlight); }
+.digit-preview .digit-image { width: 126px; height: 126px; }
+.digit-info { display: flex; flex-direction: column; gap: 6px; color: var(--foreground); flex: 1; }
+.valence-meter { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; color: var(--muted-foreground); }
+.valence-track {
+  position: relative; flex: 1; height: 10px; border-radius: 5px;
+  background: linear-gradient(to right, var(--disagree), var(--border) 50%, var(--agree));
+}
+.valence-zero { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted-foreground); }
+.valence-mark { position: absolute; top: -3px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--foreground); }
+.digit-info .muted { color: var(--muted-foreground); }
+
+/* ── Groups ── */
+.group-legend { list-style: none; padding: 0; margin: 0; display: grid; align-content: start; gap: 4px; font-size: 0.875rem; }
+.group-legend li { cursor: pointer; display: grid; grid-template-columns: 12px 2em 2em minmax(24px, 48px) auto; align-items: center; gap: 6px; padding: 2px 0; }
+.group-legend .muted { color: var(--muted-foreground); }
+.group-name { font-weight: 600; }
+.group-mean { position: relative; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.group-mean-zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--muted-foreground); }
+.group-mean-bar { position: absolute; top: 0; bottom: 0; box-shadow: inset 0 0 0 1px var(--border); }
+.group-legend li.on { background: color-mix(in srgb, var(--highlight) 14%, transparent); border-radius: 3px; }
+.group-thumbs { display: flex; gap: 2px; flex-wrap: wrap; }
+.group-thumbs canvas { width: 16px; height: 16px; image-rendering: pixelated; background: #000; color: var(--highlight); cursor: pointer; }
+.group-thumbs canvas:hover, .group-thumbs canvas.on { outline: 1px solid var(--highlight); }
+
+/* ── Matrix ── */
+.matrix { display: flex; gap: 4px; align-items: flex-start; }
+.matrix-strip { display: block; image-rendering: pixelated; flex-shrink: 0; }
+.matrix-image { position: relative; cursor: pointer; background: #000; color: var(--highlight); }
+.matrix-image canvas { position: absolute; left: 0; top: 0; display: block; image-rendering: pixelated; }

@@ -33,7 +33,11 @@ UMAP / PaCMAP / LocalMAP projections. Each version builds on the last:
 - [v5.0](v5-0/) — MNIST walk music: "Density clusters on deskewed digits" with the drawer UI of
   the versions before it, a random walk through a fixed map of digits, harmonised by their broad
   groups and given a melody by their small ones
+- [v6.0](v6-0/) — Phone-flip crowd: no digits, just phones flipped to the beat, a simulated crowd in
+  three rhythms and anyone who joins with their own, grouped by Leiden on a force-directed graph drawn
+  as v4's visualiser is (trails into the screen, three views), each group a chord tone (a Cloudflare
+  Worker)
 
-Data for each comes from `pipeline/v<n>.py` (e.g. `pipeline/v2-0.py`); each app lives in
+Data for each comes from `pipeline/v<n>.py` (e.g. `pipeline/v2-0.py`; v6.0 makes its own); each app lives in
 `v<n>/web`. GitHub Pages serves a landing page (`site/index.html`) with every version
 beneath it at `/v1-0/`, `/v1-1/`, `/v1-2/`, `/v2-0/`, `/v2-1/`, `/v2-2/`, `/v2-3/`, `/v2-4/`, `/v3-0/`, `/v3-1/`, `/v3-2/`, `/v3-3/`, `/v3-4/` and `/v5-0/`.

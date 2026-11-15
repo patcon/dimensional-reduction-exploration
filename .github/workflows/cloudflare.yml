@@ -1,6 +1,6 @@
 name: Deploy to Cloudflare
 
-# v4-0 and v4-1 each have a worker (with a Durable Object room), so they're deployed to Cloudflare rather than GitHub Pages.
+# v4-0, v4-1 and v6-0 each have a worker (with a Durable Object room), so they're deployed to Cloudflare rather than GitHub Pages.
 on:
   push:
     branches: [main]
@@ -9,6 +9,7 @@ on:
       - pipeline/v4-0.py
       - v4-1/web/**
       - pipeline/v4-1.py
+      - v6-0/web/**
       - pipeline/uv.lock
       - .github/workflows/cloudflare.yml
   workflow_dispatch:
@@ -26,24 +27,28 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        version: [v4-0, v4-1]
+        version: [v4-0, v4-1, v6-0]
     steps:
       - uses: actions/checkout@v4
 
-      # <version>/web/public/data/ is gitignored: regenerate it from MNIST with the pipeline.
+      # <version>/web/public/data/ is gitignored: regenerate it from MNIST with the pipeline. v6-0 has no pipeline: it
+      # makes its own data.
       - uses: astral-sh/setup-uv@v6
+        if: matrix.version != 'v6-0'
         with:
           python-version: '3.12'
           enable-cache: true
           cache-dependency-glob: pipeline/uv.lock
 
       - name: Cache MNIST download
+        if: matrix.version != 'v6-0'
         uses: actions/cache@v4
         with:
           path: pipeline/data/raw
           key: mnist-raw
 
       - name: Process data
+        if: matrix.version != 'v6-0'
         working-directory: pipeline
         run: uv run ${{ matrix.version }}.py
 
