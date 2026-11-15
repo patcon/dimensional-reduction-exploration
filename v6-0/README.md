@@ -23,10 +23,24 @@ It's a Cloudflare Worker (`phone-flip-crowd`) with a Durable Object room, as v4.
   sync sets how many keep to their section's agreed facing rather than starting either way up.
 - **Live phones** join the crowd as they join the room, recorded at the same 20 samples a second as
   the song's clock runs (so only while it plays), and grouped with the rest.
-- **Giving phones a pattern.** Tap a phone on the graph, then give its detected group (or just it) a
-  pattern: they switch at the next step, so nothing already played changes. **Move 10%** moves a
-  tenth of the crowd to the next section's pattern at the next bar; **Reset** starts the song over,
-  and **Reset shuffled** deals the sections out across the seats at random.
+- **Move 10%** moves a tenth of the crowd to the next section's pattern at the next bar; **Reset**
+  starts the song over, and **Reset shuffled** deals the sections out across the seats at random.
+
+## Painting (Paint tab, open first)
+
+As "Phone-flip crowd" had it: select phones and give them a new pattern, as if pointing at part of the
+room and saying "now do this one". Select by dragging over rows of the timeline (by touch, tap a first
+row then a last, so the drawer still scrolls; the same row twice for just it), by a detected group's
+button, or by tapping phones on the graph while the tab is open (otherwise a tap follows a phone).
+Selected phones are ringed in white on the graph, and marked beside their rows. They switch at the next
+step after what's been worked out, so nothing already played changes, and a tick in the new pattern's
+colour marks where on their rows. The window takes up to 4 bars to catch up: meanwhile they're a mix of
+two patterns, and tend to drift off as a group of their own, or sit in "other". Live phones can be
+selected but play what their people play.
+
+The timeline shows every phone's facing over the last bars, a row each, by detected group, with its
+true pattern (outer) and detected group (inner) on the left and the window being grouped shaded. Rows
+hold their order while a selection is being made.
 
 ## Grouping (Groups tab)
 
@@ -48,8 +62,7 @@ its group, or its true pattern), ringed in its group's colour, with the edges Le
 show as stripes along it. Its three views, swept between: the **2d time slice** (front on, flat), the
 **2d time series** (side on, time running left to right) and **3d** (in perspective, by a dolly zoom);
 drag to turn or pan, pinch or scroll to zoom. Live phones are ringed in their own colour, bigger and
-pulsing while touched. The timeline at the bottom of the tab shows every phone's facing over the last
-bars, a row each, by group.
+pulsing while touched. The circle round the graph (and its copies receding in 3d) is off by default.
 
 ## Phones (Phones tab)
 

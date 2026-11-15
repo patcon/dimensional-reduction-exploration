@@ -1,11 +1,11 @@
-import { AudioLines, ChevronDown, ChevronUp, Eye, Info, Pause, Play, QrCode, Shapes, Smartphone, Users, Volume2, VolumeX } from 'lucide-react'
+import { AudioLines, ChevronDown, ChevronUp, Eye, Info, Paintbrush, Pause, Play, QrCode, Shapes, Smartphone, Users, Volume2, VolumeX } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { cn } from '@/lib/utils'
 import { NSLOT } from './analysis'
 import { BAR, SLOT, SUB } from './crowd'
 import { GraphViz } from './components/GraphViz'
 import { JoinDialog } from './components/JoinDialog'
-import { CrowdTab, GroupsTab, PhonesTab, SoundTab, ViewTab } from './components/Panels'
+import { CrowdTab, GroupsTab, PaintTab, PhonesTab, SoundTab, ViewTab } from './components/Panels'
 import { Segmented } from './components/controls'
 import { ViewIcon } from './components/ViewIcons'
 import { Button } from './components/ui/button'
@@ -23,6 +23,7 @@ const DRAWER_SECONDS = 0.5
 const SPEEDS = ['0.5', '1', '2', '4'] as const
 
 const TABS = [
+  { value: 'paint', label: 'Paint', icon: Paintbrush },
   { value: 'crowd', label: 'Crowd', icon: Users },
   { value: 'groups', label: 'Groups', icon: Shapes },
   { value: 'phones', label: 'Phones', icon: Smartphone },
@@ -85,11 +86,29 @@ export default function App() {
   const [focusKey, setFocusKey] = useState<string | null>(null)
   const focus = focusKey === null ? null : snapshot.phones.findIndex((p) => p.key === focusKey)
   const focused = focus === null || focus < 0 ? null : focus
-  const onFocus = useCallback((i: number | null) => setFocusKey(i === null ? null : (engine.phones[i]?.key ?? null)), [engine])
+
+  // Phones selected for painting, by key too.
+  const [selectedKeys, setSelectedKeys] = useState<ReadonlySet<string>>(new Set())
+  const selected = useMemo(() => new Set(snapshot.phones.flatMap((p, i) => (selectedKeys.has(p.key) ? [i] : []))), [snapshot.phones, selectedKeys])
+  const onSelect = useCallback(
+    (phones: number[], on: boolean) =>
+      setSelectedKeys((keys) => {
+        const next = new Set(keys)
+        for (const i of phones) {
+          const key = engine.phones[i]?.key
+          if (key === undefined) continue
+          if (on) next.add(key)
+          else next.delete(key)
+        }
+        return next
+      }),
+    [engine],
+  )
+  const clearSelection = useCallback(() => setSelectedKeys(new Set()), [])
 
   const [cameraReset, setCameraReset] = useState(0)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [tab, setTab] = useState<string>('crowd')
+  const [tab, setTab] = useState<string>('paint')
   const [infoOpen, setInfoOpen] = useState(false)
   const [joinOpen, setJoinOpen] = useState(false)
   const [barHeight, setBarHeight] = useState(64)
@@ -109,6 +128,13 @@ export default function App() {
     const drawer = barEl.current?.parentElement
     return drawer ? window.innerHeight - drawer.getBoundingClientRect().top : 0
   }, [])
+
+  // With the paint tab open, tapping a phone selects it (or deselects it); otherwise it's followed.
+  const painting = drawerOpen && tab === 'paint'
+  const onTap = (i: number | null) => {
+    if (!painting) return setFocusKey(i === null ? null : (engine.phones[i]?.key ?? null))
+    if (i !== null) onSelect([i], !selected.has(i))
+  }
 
   const a = snapshot.analysis
   const nLive = snapshot.phones.filter((p) => p.live).length
@@ -130,7 +156,8 @@ export default function App() {
           liveColors={liveColors}
           touching={touching}
           cameraReset={cameraReset}
-          onFocus={onFocus}
+          selected={selected}
+          onFocus={onTap}
           coveredBottom={drawerCovers}
         />
       </div>
@@ -215,6 +242,9 @@ export default function App() {
               <DrawerDescription className="sr-only">Settings, grouped in tabs, for the crowd, its grouping, the phones in the room, the view and the sound.</DrawerDescription>
               <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0">
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-6">
+                  <TabsContent value="paint">
+                    <PaintTab {...editor} engine={engine} snapshot={snapshot} focus={focused} selected={selected} onSelect={onSelect} onClear={clearSelection} />
+                  </TabsContent>
                   <TabsContent value="crowd">
                     <CrowdTab {...editor} engine={engine} snapshot={snapshot} focus={focused} onRestart={restart} />
                   </TabsContent>
@@ -225,7 +255,7 @@ export default function App() {
                     <PhonesTab {...editor} roster={roster} connected={connected} onCalibrate={calibrate} onJoin={() => setJoinOpen(true)} />
                   </TabsContent>
                   <TabsContent value="view">
-                    <ViewTab {...editor} engine={engine} focus={focused} />
+                    <ViewTab {...editor} />
                   </TabsContent>
                   <TabsContent value="sound">
                     <SoundTab {...editor} snapshot={snapshot} />

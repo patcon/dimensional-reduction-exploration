@@ -1,8 +1,9 @@
 /** The drawer's tabs: the crowd, how it's grouped, the phones in the room, the view, and the sound. */
 
-import { ArrowDownToLine, ArrowUpToLine, QrCode, RotateCcw, Shuffle, Users } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, Paintbrush, QrCode, RotateCcw, Shuffle, Users } from 'lucide-react'
+import { useState } from 'react'
 import { NSLOT } from '../analysis'
-import { PATTERNS, START_PATTERNS, SUB } from '../crowd'
+import { PATTERNS, SLOT, START_PATTERNS, SUB } from '../crowd'
 import type { CrowdEngine, Snapshot } from '../engine'
 import { CHORD_NAMES, DEGREE_NAMES, PAD_NOTE_NAMES, PROG_NAMES, RHYTHM_ON, VOICE_NAMES } from '../music'
 import { GRADIENT_LABELS, gradientCss, OTHER_COLOR, participantRGB, patternColor, rgbCss, slotColor } from '../palette'
@@ -287,8 +288,8 @@ export function PhonesTab({ settings, patch, roster, connected, onCalibrate, onJ
 const COLOR_OPTIONS: ColorBy[] = ['valence', 'group', 'pattern']
 const VIEWS: ViewMode[] = ['2d', '2d-ts', '3d']
 
-/** The graph: its view, what's coloured how, trails, and the layout's forces; and the timeline. */
-export function ViewTab({ settings, patch, engine, focus }: Editor & { engine: CrowdEngine; focus: number | null }) {
+/** The graph: its view, what's coloured how, trails, and the layout's forces. */
+export function ViewTab({ settings, patch }: Editor) {
   const view = settings.view, layout = settings.layout
   const set = (changes: Partial<Settings['view']>) => patch({ view: { ...view, ...changes } })
   const setLayout = (changes: Partial<Settings['layout']>) => patch({ layout: { ...layout, ...changes } })
@@ -303,6 +304,7 @@ export function ViewTab({ settings, patch, engine, focus }: Editor & { engine: C
           <Segmented options={COLOR_OPTIONS} value={view.trails} onChange={(trails) => set({ trails })} labels={COLOR_BY_LABELS} className="flex-wrap" />
         </Field>
         <Toggle label="Rings in each dot's group colour" checked={view.rings} onChange={(rings) => set({ rings })} note="Or its true pattern's, while dots are coloured by group." />
+        <Toggle label="Circle round the graph" checked={view.circle} onChange={(circle) => set({ circle })} note="And its copies receding behind it, in 3d." />
         <Toggle label="Edges" checked={view.edges} onChange={(edges) => set({ edges })} note="The graph Leiden groups on: k nearest, or every pair at least as alike as γ." />
         <Slider label="trail length" value={view.trailSeconds} min={2} max={24} step={1} onChange={(trailSeconds) => set({ trailSeconds })} format={(v) => `${v} s`} />
         <Slider label="trail width" value={view.trailWidth} min={0.5} max={10} step={0.5} onChange={(trailWidth) => set({ trailWidth })} />
@@ -313,9 +315,6 @@ export function ViewTab({ settings, patch, engine, focus }: Editor & { engine: C
         <Slider label="push" value={layout.push} min={0} max={4} step={0.1} onChange={(push) => setLayout({ push })} format={(v) => v.toFixed(1)} />
         <Slider label="pull from" value={layout.floor} min={0} max={0.8} step={0.05} onChange={(floor) => setLayout({ floor })} format={(v) => `r ${v.toFixed(2)}`} title="Pairs less alike than this don't pull at all" />
         <Slider label="settle" value={layout.ease} min={0.01} max={0.3} step={0.01} onChange={(ease) => setLayout({ ease })} format={(v) => v.toFixed(2)} title="How quickly pulls follow each new window" />
-      </Section>
-      <Section title="Timeline" description="Each phone's facing, a row each, by detected group: its true pattern (outer) and group (inner) on the left, the window being grouped shaded.">
-        <Timeline engine={engine} gradient={settings.gradient} focus={focus} />
       </Section>
     </div>
   )
@@ -380,6 +379,67 @@ export function SoundTab({ settings, patch, snapshot }: Editor & { snapshot: Sna
           format={(v) => `${pct(v)} · ${minSize}`}
           title="Groups smaller than this make no sound"
         />
+      </Section>
+    </div>
+  )
+}
+
+/**
+ * Painting, as "Phone-flip crowd" had it: select phones (rows of the timeline, a detected group, or taps on the graph
+ * while this tab is open) and give them a pattern. They switch at the next step after what's been worked out, so
+ * nothing already played is rewritten, and the window takes up to 4 bars to catch up: meanwhile they're a mix of two
+ * patterns, and tend to drift off as a group of their own, or sit in "other".
+ */
+export function PaintTab({ settings, engine, snapshot, focus, selected, onSelect, onClear }: Editor & {
+  engine: CrowdEngine
+  snapshot: Snapshot
+  focus: number | null
+  selected: Set<number>
+  onSelect: (phones: number[], on: boolean) => void
+  onClear: () => void
+}) {
+  const [said, setSaid] = useState<string | null>(null)
+  const a = snapshot.analysis
+  const bySlot = new Map<number, number[]>()
+  if (a) a.slots.forEach((slot, i) => { const k = Math.min(slot, NSLOT); if (!bySlot.has(k)) bySlot.set(k, []); bySlot.get(k)!.push(i) })
+  const groups = [...bySlot].sort((x, y) => x[0] - y[0])
+  const nLive = [...selected].filter((i) => snapshot.phones[i]?.live).length
+  const paint = (pattern: number) => {
+    const { from, moved } = engine.assign([...selected], pattern)
+    const step = Math.round(from / SLOT)
+    setSaid(
+      moved
+        ? `${moved} phone${moved === 1 ? '' : 's'} switch to ${PATTERNS[pattern].name} from bar ${Math.floor(step / 4) + 1} · ${SUB[step % 4]}. Nothing already played changes.`
+        : `They’re all ${PATTERNS[pattern].name} already.`,
+    )
+  }
+  return (
+    <div className="flex flex-col gap-5">
+      <Section
+        title="Paint"
+        description="Select phones, then give them a pattern: they switch at the next step, as if pointing at part of the room and saying “now do this one”. The window takes up to 4 bars to catch up."
+      >
+        <Field label="select">
+          {groups.map(([slot, members]) => (
+            <Button key={slot} variant="outline" size="sm" onClick={() => onSelect(members, !members.every((i) => selected.has(i)))} title="Select (or deselect) this detected group">
+              <Swatch color={rgbCss(slot < NSLOT ? slotColor(slot) : OTHER_COLOR)} /> {slot < NSLOT ? `G${slot + 1}` : 'other'} · {members.length}
+            </Button>
+          ))}
+          <Button variant="outline" size="sm" onClick={() => onSelect([...snapshot.phones.keys()], true)}>All</Button>
+          <Button variant="outline" size="sm" onClick={onClear} disabled={!selected.size}>None</Button>
+        </Field>
+        <Field label={`paint ${selected.size}`}>
+          {PATTERNS.map((p, g) => (
+            <Button key={p.name} size="sm" variant="outline" disabled={selected.size === nLive} onClick={() => paint(g)} title={`${p.desc}: ${p.mask.map((m, k) => (m ? SUB[k] : '·')).join(' ')}`}>
+              <Paintbrush style={{ color: rgbCss(patternColor(g)) }} /> {p.name}
+            </Button>
+          ))}
+        </Field>
+        <p className="min-h-4 text-xs text-muted-foreground">
+          {said ?? 'Drag over rows of the timeline (or, by touch, tap a first row then a last), pick a group above, or tap phones on the graph.'}
+          {nLive > 0 && ` ${nLive} selected ${nLive === 1 ? 'is a live phone' : 'are live phones'}: they play what their people play.`}
+        </p>
+        <Timeline engine={engine} gradient={settings.gradient} focus={focus} selected={selected} onSelect={onSelect} />
       </Section>
     </div>
   )
