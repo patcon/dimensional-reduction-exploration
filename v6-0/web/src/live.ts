@@ -23,6 +23,8 @@ export class LiveRoom {
   connected = false
   private byId = new Map<string, Participant>()
   private listeners = new Set<() => void>()
+  /** Called with each tilt reading as it arrives, by slot, for whatever needs its timing (finding the beat). */
+  onReading: ((slot: number, valence: number) => void) | null = null
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn)
@@ -60,7 +62,10 @@ export class LiveRoom {
         break
       case 'valence': {
         const p = this.byId.get(msg.id)
-        if (p) this.valence[p.slot] = msg.valence
+        if (p) {
+          this.valence[p.slot] = msg.valence
+          this.onReading?.(p.slot, msg.valence)
+        }
         break
       }
       case 'touch': {

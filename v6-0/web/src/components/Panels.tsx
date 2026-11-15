@@ -355,6 +355,7 @@ export function SoundTab({ settings, patch, snapshot }: Editor & { snapshot: Sna
           </tbody>
         </table>
       </Section>
+      <TempoSection settings={settings} patch={patch} snapshot={snapshot} />
       <Section title="Sound" description="Sound and the metronome are this screen's own; the rest is shared.">
         <Toggle label="Sound" checked={settings.soundOn} onChange={(soundOn) => patch({ soundOn })} />
         <Toggle label="Metronome" checked={settings.metronome} onChange={(metronome) => patch({ metronome })} note="A click each step, accented on the bar's 1." />
@@ -441,5 +442,40 @@ export function PaintTab({ settings, engine, snapshot, focus, selected, onSelect
         <Timeline engine={engine} gradient={settings.gradient} focus={focus} selected={selected} onSelect={onSelect} />
       </Section>
     </div>
+  )
+}
+
+/** The song's pace: set by hand, or found in the live phones' flips. */
+function TempoSection({ settings, patch, snapshot }: Editor & { snapshot: Snapshot }) {
+  const { beat, heardAgo, stepsPerMinute, lean } = snapshot.tempo
+  const fresh = beat !== null && heardAgo !== null && heardAgo < 3
+  return (
+    <Section
+      title="Tempo"
+      description="Steps a minute, four to a bar (1 e & a). The simulated phones, the metronome and the music all keep to it."
+    >
+      <Toggle
+        label="Follow the phones' beat"
+        checked={settings.followBeat}
+        onChange={(followBeat) => patch({ followBeat })}
+        note="Finds the base step in live phones' flips, the longest that nearly all of them land on, and runs the song at it, leaning a little ahead or behind so people's flips fall where a simulated phone's would."
+      />
+      <p className="num text-xs text-muted-foreground">
+        {!settings.followBeat
+          ? `At ${settings.tempo}/min, as set.`
+          : beat === null
+            ? `No beat heard yet (it takes a few flips from live phones): at ${settings.tempo}/min, as set.`
+            : `${fresh ? 'Hearing' : `Last heard ${Math.round(heardAgo!)} s ago:`} a step every ${beat.step.toFixed(2)} s (${Math.round(60 / beat.step)}/min), from ${beat.onsets} flips fitting it ${Math.round(beat.fit * 100)}%. Running at ${Math.round(stepsPerMinute)}/min${Math.abs(lean) > 0.005 ? `, leaning ${lean > 0 ? 'ahead' : 'back'} ${Math.round(Math.abs(lean) * 100)}%` : ''}.`}
+      </p>
+      <Slider
+        label="tempo"
+        value={settings.tempo}
+        min={60}
+        max={200}
+        onChange={(tempo) => patch({ tempo })}
+        format={(v) => `${v}/min`}
+        title="The pace before (or without) following the phones"
+      />
+    </Section>
   )
 }

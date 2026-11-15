@@ -64,12 +64,17 @@ export default function App() {
   useEffect(() => engine.setLayout(settings.layout), [engine, settings.layout])
   useEffect(() => engine.setMinGroupShare(settings.minGroupShare), [engine, settings.minGroupShare])
   useEffect(() => engine.setSpeed(settings.speed), [engine, settings.speed])
+  useEffect(() => engine.setTempo(settings.tempo, settings.followBeat), [engine, settings.tempo, settings.followBeat])
   const { soundOn, soundMode, volume, metronome } = settings
   useEffect(() => engine.setSound({ on: soundOn, mode: soundMode, volume, metronome }), [engine, soundOn, soundMode, volume, metronome])
 
   // The room: live phones join the crowd.
   const { room, roster, connected, calibrate } = useLiveRoom(settings, setSettings)
   useEffect(() => engine.setLive(roster.map((p) => p.slot), room.valence), [engine, roster, room])
+  useEffect(() => {
+    room.onReading = engine.reading
+    return () => void (room.onReading = null)
+  }, [engine, room])
   const { liveColors, touching } = useMemo(() => {
     const liveColors = new Map<number, RGB>(), touching = new Set<number>()
     const bySlot = new Map(roster.map((p) => [p.slot, p]))
@@ -230,7 +235,10 @@ export default function App() {
               >
                 {settings.soundOn ? <Volume2 /> : <VolumeX />}
               </Button>
-              <span className="num min-w-0 flex-1 truncate px-1 text-xs text-muted-foreground">{position(snapshot.t)}</span>
+              <span className="num min-w-0 flex-1 truncate px-1 text-xs text-muted-foreground">
+                {position(snapshot.t)} · {Math.round(snapshot.tempo.stepsPerMinute)}/min
+                {snapshot.tempo.following && snapshot.tempo.beat && snapshot.tempo.heardAgo !== null && snapshot.tempo.heardAgo < 3 ? ' · following phones' : ''}
+              </span>
               <Segmented options={SPEEDS} value={String(settings.speed) as (typeof SPEEDS)[number]} onChange={(v) => patch({ speed: Number(v) })} labels={{ '0.5': '½×', '1': '1×', '2': '2×', '4': '4×' }} />
               <Button variant="ghost" size="icon-sm" className="shrink-0" onClick={() => setDrawerOpen(!drawerOpen)} aria-label={drawerOpen ? 'Hide settings' : 'Show settings'} aria-expanded={drawerOpen}>
                 {drawerOpen ? <ChevronDown /> : <ChevronUp />}

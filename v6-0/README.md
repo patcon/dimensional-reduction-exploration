@@ -74,6 +74,28 @@ With setpoints near opposite, as face up and face down are, that turn is barely 
 phone any other way read only −1 or +1 and held through the middle. Now it runs smoothly from one end
 to the other however it's turned over (`pnpm run check:crowd` checks this).
 
+## Tempo (Sound tab)
+
+The song runs at a tempo in steps a minute (120 is its own: half-second steps, four to a 2 s bar), and
+the simulated phones, the metronome and the music all keep to it, as everything runs on the song's clock.
+It's set by hand, or, following the phones' beat (on by default), found in the live phones' flips:
+
+- Each flip is noted as its reading arrives from the room (not as frames are drawn), timed by when the
+  phone last passed edge on. Over the last 10 s, for each step from 0.25 to 1.6 s, the flips are wound
+  round a circle that long, and how tightly they bunch says how well they fit it. The best is the base
+  unit: half of it fits less tightly, twice it misses the flips between. Folded into 0.35–0.7 s steps
+  (86–171 a minute), so people flipping only every other step (as Slow does) give the same step.
+- It takes about 6–10 s of flips, fewer the more people flip; a few flips at random can bunch by
+  chance, so few flips have to bunch more tightly to count. The tempo eases towards each new reading,
+  and holds when people stop.
+- The song's clock also leans up to 12% ahead or back, so people's flips fall where a simulated phone's
+  would (0.29 s past a step: its average lag, and half a flip). People following the metronome are
+  heard late, as they react; that's what the 0.29 s allows for. If they react much later or sooner
+  than that, the lean can't settle, and the tempo can drift: turn following off to hold it.
+
+`pnpm run check:crowd` checks the beat is found at 100, 140 and 165 a minute from people playing a mix
+of patterns, from Slow ones alone, and not from flips at random.
+
 ## Sound (Sound tab)
 
 The ensemble is the groups at least as big as the smallest group setting (10% of the phones), in the
@@ -88,7 +110,7 @@ shared between the visualisers in a room, as in v4.
 cd v6-0/web
 pnpm install
 pnpm dev                     # http://localhost:5173/viz (visualiser) and / (remote)
-pnpm run check:crowd         # grouping finds the sections again; calibrated phones read smoothly
+pnpm run check:crowd         # grouping finds the sections; the beat is heard; calibrated phones read smoothly
 pnpm run deploy              # to Cloudflare (after `pnpm wrangler login`, or with a token in .env)
 ```
 

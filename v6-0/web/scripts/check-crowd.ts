@@ -1,10 +1,13 @@
 // Checks the crowd and how it's read, without a browser:
 // - Grouping: the synthetic crowd's three sections are found again from a window of their signals (ARI near 1), and
 //   phones given a new pattern form a group of their own once the window has moved on past the switch.
+// - Beat: the step people flip to is found from their flips (played by simulated phones, at a tempo other than the
+//   song's own), whatever mix of patterns they play; random flips give none.
 // - Calibration: with set high and set low, a phone's facing runs smoothly and in order from −1 to +1 as it's flipped,
 //   whichever way it's turned over, with no reading missing on the way (the old reading held in the middle).
 import { analyse, type AnalysisSettings } from '../src/analysis.ts'
 import { Crowd, FS, START_T, WIN } from '../src/crowd.ts'
+import { detectBeat, FlipListener } from '../src/tempo.ts'
 import { angle, valenceOf, type Vec } from '../src/remote/valence.ts'
 
 let failed = 0
@@ -63,6 +66,32 @@ function groupAt(crowd: Crowd, t: number, settings = SETTINGS) {
   // Only high set: the detection's own low (face down) stands in.
   const tilted = norm([0, 0.7, 0.7])
   check((valenceOf('flip', { low: null, high: tilted }, tilted) ?? 0) > 0.999 && (valenceOf('flip', { low: null, high: tilted }, [0, 0, -1]) ?? 0) < -0.999, 'with only high set, face down is still −1')
+}
+
+{
+  // Six people, two each of Slow, Fast and 1-e-&, flipping at 140 steps a minute: the simulated crowd's phones,
+  // their song time run 140/120 as fast as the wall clock, heard as live phones are, sixty times a second.
+  const people = new Crowd({ count: 6, jitter: 0.05, lagSpread: 0.06, noise: 0.05, miss: 0, sync: 0.85, shuffleSeats: false })
+  const listen = (crowd: Crowd, tempo: number, seconds: number, only?: number[]) => {
+    const rate = tempo / 120, ears = new FlipListener(), slots = only ?? [...Array(crowd.n).keys()], valence = new Float32Array(crowd.n)
+    crowd.generate(seconds * rate + 1)
+    for (let wall = 0; wall < seconds; wall += 1 / 60) {
+      for (const i of slots) valence[i] = crowd.sample(i, Math.floor(wall * rate * FS))
+      ears.hear(slots, valence, wall, wall * rate, 60)
+    }
+    return detectBeat(ears.onsets.map((o) => o.wall))
+  }
+  for (const tempo of [100, 140, 165]) {
+    const beat = listen(people, tempo, 10)
+    check(beat !== null && Math.abs(60 / beat.step - tempo) < 3, `people flipping a mix of patterns at ${tempo}/min: heard ${beat ? `${(60 / beat.step).toFixed(1)}/min, fitting ${beat.fit.toFixed(2)}, from ${beat.onsets} flips` : 'nothing'}`)
+  }
+  // Only the two Slow ones (flipping every other step): twice the step, folded back onto it.
+  const slow = listen(people, 120, 10, [0, 1])
+  check(slow !== null && Math.abs(60 / slow.step - 120) < 3, `only Slow flippers at 120/min: heard ${slow ? `${(60 / slow.step).toFixed(1)}/min` : 'nothing'}`)
+  // Flips at random: no beat.
+  const rng = (() => { let a = 3; return () => ((a = (a * 1103515245 + 12345) % 2147483648) / 2147483648) })()
+  const random = Array.from({ length: 40 }, () => rng() * 10).sort((x, y) => x - y)
+  check(detectBeat(random) === null, 'flips at random: no beat')
 }
 
 if (failed) {

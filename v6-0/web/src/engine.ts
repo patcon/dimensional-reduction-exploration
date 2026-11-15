@@ -6,9 +6,10 @@
 
 import type { Analysis, AnalysisSettings } from './analysis'
 import type { AnalysisAnswer, AnalysisMessage } from './analysis.worker'
-import { Crowd, FS, LiveRecorder, START_T, WIN, type CrowdSettings } from './crowd'
+import { Crowd, FS, LiveRecorder, SLOT, START_T, WIN, type CrowdSettings } from './crowd'
 import { ForceLayout, LayoutView, type LayoutSettings } from './layout'
 import { Ensemble, Sound, type SoundMode } from './music'
+import { detectBeat, FlipListener, type Beat } from './tempo'
 import { WorkerQueue } from './workerQueue'
 
 /** Song time between groupings. */
@@ -17,6 +18,35 @@ const ANALYSIS_EVERY = 0.5
 const LAYOUT_STEPS = 2
 /** The page's snapshot is refreshed at most this often, in ms, between groupings. */
 const SNAPSHOT_MS = 250
+/** Steps a minute at which the song runs in real time: its steps are SLOT seconds of song time. */
+export const BASE_TEMPO = 60 / SLOT
+/** Flips heard over this many seconds set the step, and over the last PHASE_SECONDS, where it falls. */
+const BEAT_SECONDS = 10
+const PHASE_SECONDS = 4
+/** The beat is looked for this often, in seconds. */
+const BEAT_EVERY = 0.25
+/** How far each look eases the tempo towards what's heard. */
+const TEMPO_EASE = 0.25
+/**
+ * Where a synthetic phone's flip passes edge on, in song time past its step: its reaction lag (0.18 s on average) and
+ * half its flip (0.11 s). People's flips are lined up to fall there too.
+ */
+const FLIP_OFFSET = 0.29
+/** People's flips this near where they should fall (song seconds) are left be; further, the clock leans towards them. */
+const PHASE_DEADZONE = 0.04
+const PHASE_GAIN = 0.8
+const MAX_LEAN = 0.12
+
+export interface TempoState {
+  /** Steps a minute the song is running at now (before playback speed). */
+  stepsPerMinute: number
+  following: boolean
+  /** The beat last heard in people's flips, and how many seconds ago; null before any. */
+  beat: Beat | null
+  heardAgo: number | null
+  /** How far the clock is leaning to line up with people's flips: −0.12 to +0.12. */
+  lean: number
+}
 
 /** A phone: synthetic (its index in the crowd) or live (its room slot). */
 export interface Phone {
@@ -34,6 +64,7 @@ export interface Snapshot {
   /** ARI over time, oldest first. */
   ariHistory: number[]
   ensemble: Ensemble['list']
+  tempo: TempoState
   version: number
 }
 
@@ -64,6 +95,17 @@ export class CrowdEngine {
   private version = 0
   private lastFrame: number | null = null
   private raf = 0
+  // ── Tempo ──
+  /** Steps a minute set by hand, used until people's beat is heard (or when not following it). */
+  private manualTempo = BASE_TEMPO
+  private following = true
+  private readonly flips = new FlipListener()
+  /** The tempo followed from people's flips, steps a minute, once heard; kept when they stop. */
+  private heardTempo: number | null = null
+  private beat: Beat | null = null
+  private heardAt = 0
+  private lean = 0
+  private nextBeat = 0
 
   constructor(crowd: CrowdSettings, analysis: AnalysisSettings, layout: LayoutSettings) {
     this.crowd = new Crowd(crowd)
@@ -90,6 +132,67 @@ export class CrowdEngine {
     this.speed = speed
   }
 
+  /** The tempo set by hand, and whether people's beat takes over from it once heard. */
+  setTempo(stepsPerMinute: number, follow: boolean) {
+    this.manualTempo = stepsPerMinute
+    if (follow !== this.following) {
+      this.following = follow
+      this.heardTempo = null
+      this.beat = null
+      this.lean = 0
+      this.flips.clear()
+    }
+    this.changed()
+  }
+
+  /** Steps a minute now, before playback speed. */
+  private tempoNow() {
+    return this.following && this.heardTempo !== null ? this.heardTempo : this.manualTempo
+  }
+
+  /** Song seconds per second of real time. */
+  rate() {
+    return this.speed * (this.tempoNow() / BASE_TEMPO) * (1 + this.lean)
+  }
+
+  private tempoState(): TempoState {
+    return {
+      stepsPerMinute: this.tempoNow(),
+      following: this.following,
+      beat: this.beat,
+      heardAgo: this.beat ? performance.now() / 1000 - this.heardAt : null,
+      lean: this.lean,
+    }
+  }
+
+  /** Looks for the beat in the flips heard lately: its step sets the tempo, and where flips fall in song time, the lean. */
+  private listen(wall: number) {
+    const heard = this.flips.onsets
+    const beat = detectBeat(heard.filter((o) => o.wall > wall - BEAT_SECONDS).map((o) => o.wall))
+    if (!beat) {
+      // Nothing to go on: the tempo holds, and the clock stops leaning.
+      this.lean *= 0.8
+      return
+    }
+    this.beat = beat
+    this.heardAt = wall
+    const tempo = 60 / beat.step
+    this.heardTempo = this.heardTempo === null ? tempo : this.heardTempo + (tempo - this.heardTempo) * TEMPO_EASE
+    // Where people's recent flips fall in the song's steps, against where a synthetic phone's would.
+    let c = 0, sn = 0
+    for (const o of heard) {
+      if (o.wall <= wall - PHASE_SECONDS) continue
+      const a = (2 * Math.PI * (o.song - FLIP_OFFSET)) / SLOT
+      c += Math.cos(a)
+      sn += Math.sin(a)
+    }
+    if (!c && !sn) return
+    // Positive: people flip later in the song than they should, so the song is ahead of them, and slows.
+    const err = (Math.atan2(sn, c) / (2 * Math.PI)) * SLOT
+    const off = Math.abs(err) <= PHASE_DEADZONE ? 0 : err - Math.sign(err) * PHASE_DEADZONE
+    this.lean = Math.max(-MAX_LEAN, Math.min(MAX_LEAN, (-PHASE_GAIN * off) / SLOT))
+  }
+
   // ── For React ──
   subscribe = (fn: () => void) => {
     this.listeners.add(fn)
@@ -97,7 +200,7 @@ export class CrowdEngine {
   }
   getSnapshot = () => this.snapshot
   private makeSnapshot(): Snapshot {
-    return { t: this.t, playing: this.playing, phones: this.phones, analysis: this.analysis, ariHistory: this.ariHistory, ensemble: this.ensemble.list, version: ++this.version }
+    return { t: this.t, playing: this.playing, phones: this.phones, analysis: this.analysis, ariHistory: this.ariHistory, ensemble: this.ensemble.list, tempo: this.tempoState(), version: ++this.version }
   }
   private changed() {
     this.snapshot = this.makeSnapshot()
@@ -134,6 +237,13 @@ export class CrowdEngine {
     this.sound.setPlaying(playing, this.t)
     this.changed()
   }
+  /** A live phone's reading, as it arrives from the room: listened to for the beat while playing and following it. */
+  reading = (slot: number, v: number) => {
+    if (!this.playing || !this.following || this.lastFrame === null) return
+    const nowMs = performance.now()
+    this.flips.reading(slot, v, nowMs / 1000, this.t + ((nowMs - this.lastFrame) / 1000) * this.rate())
+  }
+
   /** The room's participants, by slot, and their facing now (read as it changes). */
   setLive(slots: number[], valence: Float32Array) {
     this.liveSlots = [...slots].sort((a, b) => a - b)
@@ -146,6 +256,8 @@ export class CrowdEngine {
     this.t = START_T
     this.crowd.restart(this.t + Crowd.AHEAD)
     this.live.clear()
+    // Flips heard so far were at song times now gone; the tempo heard holds.
+    this.flips.clear()
     this.analysis = null
     this.ariHistory = []
     this.ensemble.clear()
@@ -208,10 +320,18 @@ export class CrowdEngine {
     const dt = this.lastFrame === null ? 0 : Math.min(0.1, (now - this.lastFrame) / 1000)
     this.lastFrame = now
     if (this.playing) {
-      this.t += dt * this.speed
+      this.t += dt * this.rate()
       this.crowd.generate(this.t + Crowd.AHEAD)
       this.live.record(this.t, this.liveSlots, this.liveValence)
-      this.sound.tick(this.t, this.speed, this.ensemble)
+      this.sound.tick(this.t, this.rate(), this.ensemble)
+      if (this.following) {
+        const wall = now / 1000
+        this.flips.forget(this.liveSlots, wall - BEAT_SECONDS)
+        if (wall >= this.nextBeat) {
+          this.nextBeat = wall + BEAT_EVERY
+          this.listen(wall)
+        }
+      }
     }
     if (this.t >= this.nextAnalysis) {
       this.nextAnalysis = this.t + ANALYSIS_EVERY

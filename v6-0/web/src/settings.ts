@@ -32,6 +32,10 @@ export interface Settings {
   layout: LayoutSettings
   view: ViewSettings
   speed: number
+  /** Steps a minute, set by hand: the song's pace until people's beat is heard, or when not following it. */
+  tempo: number
+  /** Find the beat in live phones' flips, and run the song (metronome and simulated phones) at it. */
+  followBeat: boolean
   /** Smallest group that sounds, as a share of the phones. */
   minGroupShare: number
   soundMode: SoundMode
@@ -53,6 +57,8 @@ export const DEFAULT_SETTINGS: Settings = {
   layout: DEFAULT_LAYOUT,
   view: { mode: '3d', dots: 'valence', trails: 'valence', groupRings: false, edges: true, trailSeconds: 8, dotSize: 12, trailWidth: 3 },
   speed: 1,
+  tempo: 120,
+  followBeat: true,
   minGroupShare: 0.1,
   soundMode: 'chord',
   volume: 0.7,
