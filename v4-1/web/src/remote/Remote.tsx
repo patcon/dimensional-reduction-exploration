@@ -91,10 +91,6 @@ const ENDS: Record<Detection, { low: Vec; high: Vec }> = {
 }
 /** Setpoints closer than this (radians, about 6°) would swing from −1 to +1 on the slightest turn: they're ignored. */
 const MIN_TURN = 0.1
-/** Ends this near opposite are joined by every turn alike, so valence goes by how far from each the phone is. */
-const OPPOSITE = Math.PI - 0.05
-/** Turned this far out of the turn between the setpoints, how far along it the phone is can't be told: it holds. */
-const OFF_TURN = 0.3
 
 /** This phone's setpoints for each detection, kept across reloads. */
 function storedSetpoints(): Partial<Record<Detection, Setpoints>> {
@@ -114,30 +110,22 @@ function calibrated(points: Setpoints, set: Calibration, detection: Detection, u
   return set === 'high' ? { ...points, high: up } : { ...points, low: up }
 }
 
-/** Valence with `up` which way is up, from the setpoints if any are set, else as the detection reads it. */
+/**
+ * Valence with `up` which way is up: from the setpoints if either is set (the detection's own end standing in for one
+ * that isn't), else as the detection reads it.
+ *
+ * Between setpoints it's how much nearer the phone is to high than to low, over how far apart they are:
+ * (angle from low − angle from high) / angle between them. Along the turn from one to the other that runs evenly from
+ * −1 to +1, and past either end it stays there; held any other way it still reads, and changes smoothly, so it never
+ * sticks. (Before, valence came from the phone's place along the turn between the setpoints, and read nothing when held
+ * well off that turn. With setpoints near opposite, as face up and face down are, that turn is barely defined, and
+ * flipping the phone any other way read only −1 or +1, holding what it last read through the middle.)
+ */
 function valenceOf(detection: Detection, points: Setpoints, up: Vec) {
   if (!points.low && !points.high) return detected(detection, up)
   const a = points.low ?? ENDS[detection].low
   const b = points.high ?? ENDS[detection].high
-  const ab = angle(a, b)
-  let t: number
-  if (ab > OPPOSITE) {
-    const da = angle(up, a)
-    t = da / (da + angle(up, b))
-  } else {
-    // Along the turn from a to b: the angle round from a, in the plane they share.
-    const ab2 = dot(a, b)
-    const e: Vec = [b[0] - ab2 * a[0], b[1] - ab2 * a[1], b[2] - ab2 * a[2]]
-    const len = Math.hypot(...e)
-    const across: Vec = [e[0] / len, e[1] / len, e[2] / len]
-    const u = dot(up, a), w = dot(up, across)
-    if (Math.hypot(u, w) < OFF_TURN) return null
-    let phi = Math.atan2(w, u)
-    // Past either end, whichever it's nearer, so past b stays +1 rather than wrapping round to −1.
-    if (phi < -Math.PI + ab / 2) phi += 2 * Math.PI
-    t = phi / ab
-  }
-  return Math.max(-1, Math.min(1, -1 + 2 * t))
+  return Math.max(-1, Math.min(1, (angle(up, a) - angle(up, b)) / angle(a, b)))
 }
 
 /** What to do, as the remote says it once joined. */
