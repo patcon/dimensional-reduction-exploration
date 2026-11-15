@@ -323,13 +323,22 @@ export function ViewTab({ settings, patch }: Editor) {
 export function SoundTab({ settings, patch, snapshot }: Editor & { snapshot: Snapshot }) {
   const list = snapshot.ensemble
   const chord = settings.soundMode === 'chord'
-  const minSize = Math.max(1, Math.round(settings.minGroupShare * snapshot.phones.length))
   return (
     <div className="flex flex-col gap-6">
       <Section
         title="Ensemble"
         description={chord ? `${list.length} group${list.length === 1 ? '' : 's'} → ${CHORD_NAMES[list.length]}` : `${list.length} voice${list.length === 1 ? '' : 's'} over ${PROG_NAMES.join(' · ')}, a chord a bar`}
       >
+        <Slider
+          label="smallest group"
+          value={settings.minGroupSize}
+          min={1}
+          max={20}
+          onChange={(minGroupSize) => patch({ minGroupSize })}
+          format={(v) => `${v} phone${v === 1 ? '' : 's'}`}
+          title="Groups with fewer phones than this make no sound"
+        />
+        <p className="text-xs text-muted-foreground">Groups at least this big each get a voice, up to five, in the order they appeared.</p>
         <table className="num w-full text-sm">
           <thead className="text-left text-xs text-muted-foreground">
             <tr><th className="font-normal">group</th><th className="font-normal">size</th><th className="font-normal">sound</th><th className="font-normal">rhythm</th></tr>
@@ -350,7 +359,7 @@ export function SoundTab({ settings, patch, snapshot }: Editor & { snapshot: Sna
               </tr>
             ))}
             {!list.length && (
-              <tr><td colSpan={4} className="py-1 text-muted-foreground">No groups big enough yet</td></tr>
+              <tr><td colSpan={4} className="py-1 text-muted-foreground">No groups of {settings.minGroupSize} or more yet</td></tr>
             )}
           </tbody>
         </table>
@@ -369,16 +378,6 @@ export function SoundTab({ settings, patch, snapshot }: Editor & { snapshot: Sna
           If a group goes, those after it move up one place.
         </p>
         <Slider label="volume" value={settings.volume} min={0} max={1} step={0.05} onChange={(volume) => patch({ volume })} format={pct} />
-        <Slider
-          label="smallest group"
-          value={settings.minGroupShare}
-          min={0}
-          max={0.3}
-          step={0.01}
-          onChange={(minGroupShare) => patch({ minGroupShare })}
-          format={(v) => `${pct(v)} · ${minSize}`}
-          title="Groups smaller than this make no sound"
-        />
       </Section>
     </div>
   )

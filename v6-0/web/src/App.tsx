@@ -64,7 +64,7 @@ export default function App() {
   useEffect(() => engine.setCrowd(settings.crowd), [engine, settings.crowd])
   useEffect(() => engine.setAnalysis(settings.analysis), [engine, settings.analysis])
   useEffect(() => engine.setLayout(settings.layout), [engine, settings.layout])
-  useEffect(() => engine.setMinGroupShare(settings.minGroupShare), [engine, settings.minGroupShare])
+  useEffect(() => engine.setMinGroupSize(settings.minGroupSize), [engine, settings.minGroupSize])
   useEffect(() => engine.setSpeed(settings.speed), [engine, settings.speed])
   useEffect(() => engine.setTempo(settings.tempo, settings.followBeat), [engine, settings.tempo, settings.followBeat])
   const { soundOn, soundMode, volume, metronome } = settings

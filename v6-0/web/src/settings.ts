@@ -36,8 +36,8 @@ export interface Settings {
   tempo: number
   /** Find the beat in live phones' flips, and run the song (metronome and simulated phones) at it. */
   followBeat: boolean
-  /** Smallest group that sounds, as a share of the phones. */
-  minGroupShare: number
+  /** Smallest group that sounds, in phones. */
+  minGroupSize: number
   soundMode: SoundMode
   volume: number
   /** Which way of turning a phone reads as its facing, for every phone in the room. */
@@ -59,7 +59,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speed: 1,
   tempo: 120,
   followBeat: true,
-  minGroupShare: 0.1,
+  minGroupSize: 1,
   soundMode: 'chord',
   volume: 0.7,
   detection: 'flip',

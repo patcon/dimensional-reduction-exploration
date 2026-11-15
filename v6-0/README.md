@@ -98,7 +98,8 @@ of patterns, from Slow ones alone, and not from flips at random.
 
 ## Sound (Sound tab)
 
-The ensemble is the groups at least as big as the smallest group setting (10% of the phones), in the
+The ensemble is the groups of at least the smallest group's size (a slider atop the tab, in phones: 1 to
+start, so even a lone phone gets a voice), in the
 order they first appeared, up to five. As **chord tones**, each adds a sustained tone, building root →
 fifth → third → seventh → ninth (C, C5, C, Cmaj7, Cmaj9), with a chime as it arrives; as **instrument
 voices**, each is an instrument (bass, pluck, keys, bell, lead) playing its chord tone over a four-bar

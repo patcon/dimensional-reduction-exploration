@@ -85,7 +85,7 @@ export class CrowdEngine {
   private liveSlots: number[] = []
   private analysisSettings: AnalysisSettings
   private layoutSettings: LayoutSettings
-  private minGroupShare = 0.1
+  private minSize = 1
   private nextAnalysis = 0
   private ariHistory: number[] = []
   private queue: WorkerQueue<AnalysisMessage, AnalysisAnswer>
@@ -223,8 +223,8 @@ export class CrowdEngine {
   setLayout(settings: LayoutSettings) {
     this.layoutSettings = settings
   }
-  setMinGroupShare(share: number) {
-    this.minGroupShare = share
+  setMinGroupSize(size: number) {
+    this.minSize = size
     this.updateEnsemble()
   }
   setSound(opts: { on: boolean; mode: SoundMode; volume: number; metronome: boolean }) {
@@ -297,7 +297,7 @@ export class CrowdEngine {
     return a && a.keys.length === this.phones.length ? (a.slots[i] ?? -1) : -1
   }
   minGroupSize() {
-    return Math.max(1, Math.round(this.minGroupShare * this.phones.length))
+    return Math.max(1, this.minSize)
   }
 
   private syncPhones() {
