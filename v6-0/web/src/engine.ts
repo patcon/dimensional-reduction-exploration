@@ -68,6 +68,8 @@ export interface Snapshot {
   ariHistory: number[]
   ensemble: Ensemble['list']
   tempo: TempoState
+  /** Sound is on, but the browser is holding it until the page is touched. */
+  audioBlocked: boolean
   version: number
 }
 
@@ -119,6 +121,7 @@ export class CrowdEngine {
     this.queue = new WorkerQueue(new Worker(new URL('./analysis.worker.ts', import.meta.url), { type: 'module' }))
     this.syncPhones()
     this.snapshot = this.makeSnapshot()
+    this.sound.onStateChange = () => this.changed()
   }
 
   /** Runs the clock, a step a frame, until the returned function is called. */
@@ -217,7 +220,7 @@ export class CrowdEngine {
   }
   getSnapshot = () => this.snapshot
   private makeSnapshot(): Snapshot {
-    return { t: this.t, playing: this.playing, phones: this.phones, analysis: this.analysis, ariHistory: this.ariHistory, ensemble: this.ensemble.list, tempo: this.tempoState(), version: ++this.version }
+    return { t: this.t, playing: this.playing, phones: this.phones, analysis: this.analysis, ariHistory: this.ariHistory, ensemble: this.ensemble.list, tempo: this.tempoState(), audioBlocked: this.sound.blocked, version: ++this.version }
   }
   private changed() {
     this.snapshot = this.makeSnapshot()
@@ -247,6 +250,11 @@ export class CrowdEngine {
   setSound(opts: { on: boolean; mode: SoundMode; volume: number; metronome: boolean }) {
     this.sound.set(opts, this.ensemble, this.t)
     this.sound.setPlaying(this.playing, this.t)
+    this.changed()
+  }
+  /** A touch or key anywhere: starts audio the browser is holding. */
+  wakeAudio() {
+    this.sound.wake()
   }
   setPlaying(playing: boolean) {
     this.playing = playing

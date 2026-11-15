@@ -97,9 +97,33 @@ export class Sound {
   private lastClick = -1
   private playing = false
 
+  /** Called when audio starts or stops running (a browser holds it until the page is touched). */
+  onStateChange: (() => void) | null = null
+
+  /** Whether sound is wanted but the browser is holding it, until the page is touched. */
+  get blocked() {
+    return (this.on || this.metronome) && this.ctx !== null && this.ctx.state !== 'running'
+  }
+
+  /**
+   * From a touch or a key anywhere on the page: starts audio if sound is wanted. A browser only lets a page start audio
+   * on one, so audio made earlier (sound left on from the last visit, say) waits, held, until then.
+   */
+  wake() {
+    if (this.on || this.metronome) unlockAudio()
+  }
+
   private ensure() {
-    if (this.ctx) return this.ctx
+    if (this.ctx) {
+      // Held (made before the page was touched): try again, which works from a touch.
+      unlockAudio()
+      return this.ctx
+    }
     const ctx = (this.ctx = unlockAudio())
+    ctx.addEventListener('statechange', () => {
+      this.setMaster()
+      this.onStateChange?.()
+    })
     this.master = ctx.createGain()
     this.master.gain.value = 0.0001
     this.bus = ctx.createGain()

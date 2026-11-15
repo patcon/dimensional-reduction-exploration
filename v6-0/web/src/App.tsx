@@ -70,6 +70,16 @@ export default function App() {
   useEffect(() => engine.setTempo(settings.tempo, settings.followBeat), [engine, settings.tempo, settings.followBeat])
   const { soundOn, soundMode, volume, metronome } = settings
   useEffect(() => engine.setSound({ on: soundOn, mode: soundMode, volume, metronome }), [engine, soundOn, soundMode, volume, metronome])
+  // Browsers hold audio until the page is touched (sound left on from the last visit starts held): any touch or key starts it.
+  useEffect(() => {
+    const wake = () => engine.wakeAudio()
+    window.addEventListener('pointerdown', wake)
+    window.addEventListener('keydown', wake)
+    return () => {
+      window.removeEventListener('pointerdown', wake)
+      window.removeEventListener('keydown', wake)
+    }
+  }, [engine])
 
   // The room: live phones join the crowd.
   const { room, roster, connected, calibrate } = useLiveRoom(settings, setSettings)
@@ -242,14 +252,16 @@ export default function App() {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="shrink-0"
-                onClick={() => patch({ soundOn: !settings.soundOn })}
-                aria-label={settings.soundOn ? 'Sound off' : 'Sound on'}
+                className={cn('shrink-0', snapshot.audioBlocked && 'animate-pulse text-amber-500')}
+                // Held by the browser: a press starts it (the touch itself does), rather than turning it off.
+                onClick={() => (snapshot.audioBlocked ? engine.wakeAudio() : patch({ soundOn: !settings.soundOn }))}
+                aria-label={snapshot.audioBlocked ? 'Start sound' : settings.soundOn ? 'Sound off' : 'Sound on'}
                 aria-pressed={settings.soundOn}
-                title={settings.soundOn ? 'Sound off' : 'Sound on'}
+                title={snapshot.audioBlocked ? 'Sound is on, waiting for a tap to start' : settings.soundOn ? 'Sound off' : 'Sound on'}
               >
                 {settings.soundOn ? <Volume2 /> : <VolumeX />}
               </Button>
+              {snapshot.audioBlocked && <span className="shrink-0 text-xs text-amber-600 dark:text-amber-400">tap to start sound</span>}
               <span className="num min-w-0 flex-1 truncate px-1 text-xs text-muted-foreground">
                 {position(snapshot.t)} · {Math.round(snapshot.tempo.stepsPerMinute)}/min
                 {snapshot.tempo.following && snapshot.tempo.beat && snapshot.tempo.heardAgo !== null && snapshot.tempo.heardAgo < 3 ? ' · following phones' : ''}
