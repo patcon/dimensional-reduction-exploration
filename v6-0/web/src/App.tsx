@@ -71,10 +71,7 @@ export default function App() {
   // The room: live phones join the crowd.
   const { room, roster, connected, calibrate } = useLiveRoom(settings, setSettings)
   useEffect(() => engine.setLive(roster.map((p) => p.slot), room.valence), [engine, roster, room])
-  useEffect(() => {
-    room.onReading = engine.reading
-    return () => void (room.onReading = null)
-  }, [engine, room])
+  useEffect(() => room.listenToReadings(engine.reading), [engine, room])
   const { liveColors, touching } = useMemo(() => {
     const liveColors = new Map<number, RGB>(), touching = new Set<number>()
     const bySlot = new Map(roster.map((p) => [p.slot, p]))

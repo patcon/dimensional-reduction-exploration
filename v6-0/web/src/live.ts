@@ -24,7 +24,15 @@ export class LiveRoom {
   private byId = new Map<string, Participant>()
   private listeners = new Set<() => void>()
   /** Called with each tilt reading as it arrives, by slot, for whatever needs its timing (finding the beat). */
-  onReading: ((slot: number, valence: number) => void) | null = null
+  private onReading: ((slot: number, valence: number) => void) | null = null
+
+  /** Hands each tilt reading, as it arrives, to `fn` (or to nothing); returns a function to stop. */
+  listenToReadings(fn: (slot: number, valence: number) => void) {
+    this.onReading = fn
+    return () => {
+      if (this.onReading === fn) this.onReading = null
+    }
+  }
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn)
