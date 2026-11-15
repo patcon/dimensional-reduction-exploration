@@ -41,7 +41,7 @@ export function CrowdTab({ settings, patch, engine, snapshot, focus, onRestart }
   return (
     <div className="flex flex-col gap-6">
       <Section title="Crowd" description="Simulated phones, flipped to the beat, in three sections to start: Slow, Fast and 1-e-&. Live phones join them.">
-        <Slider label="phones" value={crowd.count} min={3} max={150} onChange={(count) => set({ count })} />
+        <Slider label="phones" value={crowd.count} min={0} max={150} onChange={(count) => set({ count })} />
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => onRestart(false)} title="Start over, with three clean blocks of seats">
             <RotateCcw /> Reset

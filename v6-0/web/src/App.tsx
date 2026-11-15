@@ -180,7 +180,7 @@ export default function App() {
         <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-16 left-3 flex flex-col items-start gap-1.5">
           <span className="rounded-md bg-black/55 px-2 py-0.5 text-xs text-white/85">
             {snapshot.phones.length - nLive} simulated{nLive ? ` + ${nLive} live` : ''} phones ·{' '}
-            {a ? `${a.k} group${a.k === 1 ? '' : 's'}${Number.isNaN(a.ari) ? '' : ` · ARI ${a.ari.toFixed(2)}`}` : 'grouping…'}
+            {snapshot.phones.length < 2 ? 'too few to group' : a ? `${a.k} group${a.k === 1 ? '' : 's'}${Number.isNaN(a.ari) ? '' : ` · ARI ${a.ari.toFixed(2)}`}` : 'grouping…'}
           </span>
           <div className="flex flex-wrap gap-1">
             {groups.map(([slot, size]) => (

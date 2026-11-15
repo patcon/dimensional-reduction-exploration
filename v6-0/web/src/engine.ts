@@ -344,7 +344,16 @@ export class CrowdEngine {
 
   private requestAnalysis() {
     const phones = this.phones, n = phones.length
-    if (n < 2) return
+    if (n < 2) {
+      // Nothing to group (no simulated phones, and a live one at most): no groups, and so no chord.
+      if (this.analysis || this.ensemble.list.length) {
+        this.analysis = null
+        this.ensemble.clear()
+        this.sound.updatePads(this.ensemble)
+        this.changed()
+      }
+      return
+    }
     const M = WIN * FS, n1 = Math.floor(this.t * FS), n0 = n1 - M + 1
     const signals = new Float32Array(n * M)
     for (let i = 0; i < n; i++) for (let k = 0; k < M; k++) signals[i * M + k] = this.sample(i, n0 + k)
