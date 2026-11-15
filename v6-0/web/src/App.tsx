@@ -43,6 +43,8 @@ function useWindowHeight() {
 
 const overGraph = 'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white'
 const VIEWS: ViewMode[] = ['2d', '2d-ts', '3d']
+/** How long the view moved to is named, in ms. */
+const VIEW_LABEL_MS = 1200
 
 /** Where the song is: bar and step. */
 function position(t: number) {
@@ -108,7 +110,17 @@ export default function App() {
   )
   const clearSelection = useCallback(() => setSelectedKeys(new Set()), [])
 
-  const [cameraReset, setCameraReset] = useState(0)
+  // One button moves through the views; the one moved to is named for a moment.
+  const followingView = VIEWS[(VIEWS.indexOf(settings.view.mode) + 1) % VIEWS.length]
+  const [viewLabelShown, setViewLabelShown] = useState(false)
+  const viewLabelTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(viewLabelTimer.current), [])
+  const nextView = () => {
+    patch({ view: { ...settings.view, mode: followingView } })
+    setViewLabelShown(true)
+    clearTimeout(viewLabelTimer.current)
+    viewLabelTimer.current = setTimeout(() => setViewLabelShown(false), VIEW_LABEL_MS)
+  }
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [tab, setTab] = useState<string>('paint')
   const [infoOpen, setInfoOpen] = useState(false)
@@ -157,7 +169,7 @@ export default function App() {
           focus={focused}
           liveColors={liveColors}
           touching={touching}
-          cameraReset={cameraReset}
+          cameraReset={0}
           selected={selected}
           onFocus={onTap}
           coveredBottom={drawerCovers}
@@ -188,22 +200,27 @@ export default function App() {
           <Button variant="ghost" size="icon" className={overGraph} onClick={() => setJoinOpen(true)} aria-label="Join with a phone" title="Join with a phone">
             <QrCode />
           </Button>
-          {VIEWS.map((v) => (
-            <Button
-              key={v}
-              variant="ghost"
-              size="icon"
-              className={cn(overGraph, settings.view.mode === v && 'bg-white/90 text-black hover:bg-white hover:text-black')}
-              onClick={() => (v === settings.view.mode ? setCameraReset((r) => r + 1) : patch({ view: { ...settings.view, mode: v } }))}
-              aria-label={VIEW_LABELS[v]}
-              title={`${VIEW_LABELS[v]}${v === settings.view.mode ? ' (again: put the camera back)' : ''}`}
-            >
-              <ViewIcon view={v} className="size-5" />
-            </Button>
-          ))}
         </div>
         <Button variant="ghost" size="icon" className={cn('pointer-events-auto absolute bottom-0 left-3 rounded-b-none', overGraph)} onClick={() => setInfoOpen(true)} aria-label="About">
           <Info />
+        </Button>
+        {/* The view, on the drawer's top edge: each press moves to the next, named for a moment above it. */}
+        <span
+          className="pointer-events-none absolute right-3 bottom-11 rounded-md bg-black/65 px-2 py-0.5 text-xs text-white transition-opacity duration-300 motion-reduce:transition-none"
+          style={{ opacity: viewLabelShown ? 1 : 0 }}
+          aria-hidden
+        >
+          {VIEW_LABELS[settings.view.mode]}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('pointer-events-auto absolute right-3 bottom-0 rounded-b-none', overGraph)}
+          onClick={nextView}
+          aria-label={`View: ${VIEW_LABELS[settings.view.mode]}. Switch to ${VIEW_LABELS[followingView]}.`}
+          title={`View: ${VIEW_LABELS[settings.view.mode]}. Switch to ${VIEW_LABELS[followingView]}.`}
+        >
+          <ViewIcon view={settings.view.mode} className="size-5" />
         </Button>
       </main>
 
