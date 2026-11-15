@@ -9,7 +9,7 @@ import { CHORD_NAMES, DEGREE_NAMES, PAD_NOTE_NAMES, PROG_NAMES, RHYTHM_ON, VOICE
 import { GRADIENT_LABELS, gradientCss, OTHER_COLOR, participantRGB, patternColor, rgbCss, slotColor } from '../palette'
 import { DETECTIONS, GRADIENTS, type Calibration } from '../protocol'
 import type { Participant } from '../live'
-import { COLOR_BY_LABELS, VIEW_LABELS, type ColorBy, type Patch, type Settings, type ViewMode } from '../settings'
+import { COLOR_BY_LABELS, MUSIC_PACES, VIEW_LABELS, type ColorBy, type Patch, type Settings, type ViewMode } from '../settings'
 import { ViewIcon } from './ViewIcons'
 import { Field, Section, Segmented, Slider, Toggle } from './controls'
 import { Timeline } from './Timeline'
@@ -376,6 +376,18 @@ export function SoundTab({ settings, patch, snapshot }: Editor & { snapshot: Sna
             ? 'Each group adds a sustained tone as it arrives, with a chime: root, fifth, third, seventh, ninth.'
             : 'Each group is an instrument (bass, pluck, keys, bell, lead) playing its chord tone on the steps where its phones were seen flipping.'}{' '}
           If a group goes, those after it move up one place.
+        </p>
+        <Field label="music steps">
+          <Segmented
+            options={MUSIC_PACES}
+            value={settings.musicPace}
+            onChange={(musicPace) => patch({ musicPace })}
+            labels={{ auto: `auto (${snapshot.tempo.musicPerStep})`, '1': '1', '2': '2', '4': '4' }}
+          />
+        </Field>
+        <p className="text-xs text-muted-foreground">
+          Music steps to each step people flip to (and the metronome clicks). At half speed, 2 keeps each group’s rhythm and the chords going
+          round at their full-speed pace, so people can flip slowly without the music dragging. Auto picks it from the speed and tempo.
         </p>
         <Slider label="volume" value={settings.volume} min={0} max={1} step={0.05} onChange={(volume) => patch({ volume })} format={pct} />
       </Section>

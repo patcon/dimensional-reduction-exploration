@@ -104,7 +104,10 @@ order they first appeared, up to five. As **chord tones**, each adds a sustained
 fifth → third → seventh → ninth (C, C5, C, Cmaj7, Cmaj9), with a chime as it arrives; as **instrument
 voices**, each is an instrument (bass, pluck, keys, bell, lead) playing its chord tone over a four-bar
 loop (Cmaj9 · Am9 · Fmaj9 · G9) on the steps where its phones were seen flipping. A metronome clicks
-each step, accenting the bar. Sound and the metronome are each screen's own; every other setting is
+each step, accenting the bar: what people flip to. The music has steps of its own, a number to each step:
+at half speed (or a slow tempo), 2 keeps each group's rhythm and the chords going round at their
+full-speed pace, so people can flip slowly without the music dragging. Auto (the default) picks 1, 2 or
+4 from the speed and tempo; or set it by hand. Sound and the metronome are each screen's own; every other setting is
 shared between the visualisers in a room, as in v4.
 
 ```sh

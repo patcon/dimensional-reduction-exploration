@@ -7,6 +7,9 @@ import { DEFAULT_LAYOUT, type LayoutSettings } from './layout'
 import type { SoundMode } from './music'
 import { DEFAULT_GRADIENT, DETECTIONS, GRADIENTS, type Detection, type Gradient } from './protocol'
 
+export type MusicPace = 'auto' | '1' | '2' | '4'
+export const MUSIC_PACES: MusicPace[] = ['auto', '1', '2', '4']
+
 export type ViewMode = '2d' | '2d-ts' | '3d'
 export const VIEW_LABELS: Record<ViewMode, string> = { '2d': '2d time slice', '2d-ts': '2d time series', '3d': '3d' }
 export type ColorBy = 'valence' | 'group' | 'pattern'
@@ -39,6 +42,11 @@ export interface Settings {
   /** Smallest group that sounds, in phones. */
   minGroupSize: number
   soundMode: SoundMode
+  /**
+   * Music steps to each step people flip: 'auto' keeps the music at its full-speed pace whatever the speed and tempo
+   * (2 at half speed, say), or 1, 2 or 4.
+   */
+  musicPace: MusicPace
   volume: number
   /** Which way of turning a phone reads as its facing, for every phone in the room. */
   detection: Detection
@@ -61,6 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
   followBeat: true,
   minGroupSize: 1,
   soundMode: 'chord',
+  musicPace: 'auto',
   volume: 0.7,
   detection: 'flip',
   gradient: DEFAULT_GRADIENT,

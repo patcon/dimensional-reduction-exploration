@@ -6,9 +6,9 @@
  * where its phones were seen flipping. A metronome clicks each step, accenting the bar.
  */
 
-import { unlockAudio } from './audio'
-import { FS, SLOT, WIN } from './crowd'
-import { NSLOT } from './analysis'
+import { unlockAudio } from './audio.ts'
+import { FS, SLOT, WIN } from './crowd.ts'
+import { NSLOT } from './analysis.ts'
 
 export type SoundMode = 'chord' | 'voices'
 export const DEGREE_NAMES = ['root', 'fifth', 'third', 'seventh', 'ninth']
@@ -92,7 +92,8 @@ export class Sound {
   private master: GainNode | null = null
   private bus: GainNode | null = null
   private pads: (Pad | null)[] = []
-  private lastMusic = -1
+  /** Song time of the last music step scheduled (music steps are a step, or a fraction of one: see tick). */
+  private lastMusicAt = -Infinity
   private lastClick = -1
   private playing = false
 
@@ -117,7 +118,7 @@ export class Sound {
     if (!this.on && !this.metronome && !this.ctx) return
     this.ensure()
     if (restart) {
-      this.lastMusic = Math.floor(t / SLOT)
+      this.lastMusicAt = t
       this.allPadsOff()
     }
     this.updatePads(ensemble)
@@ -127,7 +128,8 @@ export class Sound {
   setPlaying(playing: boolean, t: number) {
     if (playing === this.playing) return
     this.playing = playing
-    this.lastMusic = this.lastClick = Math.floor(t / SLOT)
+    this.lastClick = Math.floor(t / SLOT)
+    this.lastMusicAt = t
     this.setMaster()
   }
 
@@ -149,25 +151,31 @@ export class Sound {
     }
   }
 
-  /** Each frame: clicks and voices due within the lookahead. */
-  tick(t: number, speed: number, ensemble: Ensemble) {
+  /**
+   * Each frame: clicks and voices due within the lookahead, at song time t running `rate` times real time. The metronome
+   * clicks each step, which is what people flip to. The music has steps of its own, `perStep` to a step: at half speed,
+   * 2, say, so each group's rhythm and the chords go round at the pace they would at full speed while people flip at
+   * half of it.
+   */
+  tick(t: number, rate: number, ensemble: Ensemble, perStep = 1) {
     const ctx = this.ctx
     if (!ctx || !this.playing || ctx.state !== 'running') return
     const sNext = Math.floor(t / SLOT) + 1
-    const ahead = (sNext * SLOT - t) / speed
-    if (ahead >= LOOKAHEAD) return
-    const when = ctx.currentTime + ahead
-    if (this.metronome && sNext > this.lastClick) {
+    const clickAhead = (sNext * SLOT - t) / rate
+    if (this.metronome && sNext > this.lastClick && clickAhead < LOOKAHEAD) {
       this.lastClick = sNext
-      this.click(when, sNext % 4 === 0)
+      this.click(ctx.currentTime + clickAhead, sNext % 4 === 0)
     }
-    if (this.on && this.mode === 'voices' && sNext > this.lastMusic) {
-      this.lastMusic = sNext
-      const chord = PROG[Math.floor(sNext / 4) % 4], pos = sNext % 4
-      for (const e of ensemble.list) {
-        if (e.rhythm[pos] < RHYTHM_ON) continue
-        this.voice(e.voice, when, mtof(chord[e.voice] + VOICE_SHIFT[e.voice]), pos === 0 ? 1 : 0.8)
-      }
+    if (!this.on || this.mode !== 'voices') return
+    const g = SLOT / perStep, mNext = Math.floor(t / g) + 1, at = mNext * g
+    const ahead = (at - t) / rate
+    if (ahead >= LOOKAHEAD || at <= this.lastMusicAt + 1e-9) return
+    this.lastMusicAt = at
+    const when = ctx.currentTime + ahead
+    const chord = PROG[Math.floor(mNext / 4) % 4], pos = mNext % 4
+    for (const e of ensemble.list) {
+      if (e.rhythm[pos] < RHYTHM_ON) continue
+      this.voice(e.voice, when, mtof(chord[e.voice] + VOICE_SHIFT[e.voice]), pos === 0 ? 1 : 0.8)
     }
   }
 

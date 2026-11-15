@@ -10,6 +10,7 @@ import { Crowd, FS, LiveRecorder, SLOT, START_T, WIN, type CrowdSettings } from 
 import { ForceLayout, LayoutView, type LayoutSettings } from './layout'
 import { Ensemble, Sound, type SoundMode } from './music'
 import { detectBeat, FlipListener, type Beat } from './tempo'
+import type { MusicPace } from './settings'
 import { WorkerQueue } from './workerQueue'
 
 /** Song time between groupings. */
@@ -41,6 +42,8 @@ export interface TempoState {
   /** Steps a minute the song is running at now (before playback speed). */
   stepsPerMinute: number
   following: boolean
+  /** Music steps to each step: see CrowdEngine.musicPerStep. */
+  musicPerStep: number
   /** The beat last heard in people's flips, and how many seconds ago; null before any. */
   beat: Beat | null
   heardAgo: number | null
@@ -98,6 +101,7 @@ export class CrowdEngine {
   // ── Tempo ──
   /** Steps a minute set by hand, used until people's beat is heard (or when not following it). */
   private manualTempo = BASE_TEMPO
+  private musicPace: MusicPace = 'auto'
   private following = true
   private readonly flips = new FlipListener()
   /** The tempo followed from people's flips, steps a minute, once heard; kept when they stop. */
@@ -130,6 +134,7 @@ export class CrowdEngine {
 
   setSpeed(speed: number) {
     this.speed = speed
+    this.changed()
   }
 
   /** The tempo set by hand, and whether people's beat takes over from it once heard. */
@@ -142,6 +147,17 @@ export class CrowdEngine {
       this.lean = 0
       this.flips.clear()
     }
+    this.changed()
+  }
+
+  /** Music steps to a step: as set, or (auto) the power of two nearest to undoing the speed and tempo, 1 to 4. */
+  musicPerStep() {
+    if (this.musicPace !== 'auto') return Number(this.musicPace)
+    const pace = this.speed * (this.tempoNow() / BASE_TEMPO)
+    return Math.max(1, Math.min(4, 2 ** Math.round(Math.log2(1 / pace))))
+  }
+  setMusicPace(pace: MusicPace) {
+    this.musicPace = pace
     this.changed()
   }
 
@@ -159,6 +175,7 @@ export class CrowdEngine {
     return {
       stepsPerMinute: this.tempoNow(),
       following: this.following,
+      musicPerStep: this.musicPerStep(),
       beat: this.beat,
       heardAgo: this.beat ? performance.now() / 1000 - this.heardAt : null,
       lean: this.lean,
@@ -323,7 +340,7 @@ export class CrowdEngine {
       this.t += dt * this.rate()
       this.crowd.generate(this.t + Crowd.AHEAD)
       this.live.record(this.t, this.liveSlots, this.liveValence)
-      this.sound.tick(this.t, this.rate(), this.ensemble)
+      this.sound.tick(this.t, this.rate(), this.ensemble, this.musicPerStep())
       if (this.following) {
         const wall = now / 1000
         this.flips.forget(this.liveSlots, wall - BEAT_SECONDS)

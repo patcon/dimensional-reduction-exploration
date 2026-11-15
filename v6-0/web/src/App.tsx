@@ -66,6 +66,7 @@ export default function App() {
   useEffect(() => engine.setLayout(settings.layout), [engine, settings.layout])
   useEffect(() => engine.setMinGroupSize(settings.minGroupSize), [engine, settings.minGroupSize])
   useEffect(() => engine.setSpeed(settings.speed), [engine, settings.speed])
+  useEffect(() => engine.setMusicPace(settings.musicPace), [engine, settings.musicPace])
   useEffect(() => engine.setTempo(settings.tempo, settings.followBeat), [engine, settings.tempo, settings.followBeat])
   const { soundOn, soundMode, volume, metronome } = settings
   useEffect(() => engine.setSound({ on: soundOn, mode: soundMode, volume, metronome }), [engine, soundOn, soundMode, volume, metronome])
