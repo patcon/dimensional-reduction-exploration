@@ -223,6 +223,7 @@ const DETECTION_HOW = {
   flip: 'Face up for +1, face down for −1, edge on between',
   invert: 'Upright for +1, upside down for −1, on its side between',
   spin: 'As a steering wheel, screen to you: upright for +1, upside down for −1, landscape between',
+  touch: 'A finger on the screen: near the top for +1, near the bottom for −1, between in proportion (no tilt needed)',
 } as const
 
 /** The phones in the room: how they read, calibrating them all at once, and joining. */
@@ -266,7 +267,7 @@ export function PhonesTab({ settings, patch, roster, connected, onCalibrate, onJ
         <p className="text-xs text-muted-foreground">
           Have everyone hold their phone where they mean −1 to be, then set low; where +1 is, then set high. Any turn works, held any way. A phone
           then reads how much nearer it is to its high than its low, so it runs smoothly from −1 to +1 however it’s turned between them. Each phone
-          keeps its own, for each detection.
+          keeps its own, for each detection. In touch, it’s where each person’s finger is (or last was) on their screen that becomes their +1 or −1.
         </p>
       </Section>
       <Section title="Colours">

@@ -44,12 +44,15 @@ export const CALIBRATIONS: readonly Calibration[] = ['high', 'low', 'reset']
 export type VizMessage = { type: 'settings'; settings: unknown; from: string; seq: number } | { type: 'calibrate'; set: Calibration }
 
 /**
- * Which way of turning a phone reads as valence, set for the whole room by its visualisers: the axis it turns about.
+ * How a phone reads as valence, set for the whole room by its visualisers. Touch: where a finger is on its screen,
+ * bottom −1, top +1. The rest, which way of turning it: the axis it turns about.
  * Flip: face up +1, face down −1. Invert: upright +1, upside down −1. Spin, as a steering wheel with
  * the screen to you: upright +1, landscape 0, upside down −1.
  */
-export type Detection = 'flip' | 'invert' | 'spin'
-export const DETECTIONS: readonly Detection[] = ['flip', 'invert', 'spin']
+export type Detection = 'flip' | 'invert' | 'spin' | 'touch'
+export const DETECTIONS: readonly Detection[] = ['flip', 'invert', 'spin', 'touch']
+/** Detections read from which way the phone is turned; touch reads where a finger is on its screen instead. */
+export type TiltDetection = Exclude<Detection, 'touch'>
 
 /** The colours valence runs through, −1 to +1, everywhere it's shown: the visualiser, digits, matrix and phones. */
 export type Gradient = 'black-white' | 'white-black' | 'red-black-green' | 'red-white-green'

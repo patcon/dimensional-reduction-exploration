@@ -66,7 +66,12 @@ pulsing while touched. Rings round each dot in its group's colour are a View set
 
 ## Phones (Phones tab)
 
-The detection (flip, invert or spin) and gradient go to every phone. **Set high** and **set low**
+The detection and gradient go to every phone. Flip, invert and spin read which way it's turned;
+**touch** reads where a finger is on its screen instead: near the top +1, near the bottom −1 (15% in
+from each end, so both are easy to reach), in proportion between, held where it last was once the
+finger lifts. Dashed lines on the phone mark its +1 and −1, and in touch a finger on the screen
+doesn't also ring the phone on the visualiser. Set high and set low, in touch, take where each
+person's finger is (or last was) as their +1 or −1. **Set high** and **set low**
 calibrate every phone at once: each takes which way it's held now as its +1 or −1, and then reads how
 much nearer it is to its high than its low, over how far apart they are. This is new, here and in v4.0
 and v4.1: before, a phone read its place along the turn between the two, and nothing when held off it.

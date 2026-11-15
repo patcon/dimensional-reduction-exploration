@@ -3,7 +3,7 @@
  * between the ends it was calibrated to (set high and set low). Kept apart from the remote's page so it can be checked.
  */
 
-import type { Calibration, Detection } from '../protocol.ts'
+import type { Calibration, TiltDetection as Detection } from '../protocol.ts'
 
 /** A direction in the phone's own axes: x to its right edge, y to its top, z out of its screen. */
 export type Vec = [number, number, number]
@@ -75,4 +75,29 @@ export function valenceOf(detection: Detection, points: Setpoints, up: Vec) {
   const b = points.high ?? ENDS[detection].high
   const ab = angle(a, b)
   return Math.max(-1, Math.min(1, (angle(up, a) - angle(up, b)) / ab))
+}
+
+/**
+ * Touch: where a finger is on the screen, as a share of its height down from the top (0 top, 1 bottom), and where
+ * this phone's −1 (low) and +1 (high) are, set by calibrating; null for the defaults, near the bottom and top.
+ */
+export type TouchPoints = { low: number | null; high: number | null }
+export const NO_TOUCH_POINTS: TouchPoints = { low: null, high: null }
+export const TOUCH_ENDS = { low: 0.85, high: 0.15 }
+/** Setpoints nearer than this share of the screen would swing from −1 to +1 on the slightest move: they're ignored. */
+const MIN_TOUCH_SPAN = 0.05
+
+/** Valence with a finger at `y`: −1 at low, +1 at high, in proportion between, and held at either past it. */
+export function touchValence(points: TouchPoints, y: number) {
+  const low = points.low ?? TOUCH_ENDS.low, high = points.high ?? TOUCH_ENDS.high
+  return Math.max(-1, Math.min(1, -1 + (2 * (y - low)) / (high - low)))
+}
+
+/** The setpoints after calibrating, with the finger (or where it last was) at `y`; unchanged with none, or too near the other. */
+export function touchCalibrated(points: TouchPoints, set: Calibration, y: number | null): TouchPoints {
+  if (set === 'reset') return NO_TOUCH_POINTS
+  if (y === null) return points
+  const other = set === 'high' ? (points.low ?? TOUCH_ENDS.low) : (points.high ?? TOUCH_ENDS.high)
+  if (Math.abs(y - other) < MIN_TOUCH_SPAN) return points
+  return set === 'high' ? { ...points, high: y } : { ...points, low: y }
 }

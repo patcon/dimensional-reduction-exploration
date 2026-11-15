@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { gradientRGB, rgbCss, type RGB } from '../palette'
-import { DEFAULT_GRADIENT, participantColor, type Detection, type Gradient, type RemoteMessage, type ToRemote } from '../protocol'
+import { DEFAULT_GRADIENT, participantColor, type Detection, type Gradient, type RemoteMessage, type TiltDetection, type ToRemote } from '../protocol'
 import { connectRoom, type RoomSocket } from '../room'
 import { canWakeLock, useWakeLock } from '../useWakeLock'
-import { calibrated, NO_SETPOINTS, upOf, valenceOf, type Setpoints, type Vec } from './valence'
+import { calibrated, NO_SETPOINTS, NO_TOUCH_POINTS, TOUCH_ENDS, touchCalibrated, touchValence, upOf, valenceOf, type Setpoints, type TouchPoints, type Vec } from './valence'
 
 /**
  * The participant remote: the phone joins the crowd, flipped to the beat. Turned one way it's +1, the other −1, and
@@ -47,12 +47,31 @@ function initialPermission(): Permission {
   return typeof ctor?.requestPermission === 'function' ? 'needed' : 'granted'
 }
 
-/** This phone's setpoints for each detection, kept across reloads. */
-function storedSetpoints(): Partial<Record<Detection, Setpoints>> {
+const TOUCH_POINTS_KEY = 'phone-flip-crowd:touch-points'
+
+/** This phone's setpoints for each tilt detection, kept across reloads. */
+function storedSetpoints(): Partial<Record<TiltDetection, Setpoints>> {
   try {
     return JSON.parse(localStorage.getItem(SETPOINTS_KEY) ?? '{}')
   } catch {
     return {}
+  }
+}
+
+/** Where this phone's high and low are for touch, kept across reloads. */
+function storedTouchPoints(): TouchPoints {
+  try {
+    return { ...NO_TOUCH_POINTS, ...JSON.parse(localStorage.getItem(TOUCH_POINTS_KEY) ?? '{}') }
+  } catch {
+    return NO_TOUCH_POINTS
+  }
+}
+
+function store(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Kept until the page reloads.
   }
 }
 
@@ -61,6 +80,7 @@ const HOW: Record<Detection, string> = {
   flip: 'Face up for +1, face down for −1',
   invert: 'Upright for +1, upside down for −1',
   spin: 'Screen to you, steer upright for +1, upside down for −1',
+  touch: 'Touch higher for +1, lower for −1',
 }
 
 export function Remote() {
@@ -71,14 +91,20 @@ export function Remote() {
   const [touching, setTouching] = useState(false)
   const [noSensor, setNoSensor] = useState(false)
   const [detection, setDetection] = useState<Detection>('flip')
+  const touchMode = detection === 'touch'
   const screenRef = useRef<HTMLDivElement>(null)
   const readoutRef = useRef<HTMLSpanElement>(null)
+  const fingerRef = useRef<HTMLDivElement>(null)
   const socket = useRef<RoomSocket | null>(null)
   /** Which way is up now, and the detection it's read in, for a calibration to take. */
   const up = useRef<Vec | null>(null)
   const upDetection = useRef<Detection>(detection)
   const setpoints = useRef(storedSetpoints())
-  /** The room's gradient, for the screen's colour; read as tilt comes in, so changing it doesn't restart the reading. */
+  /** Touch: where the finger is (or last was), as a share of the screen's height down from the top, and the setpoints. */
+  const fingerY = useRef<number | null>(null)
+  const [touchPoints, setTouchPoints] = useState(storedTouchPoints)
+  const touchPointsRef = useRef(touchPoints)
+  /** The room's gradient, for the screen's colour; read as readings come in, so changing it doesn't restart the reading. */
   const gradient = useRef<Gradient>(DEFAULT_GRADIENT)
   useWakeLock(joined)
 
@@ -108,11 +134,15 @@ export function Remote() {
         }
         if (m.type === 'calibrate') {
           const d = upDetection.current
-          setpoints.current = { ...setpoints.current, [d]: calibrated(setpoints.current[d] ?? NO_SETPOINTS, m.set, d, up.current) }
-          try {
-            localStorage.setItem(SETPOINTS_KEY, JSON.stringify(setpoints.current))
-          } catch {
-            // Kept until the page reloads.
+          if (d === 'touch') {
+            // Where the finger is, or last was.
+            const next = touchCalibrated(touchPointsRef.current, m.set, fingerY.current)
+            touchPointsRef.current = next
+            setTouchPoints(next)
+            store(TOUCH_POINTS_KEY, next)
+          } else {
+            setpoints.current = { ...setpoints.current, [d]: calibrated(setpoints.current[d] ?? NO_SETPOINTS, m.set, d, up.current) }
+            store(SETPOINTS_KEY, setpoints.current)
           }
         }
       },
@@ -128,51 +158,83 @@ export function Remote() {
     }
   }, [joined])
 
-  // Tilt → the screen's shade, and the room.
+  // What's read, however it's read: shown on the screen, in the room's gradient, and sent to the room (at most every
+  // SEND_MS, and again every KEEPALIVE_MS while it holds).
+  const out = useRef({ valence: null as number | null, sent: null as number | null, sentAt: 0 })
+  const send = (force: boolean) => {
+    const o = out.current
+    if (o.valence === null || !socket.current) return
+    const now = performance.now()
+    if (!force && (now - o.sentAt < SEND_MS || (o.sent !== null && Math.abs(o.valence - o.sent) < SEND_EPSILON))) return
+    socket.current.send({ type: 'valence', valence: o.valence } satisfies RemoteMessage)
+    o.sent = o.valence
+    o.sentAt = now
+  }
+  const report = (v: number) => {
+    out.current.valence = v
+    if (screenRef.current) screenRef.current.style.backgroundColor = rgbCss(gradientRGB(gradient.current, v).map(Math.round) as RGB)
+    if (readoutRef.current) readoutRef.current.textContent = `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`
+    send(false)
+  }
+  const sendRef = useRef(send)
   useEffect(() => {
-    if (!joined || permission !== 'granted') return
-    up.current = null
+    sendRef.current = send
+  })
+  useEffect(() => {
+    if (!joined) return
+    const keepalive = setInterval(() => sendRef.current(performance.now() - out.current.sentAt >= KEEPALIVE_MS), KEEPALIVE_MS / 4)
+    return () => clearInterval(keepalive)
+  }, [joined])
+
+  // Tilt → valence, in the tilt detections.
+  useEffect(() => {
     upDetection.current = detection
-    let valence: number | null = null
-    let sent: number | null = null
-    let sentAt = 0
-    const send = (force: boolean) => {
-      if (valence === null || !socket.current) return
-      const now = performance.now()
-      if (!force && (now - sentAt < SEND_MS || (sent !== null && Math.abs(valence - sent) < SEND_EPSILON))) return
-      socket.current.send({ type: 'valence', valence } satisfies RemoteMessage)
-      sent = valence
-      sentAt = now
-    }
+    if (!joined || permission !== 'granted' || detection === 'touch') return
+    up.current = null
+    let heard = false
     const onOrientation = (e: DeviceOrientationEvent) => {
       const now = upOf(e.beta, e.gamma)
       if (now === null) return
       up.current = now
       const v = valenceOf(detection, setpoints.current[detection] ?? NO_SETPOINTS, now)
       if (v === null) return
-      valence = v
+      heard = true
       setNoSensor(false)
-      // Its facing, in the room's gradient.
-      if (screenRef.current) screenRef.current.style.backgroundColor = rgbCss(gradientRGB(gradient.current, v).map(Math.round) as RGB)
-      if (readoutRef.current) readoutRef.current.textContent = `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`
-      send(false)
+      reportRef.current(v)
     }
     window.addEventListener('deviceorientation', onOrientation)
-    const noSensorTimer = setTimeout(() => valence === null && setNoSensor(true), NO_SENSOR_MS)
-    const keepalive = setInterval(() => send(performance.now() - sentAt >= KEEPALIVE_MS), KEEPALIVE_MS / 4)
+    const noSensorTimer = setTimeout(() => !heard && setNoSensor(true), NO_SENSOR_MS)
     return () => {
       window.removeEventListener('deviceorientation', onOrientation)
       clearTimeout(noSensorTimer)
-      clearInterval(keepalive)
     }
   }, [joined, permission, detection])
+  const reportRef = useRef(report)
+  useEffect(() => {
+    reportRef.current = report
+  })
 
-  // Touch: any finger down anywhere, until the last lifts.
+  // Touch → valence, in touch detection: the finger's height on the screen, held where it last was once it lifts.
+  const onFinger = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!touchMode || (e.type === 'pointermove' && !fingers.current.has(e.pointerId))) return
+    const y = Math.max(0, Math.min(1, e.clientY / window.innerHeight))
+    fingerY.current = y
+    if (fingerRef.current) fingerRef.current.style.top = `${y * 100}%`
+    report(touchValence(touchPointsRef.current, y))
+  }
+  // Coming into touch, read from where the finger last was (or the middle).
+  useEffect(() => {
+    if (!joined || !touchMode) return
+    reportRef.current(touchValence(touchPointsRef.current, fingerY.current ?? ((touchPointsRef.current.low ?? TOUCH_ENDS.low) + (touchPointsRef.current.high ?? TOUCH_ENDS.high)) / 2))
+  }, [joined, touchMode, touchPoints])
+
+  // Touch, the highlight: any finger down anywhere, until the last lifts. In touch detection a finger is the reading,
+  // so it doesn't also ring this phone on the visualiser.
   const fingers = useRef(new Set<number>())
   const touch = (down: boolean, pointer: number) => {
     if (down) fingers.current.add(pointer)
     else fingers.current.delete(pointer)
-    const now = fingers.current.size > 0
+    const now = fingers.current.size > 0 && !touchMode
     if (now === touching) return
     setTouching(now)
     socket.current?.send({ type: 'touch', touching: now } satisfies RemoteMessage)
@@ -185,6 +247,7 @@ export function Remote() {
   }, [status])
 
   const color = slot === null ? '#888' : participantColor(slot)
+  const high = touchPoints.high ?? TOUCH_ENDS.high, low = touchPoints.low ?? TOUCH_ENDS.low
 
   if (!joined)
     return (
@@ -192,7 +255,7 @@ export function Remote() {
         <h1 className="text-2xl font-semibold">Join the crowd</h1>
         <ol className="max-w-sm list-decimal space-y-2 pl-5 text-left text-white/75">
           <li>The big screen keeps a beat, four steps to a bar: 1 e &amp; a.</li>
-          <li>Flip your phone to it, between its +1 and −1 (your screen will say which way), in any rhythm you like.</li>
+          <li>Flip your phone to it (or move your finger up and down it), between +1 and −1, in any rhythm you like: your screen will say how.</li>
           <li>You’ll be grouped with the phones flipping like yours, and heard as their chord. Touch your screen to find yourself.</li>
         </ol>
         <button className="rounded-full bg-white px-8 py-3 text-lg font-semibold text-black active:scale-95" onClick={join}>
@@ -206,7 +269,11 @@ export function Remote() {
     <div
       ref={screenRef}
       className="fixed inset-0 touch-none bg-[rgb(128_128_128)] select-none"
-      onPointerDown={(e) => touch(true, e.pointerId)}
+      onPointerDown={(e) => {
+        touch(true, e.pointerId)
+        onFinger(e)
+      }}
+      onPointerMove={onFinger}
       onPointerUp={(e) => touch(false, e.pointerId)}
       onPointerCancel={(e) => touch(false, e.pointerId)}
       onContextMenu={(e) => e.preventDefault()}
@@ -217,6 +284,20 @@ export function Remote() {
         className="pointer-events-none absolute top-1/2 left-1/2 size-40 -translate-1/2 rounded-full border-[10px] transition-[opacity,scale] duration-150"
         style={{ borderColor: color, opacity: touching ? 1 : 0, scale: touching ? 1 : 0.6 }}
       />
+      {touchMode && (
+        <>
+          {/* Where +1 and −1 are, and the finger. */}
+          {[
+            { at: high, label: '+1' },
+            { at: low, label: '−1' },
+          ].map(({ at, label }) => (
+            <div key={label} className="pointer-events-none absolute inset-x-6 border-t-2 border-dashed border-white mix-blend-difference" style={{ top: `${at * 100}%` }}>
+              <span className="absolute -top-6 left-0 font-mono text-sm text-white">{label}</span>
+            </div>
+          ))}
+          <div ref={fingerRef} className="pointer-events-none absolute inset-x-0 h-0 border-t-4 mix-blend-difference" style={{ borderColor: 'white', top: fingerY.current === null ? '-10%' : `${fingerY.current * 100}%` }} />
+        </>
+      )}
       <div className="pointer-events-none absolute inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] flex flex-col items-center gap-1 text-sm text-white mix-blend-difference">
         <span ref={readoutRef} className="font-mono text-2xl tabular-nums">
           ·
@@ -226,9 +307,9 @@ export function Remote() {
           {status === 'open' ? 'connected' : status === 'replaced' ? 'opened on another tab or phone' : 'connecting…'}
           {joined && !canWakeLock && ' · screen may sleep'}
         </span>
-        {permission === 'denied' && <span>Tilt permission was refused; reload to ask again.</span>}
-        {permission === 'insecure' && <span>Tilt needs a secure (https) page.</span>}
-        {noSensor && permission === 'granted' && <span>No tilt readings from this phone.</span>}
+        {!touchMode && permission === 'denied' && <span>Tilt permission was refused; reload to ask again.</span>}
+        {!touchMode && permission === 'insecure' && <span>Tilt needs a secure (https) page.</span>}
+        {!touchMode && noSensor && permission === 'granted' && <span>No tilt readings from this phone.</span>}
       </div>
     </div>
   )
