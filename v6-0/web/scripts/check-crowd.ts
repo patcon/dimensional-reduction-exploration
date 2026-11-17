@@ -3,10 +3,12 @@
 //   phones given a new pattern form a group of their own once the window has moved on past the switch.
 // - Beat: the step people flip to is found from their flips (played by simulated phones, at a tempo other than the
 //   song's own), whatever mix of patterns they play; random flips give none.
+// - Rhythm: a group's rhythm keeps a pattern two bars long (1-2-345-) whole, and one a bar long comes out twice.
 // - Calibration: with set high and set low, a phone's facing runs smoothly and in order from −1 to +1 as it's flipped,
 //   whichever way it's turned over, with no reading missing on the way (the old reading held in the middle).
 import { analyse, type AnalysisSettings } from '../src/analysis.ts'
-import { Crowd, FS, START_T, WIN } from '../src/crowd.ts'
+import { Crowd, FS, SLOT, START_T, WIN } from '../src/crowd.ts'
+import { RHYTHM_ON, RHYTHM_STEPS, rhythmOf } from '../src/rhythm.ts'
 import { detectBeat, FlipListener } from '../src/tempo.ts'
 import { angle, valenceOf, type Vec } from '../src/remote/valence.ts'
 
@@ -92,6 +94,34 @@ function groupAt(crowd: Crowd, t: number, settings = SETTINGS) {
   const rng = (() => { let a = 3; return () => ((a = (a * 1103515245 + 12345) % 2147483648) / 2147483648) })()
   const random = Array.from({ length: 40 }, () => rng() * 10).sort((x, y) => x - y)
   check(detectBeat(random) === null, 'flips at random: no beat')
+}
+
+{
+  // A phone flipping on these steps of every two bars, 0.25 s after each (reacting), each flip taking 0.25 s.
+  const flipper = (steps: number[]) => (n: number) => {
+    const t = n / FS
+    let v = 1
+    for (let s = 0; s * SLOT <= t; s++) {
+      if (!steps.includes(s % RHYTHM_STEPS)) continue
+      const u = (t - s * SLOT - 0.25) / 0.25
+      if (u >= 1) v = -v
+      else if (u > 0) return v * (1 - 2 * u)
+    }
+    return v
+  }
+  const heard = (steps: number[], t: number) => {
+    const r = rhythmOf([0], t, (_, n) => flipper(steps)(n))
+    return r.flatMap((e, q) => (e >= RHYTHM_ON ? [q] : []))
+  }
+  // 1-2-345-, counted a step each over two bars: 1 and & in the first; 1, e and & in the second.
+  const two = [0, 2, 4, 5, 6]
+  for (const t of [40, 41.3, 47.9]) {
+    const got = heard(two, t)
+    check(got.join() === two.join(), `1-2-345- over two bars, at ${t} s: heard on steps ${got.join(' ')}`)
+  }
+  const one = [0, 1, 2, 4, 5, 6]
+  const got = heard(one, 40)
+  check(got.join() === one.join(), `1 e & every bar: heard on steps ${got.join(' ')}`)
 }
 
 if (failed) {

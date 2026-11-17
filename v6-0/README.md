@@ -111,7 +111,9 @@ start, so even a lone phone gets a voice), in the
 order they first appeared, up to five. As **chord tones**, each adds a sustained tone, building root →
 fifth → third → seventh → ninth (C, C5, C, Cmaj7, Cmaj9), with a chime as it arrives; as **instrument
 voices**, each is an instrument (bass, pluck, keys, bell, lead) playing its chord tone over a four-bar
-loop (Cmaj9 · Am9 · Fmaj9 · G9) on the steps where its phones were seen flipping. A metronome clicks
+loop (Cmaj9 · Am9 · Fmaj9 · G9) on the steps where its phones were seen flipping, over two bars, so a
+pattern counted over two (1-2-345-: 1 and & in the first, 1, e and & in the second) is played as it was
+flipped, at the pace it was flipped (or, at 2 music steps to each step, twice it). A metronome clicks
 each step, accenting the bar: what people flip to. The music has steps of its own, a number to each step:
 at half speed (or a slow tempo), 2 keeps each group's rhythm and the chords going round at their
 full-speed pace, so people can flip slowly without the music dragging. Auto (the default) picks 1, 2 or

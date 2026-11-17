@@ -353,8 +353,9 @@ export function SoundTab({ settings, patch, snapshot }: Editor & { snapshot: Sna
                 <td className="text-xs">{chord ? `${DEGREE_NAMES[e.voice]} · ${PAD_NOTE_NAMES[e.voice]}` : `${VOICE_NAMES[e.voice]} · the ${DEGREE_NAMES[e.voice]}`}</td>
                 <td className="font-mono text-xs">
                   {e.rhythm.map((r, q) => (
-                    <span key={q} className={r >= RHYTHM_ON ? '' : 'text-muted-foreground'} title={`${SUB[q]}: ${r.toFixed(2)}`}>
-                      {r >= RHYTHM_ON ? SUB[q] : '·'}{' '}
+                    <span key={q} className={r >= RHYTHM_ON ? '' : 'text-muted-foreground'} title={`bar ${Math.floor(q / 4) + 1} · ${SUB[q % 4]}: ${r.toFixed(2)}`}>
+                      {q === 4 && <span className="text-muted-foreground">| </span>}
+                      {r >= RHYTHM_ON ? SUB[q % 4] : '·'}{' '}
                     </span>
                   ))}
                 </td>

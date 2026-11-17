@@ -3,12 +3,15 @@
  * in the order they first appeared, up to five. In chord mode each adds a sustained tone, building root → fifth →
  * third → seventh → ninth (C, C5, C, Cmaj7, Cmaj9), with a chime as it arrives. In voices mode each is an instrument
  * (bass, pluck, keys, bell, lead) playing its chord tone over a four-bar loop (Cmaj9 · Am9 · Fmaj9 · G9), on the steps
- * where its phones were seen flipping. A metronome clicks each step, accenting the bar.
+ * where its phones were seen flipping, over two bars (so a pattern two bars long is played as it was flipped). A metronome clicks each step, accenting the bar.
  */
 
 import { unlockAudio } from './audio.ts'
-import { FS, SLOT, WIN } from './crowd.ts'
+import { SLOT } from './crowd.ts'
+import { RHYTHM_ON, RHYTHM_STEPS, rhythmOf } from './rhythm.ts'
 import { NSLOT } from './analysis.ts'
+
+export { RHYTHM_ON, RHYTHM_STEPS }
 
 export type SoundMode = 'chord' | 'voices'
 export const DEGREE_NAMES = ['root', 'fifth', 'third', 'seventh', 'ninth']
@@ -19,8 +22,6 @@ export const PROG_NAMES = ['Cmaj9', 'Am9', 'Fmaj9', 'G9']
 export const CHORD_NAMES = ['silence', 'C (root)', 'C5 (power chord)', 'C major', 'Cmaj7', 'Cmaj9']
 export const VOICE_NAMES = ['Bass', 'Pluck', 'Keys', 'Bell', 'Lead']
 const VOICE_SHIFT = [-12, 12, 12, 24, 12]
-/** A step is played when its group's flip energy there is at least this. */
-export const RHYTHM_ON = 0.45
 /** Scheduled this far ahead, in seconds. */
 const LOOKAHEAD = 0.12
 
@@ -31,7 +32,7 @@ export interface EnsembleGroup {
   members: number[]
   /** Its place in the ensemble: which tone, or which voice. */
   voice: number
-  /** Flip energy on 1, e, & and a, over the window. */
+  /** Flip energy on each step of two bars (1 e & a, 1 e & a), over the window. */
   rhythm: number[]
 }
 
@@ -62,20 +63,6 @@ export class Ensemble {
       .slice(0, 5)
       .map(([slot, members], voice) => ({ slot, members, voice, rhythm: rhythmOf(members, t, sample) }))
   }
-}
-
-/** Flip energy at each step over the window, folded onto 1 e & a. */
-function rhythmOf(members: number[], t: number, sample: (i: number, n: number) => number) {
-  const prof = [0, 0, 0, 0], cnt = [0, 0, 0, 0]
-  const s0 = Math.ceil((t - WIN) / SLOT), s1 = Math.floor((t - 0.5) / SLOT)
-  for (let s = s0; s <= s1; s++) {
-    const n0 = Math.round((s * SLOT - 0.02) * FS), n1 = Math.round((s * SLOT + 0.45) * FS)
-    let e = 0
-    for (const i of members) e += Math.min(1, Math.abs(sample(i, n1) - sample(i, n0)) / 2)
-    prof[s % 4] += e / members.length
-    cnt[s % 4]++
-  }
-  return prof.map((v, k) => (cnt[k] ? v / cnt[k] : 0))
 }
 
 interface Pad {
@@ -196,10 +183,10 @@ export class Sound {
     if (ahead >= LOOKAHEAD || at <= this.lastMusicAt + 1e-9) return
     this.lastMusicAt = at
     const when = ctx.currentTime + ahead
-    const chord = PROG[Math.floor(mNext / 4) % 4], pos = mNext % 4
+    const chord = PROG[Math.floor(mNext / 4) % 4], pos = mNext % RHYTHM_STEPS
     for (const e of ensemble.list) {
       if (e.rhythm[pos] < RHYTHM_ON) continue
-      this.voice(e.voice, when, mtof(chord[e.voice] + VOICE_SHIFT[e.voice]), pos === 0 ? 1 : 0.8)
+      this.voice(e.voice, when, mtof(chord[e.voice] + VOICE_SHIFT[e.voice]), pos % 4 === 0 ? 1 : 0.8)
     }
   }
 
