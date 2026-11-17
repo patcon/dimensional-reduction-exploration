@@ -178,6 +178,12 @@ export function GroupsTab({ settings, patch, snapshot, engine }: Editor & { snap
           onChange={(align) => set({ align })}
           note="On, a phone face up and one face down are opposites (r). Off, only the rhythm counts, whichever way up (|r|)."
         />
+        <Toggle
+          label="Holding still counts"
+          checked={A.stillCounts}
+          onChange={(stillCounts) => set({ stillCounts })}
+          note="On, phones held still are alike as far as they face the same way, so those holding face up (Hold) group. Off, a still phone is like nothing, and joins no group of its own."
+        />
         <Slider label="lag tolerance" value={A.lagTol} min={0} max={0.3} step={0.05} onChange={(lagTol) => set({ lagTol })} format={(v) => `±${ms(v)}`} />
       </Section>
     </div>

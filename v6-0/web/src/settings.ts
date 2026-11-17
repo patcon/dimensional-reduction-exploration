@@ -61,7 +61,7 @@ export const LOCAL_SETTINGS = ['soundOn', 'metronome'] as const
 
 export const DEFAULT_SETTINGS: Settings = {
   crowd: { count: 60, jitter: 0.05, lagSpread: 0.06, noise: 0.05, miss: 0, sync: 0.85, shuffleSeats: false },
-  analysis: { quality: 'cpm', gamma: 0.4, graph: 'full', k: 10, warm: true, align: false, lagTol: 0.15 },
+  analysis: { quality: 'cpm', gamma: 0.4, graph: 'full', k: 10, warm: true, align: false, lagTol: 0.15, stillCounts: true },
   layout: DEFAULT_LAYOUT,
   view: { mode: '3d', dots: 'valence', trails: 'valence', groupRings: false, edges: true, trailSeconds: 8, dotSize: 12, trailWidth: 3 },
   speed: 1,

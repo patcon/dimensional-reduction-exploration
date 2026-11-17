@@ -21,14 +21,16 @@ export interface Pattern {
   desc: string
   /** Which of 1 e & a it flips on. */
   mask: readonly [number, number, number, number]
+  /** Rather than flipping, it turns to this facing (at the next step) and holds it. */
+  hold?: 1 | -1
 }
 
-/** Slow, Fast and 1-e-& start the crowd; 1-&-a is only ever chosen, and like them, on a clean grid it correlates at 0 with each. */
+/** Slow, Fast and 1-e-& start the crowd; Hold (face up, still) is only ever chosen. */
 export const PATTERNS: readonly Pattern[] = [
   { name: 'Slow', desc: 'every 1 s', mask: [1, 0, 1, 0] },
   { name: 'Fast', desc: 'every ½ s', mask: [1, 1, 1, 1] },
   { name: '1-e-&', desc: '½ s, rest on a', mask: [1, 1, 1, 0] },
-  { name: '1-&-a', desc: '½ s, rest on e', mask: [1, 0, 1, 1] },
+  { name: 'Hold', desc: 'face up, still', mask: [0, 0, 0, 0], hold: 1 },
 ]
 export const START_PATTERNS = 3
 
@@ -199,11 +201,12 @@ export class Crowd {
     const P = this.settings
     for (const p of this.people) {
       while (p.cursor * SLOT <= horizon) {
-        const s = p.cursor++, tn = s * SLOT, g = this.patternAt(p.id, tn)
-        if (!PATTERNS[g].mask[s % 4]) continue
+        const s = p.cursor++, tn = s * SLOT, g = this.patternAt(p.id, tn), pat = PATTERNS[g]
+        if (pat.hold === undefined && !pat.mask[s % 4]) continue
         if (hash(p.id, s, 11) < P.miss) continue
         const cur = p.evS.length ? p.evS[p.evS.length - 1] : p.s0
-        const target = p.synced ? refState(g, s) : -cur
+        // Holding: turned to its facing, once, if it isn't already.
+        const target = pat.hold ?? (p.synced ? refState(g, s) : -cur)
         if (target === cur) continue
         let t = tn + p.lag + clamp(P.jitter * p.js * gauss(p.id, s, 10), -0.2, 0.2)
         const last = p.ev.length ? p.ev[p.ev.length - 1] : -1e9

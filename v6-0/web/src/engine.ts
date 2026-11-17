@@ -235,7 +235,7 @@ export class CrowdEngine {
     this.analyseNow()
   }
   setAnalysis(settings: AnalysisSettings) {
-    const fresh = settings.quality !== this.analysisSettings.quality || settings.graph !== this.analysisSettings.graph || settings.align !== this.analysisSettings.align
+    const fresh = settings.quality !== this.analysisSettings.quality || settings.graph !== this.analysisSettings.graph || settings.align !== this.analysisSettings.align || settings.stillCounts !== this.analysisSettings.stillCounts
     this.analysisSettings = settings
     if (fresh) this.analysis = null
     this.analyseNow()

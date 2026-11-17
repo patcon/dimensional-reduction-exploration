@@ -17,8 +17,8 @@ It's a Cloudflare Worker (`phone-flip-crowd`) with a Durable Object room, as v4.
 
 - **Simulated phones** (60 to start, 3–150; Crowd tab), in three sections: **Slow** flips on 1 and &
   (every second), **Fast** on every step (every half second), **1-e-&** on 1, e and &, resting on a.
-  One bar is 2 s, four half-second steps counted 1 e & a. **1-&-a** is a fourth, only ever chosen: like
-  the others, on a clean grid it correlates at exactly 0 with each. Each phone has its own reaction
+  One bar is 2 s, four half-second steps counted 1 e & a. **Hold** is a fourth, only ever chosen: turned
+  face up at the next step and held still there. Each phone has its own reaction
   lag, timing jitter, flip speed, tilt, a slight wobble and sensor noise, and may miss flips; facing
   sync sets how many keep to their section's agreed facing rather than starting either way up.
 - **Live phones** join the crowd as they join the room, recorded at the same 20 samples a second as
@@ -46,7 +46,9 @@ hold their order while a selection is being made.
 
 Every half second, each pair of phones is compared on the last 4 bars (8 s): their correlation, at the
 best shift within the lag tolerance, either as it is (requiring +1/−1 alignment: face up and face down
-at once are opposites) or as its size (only the rhythm counts, the default). Leiden (CPM or RB
+at once are opposites) or as its size (only the rhythm counts, the default). Phones held still have no
+rhythm to correlate, so (holding still counts, on by default) they're alike as far as they face the
+same way: those holding face up, as Hold does, group together. Leiden (CPM or RB
 modularity, on every pair or on each phone's k nearest, warm-started from the last window) groups
 them, in a worker. Groups keep their colours from one window to the next by overlap; past five, they're
 "other". The tab shows how many groups, how well they match the true patterns (ARI, over the simulated

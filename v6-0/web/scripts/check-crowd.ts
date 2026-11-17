@@ -1,6 +1,7 @@
 // Checks the crowd and how it's read, without a browser:
 // - Grouping: the synthetic crowd's three sections are found again from a window of their signals (ARI near 1), and
-//   phones given a new pattern form a group of their own once the window has moved on past the switch.
+//   phones switched to Hold (held still, face up) form a group of their own once the window has moved on past the
+//   switch; with holding still not counting, they join none.
 // - Beat: the step people flip to is found from their flips (played by simulated phones, at a tempo other than the
 //   song's own), whatever mix of patterns they play; random flips give none.
 // - Rhythm: a group's rhythm keeps a pattern two bars long (1-2-345-) whole, and one a bar long comes out twice.
@@ -18,7 +19,7 @@ function check(ok: boolean, what: string) {
   if (!ok) failed++
 }
 
-const SETTINGS: AnalysisSettings = { quality: 'cpm', gamma: 0.4, graph: 'full', k: 10, warm: true, align: false, lagTol: 0.15 }
+const SETTINGS: AnalysisSettings = { quality: 'cpm', gamma: 0.4, graph: 'full', k: 10, warm: true, align: false, lagTol: 0.15, stillCounts: true }
 
 function groupAt(crowd: Crowd, t: number, settings = SETTINGS) {
   const n = crowd.n, M = WIN * FS, n1 = Math.floor(t * FS), n0 = n1 - M + 1
@@ -39,14 +40,18 @@ function groupAt(crowd: Crowd, t: number, settings = SETTINGS) {
   aligned.generate(t + Crowd.AHEAD)
   const b = groupAt(aligned, t, { ...SETTINGS, align: true })
   check(b.k === 3 && b.ari > 0.9, `requiring +1/−1 alignment, with every phone in step: ${b.k} groups, ARI ${b.ari.toFixed(3)}`)
-  // Ten phones of the first section switch to 1-&-a; two windows on, they're a group of their own.
+  // Ten phones of the first section switch to Hold; a window on, they're a group of their own.
   const { from, moved } = crowd.assign([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 3, t)
   check(moved === 10 && from > t + Crowd.AHEAD, `ten phones switch at ${from.toFixed(1)} s, after what's been worked out (${(t + Crowd.AHEAD).toFixed(1)} s)`)
   t = from + WIN + 0.5
   crowd.generate(t + Crowd.AHEAD)
   const c = groupAt(crowd, t)
   const moved10 = new Set(Array.from({ length: 10 }, (_, i) => c.memb[i]))
-  check(c.k === 4 && moved10.size === 1 && c.ari > 0.9, `a window after the switch, they're a fourth group: ${c.k} groups, ARI ${c.ari.toFixed(3)}`)
+  check(c.k === 4 && moved10.size === 1 && c.ari > 0.9, `a window after switching to Hold, they're a fourth group: ${c.k} groups, ARI ${c.ari.toFixed(3)}`)
+  // Holding still not counting, as before Hold: they're like nothing, so no group of ten.
+  const d = groupAt(crowd, t, { ...SETTINGS, stillCounts: false })
+  const heldTogether = Array.from({ length: 10 }, (_, i) => d.memb[i]).filter((g) => g === d.memb[0]).length
+  check(heldTogether < 10, `with holding still not counting, they don't group together: ${heldTogether} of 10 in one group`)
 }
 
 {

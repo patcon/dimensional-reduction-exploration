@@ -19,6 +19,11 @@ export interface AnalysisSettings {
   align: boolean
   /** How far, in seconds, either signal may shift to line up best. */
   lagTol: number
+  /**
+   * Phones held still are alike as far as they face the same way, so holding is a rhythm of its own that groups.
+   * Off, a still phone is like nothing (its correlation with anything is 0), as before Hold.
+   */
+  stillCounts: boolean
 }
 
 /** Colour slots for groups, matched to the last window's; groups past these are "other". */
@@ -54,8 +59,24 @@ export interface Analysis {
   edges: Float32Array
 }
 
-export function simMatrix(X: Float32Array, n: number, M: number, L: number, abs: boolean) {
+/**
+ * A phone this steady over the window (its readings' standard deviation, below STILL_SD) is held still; above
+ * MOVING_SD it's moving, and between, partly each. Sensor noise and wobble give about 0.06; a single flip in the
+ * window, 0.3 or more.
+ */
+const STILL_SD = 0.15, MOVING_SD = 0.3
+
+export function simMatrix(X: Float32Array, n: number, M: number, L: number, abs: boolean, stillCounts = false) {
   const S = new Float32Array(n * n)
+  // Each phone's mean facing, and how still it's held (1 still, 0 moving).
+  const mean = new Float64Array(n), still = new Float64Array(n)
+  for (let i = 0; i < n; i++) {
+    let s = 0, ss = 0
+    for (let k = 0; k < M; k++) { const v = X[i * M + k]; s += v; ss += v * v }
+    mean[i] = s / M
+    const sd = Math.sqrt(Math.max(0, ss / M - mean[i] * mean[i]))
+    still[i] = Math.max(0, Math.min(1, (MOVING_SD - sd) / (MOVING_SD - STILL_SD)))
+  }
   for (let i = 0; i < n; i++) {
     S[i * n + i] = 1
     const oi = i * M
@@ -74,6 +95,10 @@ export function simMatrix(X: Float32Array, n: number, M: number, L: number, abs:
         const v = abs ? Math.abs(r) : r
         if (v > best) best = v
       }
+      // Two phones held still: as alike as they face the same way (both up, 1; up and edge on, or down, 0), whether
+      // or not alignment is required, since facing is all a held phone says.
+      const w = stillCounts ? still[i] * still[j] : 0
+      if (w > 0) best = (1 - w) * best + w * Math.max(0, 1 - Math.abs(mean[i] - mean[j]))
       S[i * n + j] = S[j * n + i] = best
     }
   }
@@ -333,7 +358,7 @@ function rngOf(a: number) {
 export function analyse(req: AnalysisRequest): Analysis {
   const t0 = performance.now()
   const { signals, n, m, lag, settings: P } = req
-  const S = simMatrix(signals, n, m, lag, !P.align)
+  const S = simMatrix(signals, n, m, lag, !P.align, P.stillCounts)
   const G = buildGraph(S, n, P)
   const rng = rngOf(req.seed)
   let memb = leiden(G, P.warm && req.prev?.length === n ? req.prev : null, rng, P)
