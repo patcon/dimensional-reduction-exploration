@@ -52,12 +52,16 @@ export interface Settings {
   detection: Detection
   gradient: Gradient
   // This screen's own:
+  /** The speaker in the drawer's header: silences the music and the metronome alike, whatever they're set to. */
+  muted: boolean
+  /** The music, under `muted`. */
   soundOn: boolean
+  /** The metronome, under `muted`. */
   metronome: boolean
 }
 
 /** Kept to each screen rather than shared: whether it makes sound. */
-export const LOCAL_SETTINGS = ['soundOn', 'metronome'] as const
+export const LOCAL_SETTINGS = ['muted', 'soundOn', 'metronome'] as const
 
 export const DEFAULT_SETTINGS: Settings = {
   crowd: { count: 60, jitter: 0.05, lagSpread: 0.06, noise: 0.05, miss: 0, sync: 0.85, shuffleSeats: false },
@@ -73,13 +77,19 @@ export const DEFAULT_SETTINGS: Settings = {
   volume: 0.7,
   detection: 'flip',
   gradient: DEFAULT_GRADIENT,
-  soundOn: false,
+  muted: true,
+  soundOn: true,
   metronome: false,
 }
 
 /** Settings from anywhere (the room, storage, an older version), each part defaulting when missing. */
 export function completeSettings(partial: Partial<Settings>): Settings {
   const d = DEFAULT_SETTINGS
+  // Saved before the speaker became a mute over both: it was the music's switch, so heard is as either was on.
+  if (partial.muted === undefined && partial.soundOn !== undefined) {
+    const heard = partial.soundOn || partial.metronome === true
+    partial = { ...partial, muted: !heard, soundOn: heard ? partial.soundOn : true }
+  }
   const s = { ...d, ...partial }
   return {
     ...s,
@@ -114,7 +124,7 @@ export function useSettings() {
     }
   }, [settings])
   const patch = useCallback((changes: Partial<Settings>) => setSettings((s) => ({ ...s, ...changes })), [])
-  const reset = useCallback(() => setSettings((s) => ({ ...DEFAULT_SETTINGS, soundOn: s.soundOn, metronome: s.metronome })), [])
+  const reset = useCallback(() => setSettings((s) => ({ ...DEFAULT_SETTINGS, muted: s.muted, soundOn: s.soundOn, metronome: s.metronome })), [])
   return { settings, setSettings, patch, reset }
 }
 

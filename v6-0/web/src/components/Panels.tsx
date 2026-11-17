@@ -367,8 +367,15 @@ export function SoundTab({ settings, patch, snapshot }: Editor & { snapshot: Sna
         </table>
       </Section>
       <TempoSection settings={settings} patch={patch} snapshot={snapshot} />
-      <Section title="Sound" description="Sound and the metronome are this screen's own; the rest is shared.">
-        <Toggle label="Sound" checked={settings.soundOn} onChange={(soundOn) => patch({ soundOn })} />
+      <Section
+        title="Sound"
+        description={
+          settings.muted
+            ? 'Muted by the speaker in the header: music and metronome play as set here once it’s on again. They’re this screen’s own; the rest is shared.'
+            : 'Music and the metronome are this screen’s own, under the speaker in the header; the rest is shared.'
+        }
+      >
+        <Toggle label="Music" checked={settings.soundOn} onChange={(soundOn) => patch({ soundOn })} />
         <Toggle label="Metronome" checked={settings.metronome} onChange={(metronome) => patch({ metronome })} note="A click each step, accented on the bar's 1." />
         <Field label="groups are">
           <Segmented options={['chord', 'voices'] as const} labels={{ chord: 'chord tones', voices: 'instrument voices' }} value={settings.soundMode} onChange={(soundMode) => patch({ soundMode })} />
