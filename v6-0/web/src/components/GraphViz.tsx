@@ -26,7 +26,7 @@ const Z_PER_SECOND = 48
 const MAX_PHONES = 200
 const MAX_EDGES = 8000
 const FOCUS_RING_SCALE = 2.6
-/** Each dot's group ring, and a live phone's ring in its participant colour (while touched, or with group rings), relative to the dot. */
+/** Each dot's group ring, and a live phone's ring in its participant colour (while touched), relative to the dot. */
 const GROUP_RING_SCALE = 1.75
 const LIVE_RING_SCALE = 2.3
 /** Selected for painting: a white ring just outside the group ring. */
@@ -130,7 +130,7 @@ export interface GraphVizProps {
   gradient: Gradient
   /** The followed phone's index, or null. */
   focus: number | null
-  /** Live phones' colours, by phone index: those touching their screen are ringed in them, and bigger, pulsing; all are, with group rings on. */
+  /** Live phones' colours, by phone index: those touching their screen are ringed in them, and bigger, pulsing. */
   liveColors: Map<number, RGB>
   touching: Set<number>
   /** Phones selected for painting, ringed in white. */
@@ -373,7 +373,7 @@ export function GraphViz(props: GraphVizProps) {
         colour(view.dots === 'group' ? 'pattern' : 'group', v, slot, pattern)
         rings.col.set(rgb, i * 3)
         const lc = liveColors.get(i)
-        if (lc && (view.groupRings || touching.has(i))) {
+        if (lc && touching.has(i)) {
           liveRings.pos.set([x, y, 1], nLive * 3)
           liveRings.col.set([lc[0] / 255, lc[1] / 255, lc[2] / 255], nLive * 3)
           nLive++
