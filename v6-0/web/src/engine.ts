@@ -362,7 +362,8 @@ export class CrowdEngine {
       this.nextAnalysis = this.t + ANALYSIS_EVERY
       this.requestAnalysis()
     }
-    for (let s = 0; s < LAYOUT_STEPS; s++) this.layout.step(this.layoutSettings)
+    // Paused, a swarm holds still with the music; settling goes on settling, as it always has.
+    if (this.playing || this.layoutSettings.motion !== 'swarm') for (let s = 0; s < LAYOUT_STEPS; s++) this.layout.step(this.layoutSettings)
     this.view.update(this.layout.x, this.layout.y, minViewSpan(this.layoutSettings))
     if (performance.now() - this.lastSnapshotAt > SNAPSHOT_MS && this.playing) this.changed()
   }
