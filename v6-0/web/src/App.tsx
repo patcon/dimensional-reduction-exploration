@@ -1,4 +1,4 @@
-import { AudioLines, ChevronDown, ChevronUp, Eye, Info, Paintbrush, Pause, Play, QrCode, Shapes, Smartphone, Users, Volume2, VolumeX } from 'lucide-react'
+import { AudioLines, Bird, ChevronDown, ChevronUp, Eye, Info, Network, Paintbrush, Pause, Play, QrCode, Shapes, Smartphone, Users, Volume2, VolumeX } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { cn } from '@/lib/utils'
 import { NSLOT } from './analysis'
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { CrowdEngine } from './engine'
 import { useLiveRoom } from './live'
 import { OTHER_COLOR, participantRGB, rgbCss, slotColor, type RGB } from './palette'
+import { MOTION_TITLES } from './layout'
 import { useSettings, VIEW_LABELS, type ViewMode } from './settings'
 
 /** vaul's own easing and duration, so what sits over the graph keeps clear of the drawer as it moves. */
@@ -123,14 +124,24 @@ export default function App() {
 
   // One button moves through the views; the one moved to is named for a moment.
   const followingView = VIEWS[(VIEWS.indexOf(settings.view.mode) + 1) % VIEWS.length]
-  const [viewLabelShown, setViewLabelShown] = useState(false)
+  // Which of the buttons on the drawer's edge last named what it moved to, for a moment.
+  const [labelShown, setLabelShown] = useState<'view' | 'motion' | null>(null)
   const viewLabelTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(viewLabelTimer.current), [])
+  const showLabel = (which: 'view' | 'motion') => {
+    setLabelShown(which)
+    clearTimeout(viewLabelTimer.current)
+    viewLabelTimer.current = setTimeout(() => setLabelShown(null), VIEW_LABEL_MS)
+  }
   const nextView = () => {
     patch({ view: { ...settings.view, mode: followingView } })
-    setViewLabelShown(true)
-    clearTimeout(viewLabelTimer.current)
-    viewLabelTimer.current = setTimeout(() => setViewLabelShown(false), VIEW_LABEL_MS)
+    showLabel('view')
+  }
+  // Beside it, the layout's motion: settling into place, or swarming.
+  const motion = settings.layout.motion, otherMotion = motion === 'swarm' ? 'settle' : 'swarm'
+  const toggleMotion = () => {
+    patch({ layout: { ...settings.layout, motion: otherMotion } })
+    showLabel('motion')
   }
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [tab, setTab] = useState<string>('paint')
@@ -218,11 +229,28 @@ export default function App() {
         {/* The view, on the drawer's top edge: each press moves to the next, named for a moment above it. */}
         <span
           className="pointer-events-none absolute right-3 bottom-11 rounded-md bg-black/65 px-2 py-0.5 text-xs text-white transition-opacity duration-300 motion-reduce:transition-none"
-          style={{ opacity: viewLabelShown ? 1 : 0 }}
+          style={{ opacity: labelShown === 'view' ? 1 : 0 }}
           aria-hidden
         >
           {VIEW_LABELS[settings.view.mode]}
         </span>
+        <span
+          className="pointer-events-none absolute right-13 bottom-11 rounded-md bg-black/65 px-2 py-0.5 text-xs text-white transition-opacity duration-300 motion-reduce:transition-none"
+          style={{ opacity: labelShown === 'motion' ? 1 : 0 }}
+          aria-hidden
+        >
+          {MOTION_TITLES[motion]}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('pointer-events-auto absolute right-13 bottom-0 rounded-b-none', overGraph)}
+          onClick={toggleMotion}
+          aria-label={`Motion: ${MOTION_TITLES[motion]}. Switch to ${MOTION_TITLES[otherMotion]}.`}
+          title={`Motion: ${MOTION_TITLES[motion]}. Switch to ${MOTION_TITLES[otherMotion]}.`}
+        >
+          {motion === 'swarm' ? <Bird className="size-5" /> : <Network className="size-5" />}
+        </Button>
         <Button
           variant="ghost"
           size="icon"

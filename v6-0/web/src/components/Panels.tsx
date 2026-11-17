@@ -3,6 +3,7 @@
 import { ArrowDownToLine, ArrowUpToLine, Paintbrush, QrCode, RotateCcw, Shuffle, Users } from 'lucide-react'
 import { useState } from 'react'
 import { NSLOT } from '../analysis'
+import { MOTION_LABELS } from '../layout'
 import { PATTERNS, SLOT, START_PATTERNS, SUB } from '../crowd'
 import type { CrowdEngine, Snapshot } from '../engine'
 import { CHORD_NAMES, DEGREE_NAMES, isHeld, PAD_NOTE_NAMES, PROG_NAMES, RHYTHM_ON, VOICE_NAMES } from '../music'
@@ -316,7 +317,21 @@ export function ViewTab({ settings, patch }: Editor) {
         <Slider label="trail width" value={view.trailWidth} min={0.5} max={10} step={0.5} onChange={(trailWidth) => set({ trailWidth })} />
         <Slider label="dot size" value={view.dotSize} min={4} max={30} onChange={(dotSize) => set({ dotSize })} />
       </Section>
-      <Section title="Layout" description="Every pair pulls together as much as it's alike, and pushes apart a little.">
+      <Section title="Layout" description="Every pair pulls together as much as it's alike, and pushes apart a little. Swarming, phones also swim about, so groups churn and roam while staying together.">
+        <Field label="motion">
+          <Segmented options={['settle', 'swarm'] as const} labels={MOTION_LABELS} value={layout.motion} onChange={(motion) => setLayout({ motion })} />
+        </Field>
+        <Slider
+          label="energy"
+          value={layout.energy}
+          min={0}
+          max={3}
+          step={0.1}
+          onChange={(energy) => setLayout({ energy })}
+          format={(v) => v.toFixed(1)}
+          disabled={layout.motion !== 'swarm'}
+          title="How lively a swarm is: phones swim about within their groups, and groups roam"
+        />
         <Slider label="pull" value={layout.pull} min={0} max={1} step={0.05} onChange={(pull) => setLayout({ pull })} format={(v) => v.toFixed(2)} />
         <Slider label="push" value={layout.push} min={0} max={4} step={0.1} onChange={(push) => setLayout({ push })} format={(v) => v.toFixed(1)} />
         <Slider label="pull from" value={layout.floor} min={0} max={0.8} step={0.05} onChange={(floor) => setLayout({ floor })} format={(v) => `r ${v.toFixed(2)}`} title="Pairs less alike than this don't pull at all" />
