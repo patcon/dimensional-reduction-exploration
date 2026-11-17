@@ -26,9 +26,8 @@ const Z_PER_SECOND = 48
 const MAX_PHONES = 200
 const MAX_EDGES = 8000
 const FOCUS_RING_SCALE = 2.6
-/** Each dot's group ring, and a live phone's ring in its participant colour (while touched), relative to the dot. */
+/** Each dot's group ring, relative to the dot. */
 const GROUP_RING_SCALE = 1.75
-const LIVE_RING_SCALE = 2.3
 /** Selected for painting: a white ring just outside the group ring. */
 const SELECTED_RING_SCALE = 2
 const TOUCH_RING_SCALE = 4
@@ -130,7 +129,7 @@ export interface GraphVizProps {
   gradient: Gradient
   /** The followed phone's index, or null. */
   focus: number | null
-  /** Live phones' colours, by phone index: those touching their screen are ringed in them, and bigger, pulsing. */
+  /** Live phones' colours, by phone index: those touching their screen are ringed in them, pulsing. */
   liveColors: Map<number, RGB>
   touching: Set<number>
   /** Phones selected for painting, ringed in white. */
@@ -206,7 +205,6 @@ export function GraphViz(props: GraphVizProps) {
     const dotTex = dotTexture(false), ringTex = dotTexture(true)
     const dots = points(MAX_PHONES, dotTex, 10)
     const rings = points(MAX_PHONES, ringTex, 9)
-    const liveRings = points(MAX_PHONES, ringTex, 11)
     const touchRings = points(MAX_PHONES, ringTex, 12)
     const focus = points(1, ringTex, 13)
     const selectedRings = points(MAX_PHONES, ringTex, 12)
@@ -361,7 +359,7 @@ export function GraphViz(props: GraphVizProps) {
         out[at + 4] = engine.pattern(i)
       })
 
-      let nLive = 0, nTouch = 0, nSelected = 0, focusShown = false
+      let nTouch = 0, nSelected = 0, focusShown = false
       /** Now, in trail steps: each sample's age is how far it's behind. */
       const now = t / step
       for (let i = 0; i < n; i++) {
@@ -374,14 +372,9 @@ export function GraphViz(props: GraphVizProps) {
         rings.col.set(rgb, i * 3)
         const lc = liveColors.get(i)
         if (lc && touching.has(i)) {
-          liveRings.pos.set([x, y, 1], nLive * 3)
-          liveRings.col.set([lc[0] / 255, lc[1] / 255, lc[2] / 255], nLive * 3)
-          nLive++
-          if (touching.has(i)) {
-            touchRings.pos.set([x, y, 2], nTouch * 3)
-            touchRings.col.set([lc[0] / 255, lc[1] / 255, lc[2] / 255], nTouch * 3)
-            nTouch++
-          }
+          touchRings.pos.set([x, y, 2], nTouch * 3)
+          touchRings.col.set([lc[0] / 255, lc[1] / 255, lc[2] / 255], nTouch * 3)
+          nTouch++
         }
         if (selected.has(i)) {
           selectedRings.pos.set([x, y, 2], nSelected * 3)
@@ -419,11 +412,10 @@ export function GraphViz(props: GraphVizProps) {
       }
       dots.geo.setDrawRange(0, n)
       rings.geo.setDrawRange(0, view.groupRings ? n : 0)
-      liveRings.geo.setDrawRange(0, nLive)
       touchRings.geo.setDrawRange(0, nTouch)
       focus.geo.setDrawRange(0, focusShown ? 1 : 0)
       selectedRings.geo.setDrawRange(0, nSelected)
-      for (const b of [dots, rings, liveRings, touchRings, focus, selectedRings]) {
+      for (const b of [dots, rings, touchRings, focus, selectedRings]) {
         b.geo.attributes.position.needsUpdate = true
         b.geo.attributes.color.needsUpdate = true
       }
@@ -459,7 +451,6 @@ export function GraphViz(props: GraphVizProps) {
       const size = view.dotSize * dolly
       dots.mat.size = size
       rings.mat.size = size * GROUP_RING_SCALE
-      liveRings.mat.size = size * LIVE_RING_SCALE
       touchRings.mat.size = size * TOUCH_RING_SCALE * (1 + TOUCH_PULSE * Math.sin((performance.now() / 1000) * TOUCH_PULSE_RATE))
       focus.mat.size = size * FOCUS_RING_SCALE
       selectedRings.mat.size = size * SELECTED_RING_SCALE
@@ -505,8 +496,8 @@ export function GraphViz(props: GraphVizProps) {
       canvas.removeEventListener('mousemove', onMove)
       orbit.dispose()
       renderer.dispose()
-      for (const g of [edges.geo, dots.geo, rings.geo, liveRings.geo, touchRings.geo, focus.geo, selectedRings.geo, traceGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
-      for (const m of [edgeMat, dots.mat, rings.mat, liveRings.mat, touchRings.mat, focus.mat, selectedRings.mat, traceMat, ringDotsMat, ...guides.map((l) => l.material)]) m.dispose()
+      for (const g of [edges.geo, dots.geo, rings.geo, touchRings.geo, focus.geo, selectedRings.geo, traceGeo, ringDotsGeo, ...guides.map((l) => l.geometry)]) g.dispose()
+      for (const m of [edgeMat, dots.mat, rings.mat, touchRings.mat, focus.mat, selectedRings.mat, traceMat, ringDotsMat, ...guides.map((l) => l.material)]) m.dispose()
       dotTex.dispose()
       ringTex.dispose()
     }

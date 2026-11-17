@@ -63,8 +63,8 @@ its group, or its true pattern), with the edges Leiden sees. Each phone's
 **trail** recedes into the screen as time goes back, coloured by its facing then, so a pattern's flips
 show as stripes along it. Its three views, swept between: the **2d time slice** (front on, flat), the
 **2d time series** (side on, time running left to right) and **3d** (in perspective, by a dolly zoom);
-drag to turn or pan, pinch or scroll to zoom. A live phone is ringed in its own colour while touched,
-with a bigger ring pulsing round it. Rings round each dot in its group's colour are a View setting, off
+drag to turn or pan, pinch or scroll to zoom. A live phone is ringed in its own colour, pulsing, while
+touched. Rings round each dot in its group's colour are a View setting, off
 by default.
 
 ## Phones (Phones tab)
