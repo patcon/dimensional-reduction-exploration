@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { NSLOT } from '../analysis'
 import { PATTERNS, SLOT, START_PATTERNS, SUB } from '../crowd'
 import type { CrowdEngine, Snapshot } from '../engine'
-import { CHORD_NAMES, DEGREE_NAMES, PAD_NOTE_NAMES, PROG_NAMES, RHYTHM_ON, VOICE_NAMES } from '../music'
+import { CHORD_NAMES, DEGREE_NAMES, isHeld, PAD_NOTE_NAMES, PROG_NAMES, RHYTHM_ON, VOICE_NAMES } from '../music'
 import { GRADIENT_LABELS, gradientCss, OTHER_COLOR, participantRGB, patternColor, rgbCss, slotColor } from '../palette'
 import { DETECTIONS, GRADIENTS, type Calibration } from '../protocol'
 import type { Participant } from '../live'
@@ -358,7 +358,7 @@ export function SoundTab({ settings, patch, snapshot }: Editor & { snapshot: Sna
                 <td>{e.members.length}</td>
                 <td className="text-xs">{chord ? `${DEGREE_NAMES[e.voice]} · ${PAD_NOTE_NAMES[e.voice]}` : `${VOICE_NAMES[e.voice]} · the ${DEGREE_NAMES[e.voice]}`}</td>
                 <td className="font-mono text-xs">
-                  {e.rhythm.map((r, q) => (
+                  {isHeld(e.rhythm) ? <span className="text-muted-foreground">held</span> : e.rhythm.map((r, q) => (
                     <span key={q} className={r >= RHYTHM_ON ? '' : 'text-muted-foreground'} title={`bar ${Math.floor(q / 4) + 1} · ${SUB[q % 4]}: ${r.toFixed(2)}`}>
                       {q === 4 && <span className="text-muted-foreground">| </span>}
                       {r >= RHYTHM_ON ? SUB[q % 4] : '·'}{' '}

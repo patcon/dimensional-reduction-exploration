@@ -6,6 +6,9 @@ import { FS, SLOT, WIN } from './crowd.ts'
 export const RHYTHM_ON = 0.45
 /** A group's rhythm is this many steps long: two bars, so a pattern counted over two (1-2-345-, say) is kept whole. */
 export const RHYTHM_STEPS = 8
+/** A rhythm with no step played: a group held still (Hold, say), with no beat to follow. */
+export const isHeld = (rhythm: readonly number[]) => rhythm.every((e) => e < RHYTHM_ON)
+
 /**
  * Flip energy at each step over the window, folded onto two bars (steps counted from the song's start, so a two-bar
  * pattern's first bar stays first). A pattern a bar long comes out twice over, as it would folded onto one.

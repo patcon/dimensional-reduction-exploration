@@ -3,15 +3,16 @@
  * in the order they first appeared, up to five. In chord mode each adds a sustained tone, building root → fifth →
  * third → seventh → ninth (C, C5, C, Cmaj7, Cmaj9), with a chime as it arrives. In voices mode each is an instrument
  * (bass, pluck, keys, bell, lead) playing its chord tone over a four-bar loop (Cmaj9 · Am9 · Fmaj9 · G9), on the steps
- * where its phones were seen flipping, over two bars (so a pattern two bars long is played as it was flipped). A metronome clicks each step, accenting the bar.
+ * where its phones were seen flipping, over two bars (so a pattern two bars long is played as it was flipped). A group
+ * held still, with no flips to play, holds its tone through each bar instead. A metronome clicks each step, accenting the bar.
  */
 
 import { unlockAudio } from './audio.ts'
 import { SLOT } from './crowd.ts'
-import { RHYTHM_ON, RHYTHM_STEPS, rhythmOf } from './rhythm.ts'
+import { isHeld, RHYTHM_ON, RHYTHM_STEPS, rhythmOf } from './rhythm.ts'
 import { NSLOT } from './analysis.ts'
 
-export { RHYTHM_ON, RHYTHM_STEPS }
+export { isHeld, RHYTHM_ON, RHYTHM_STEPS }
 
 export type SoundMode = 'chord' | 'voices'
 export const DEGREE_NAMES = ['root', 'fifth', 'third', 'seventh', 'ninth']
@@ -185,8 +186,14 @@ export class Sound {
     const when = ctx.currentTime + ahead
     const chord = PROG[Math.floor(mNext / 4) % 4], pos = mNext % RHYTHM_STEPS
     for (const e of ensemble.list) {
+      const f = mtof(chord[e.voice] + VOICE_SHIFT[e.voice])
+      // No beat to follow: its tone, held through the bar, from each bar's 1.
+      if (isHeld(e.rhythm)) {
+        if (mNext % 4 === 0) this.held(e.voice, when, f, (4 * g) / rate)
+        continue
+      }
       if (e.rhythm[pos] < RHYTHM_ON) continue
-      this.voice(e.voice, when, mtof(chord[e.voice] + VOICE_SHIFT[e.voice]), pos % 4 === 0 ? 1 : 0.8)
+      this.voice(e.voice, when, f, pos % 4 === 0 ? 1 : 0.8)
     }
   }
 
@@ -243,12 +250,40 @@ export class Sound {
     mod.start(t)
     mod.stop(t + 1.6)
   }
+  /**
+   * Voice k's tone held for `dur` seconds, swelling in and fading out: for a group with no beat to follow. Softer than
+   * its notes, as it doesn't stop, and the bass with its octave above, as its notes have.
+   */
+  private held(k: number, t: number, f: number, dur: number) {
+    const ctx = this.ctx!, peak = [0.5, 0.1, 0.09, 0.08, 0.08][k], end = t + dur
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(peak, t + Math.min(0.15, dur / 4))
+    g.gain.setValueAtTime(peak, Math.max(t + 0.15, end - 0.2))
+    g.gain.exponentialRampToValueAtTime(0.0001, end + 0.1)
+    g.connect(this.bus!)
+    const lp = this.lowpass(k === 0 ? 900 : 1600, 0.5, g)
+    this.osc('triangle', f, t, end + 0.15, lp, -5)
+    this.osc('triangle', f, t, end + 0.15, lp, 5)
+    if (k === 0) this.osc('sine', f * 2, t, end + 0.15, this.gainInto(0.35, g))
+  }
+  private gainInto(level: number, dest: AudioNode) {
+    const g = this.ctx!.createGain()
+    g.gain.value = level
+    g.connect(dest)
+    return g
+  }
   private voice(k: number, t: number, f: number, v: number) {
     const ctx = this.ctx!
     if (k === 0) {
-      const g = this.envGain(t, 0.008, 0.55 * v, 0.38), lp = this.lowpass(700, 0.7, g)
-      this.osc('triangle', f, t, t + 0.5, lp)
-      this.osc('sine', f, t, t + 0.5, g)
+      // The bass: C2 and down, below what laptop and phone speakers give much of, so a growl and its octave above
+      // carry it there too, and louder than the rest.
+      const g = this.envGain(t, 0.006, 0.9 * v, 0.5), lp = this.lowpass(1200, 1.2, g)
+      lp.frequency.setValueAtTime(1200, t)
+      lp.frequency.exponentialRampToValueAtTime(400, t + 0.3)
+      this.osc('sawtooth', f, t, t + 0.6, lp)
+      this.osc('sine', f, t, t + 0.6, g)
+      this.osc('sine', f * 2, t, t + 0.6, this.gainInto(0.4, g))
     } else if (k === 1) {
       const g = this.envGain(t, 0.004, 0.22 * v, 0.32), lp = this.lowpass(3200, 2, g)
       lp.frequency.setValueAtTime(3200, t)
