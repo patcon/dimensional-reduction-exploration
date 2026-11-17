@@ -315,6 +315,7 @@ export function ViewTab({ settings, patch }: Editor) {
         <Slider label="push" value={layout.push} min={0} max={4} step={0.1} onChange={(push) => setLayout({ push })} format={(v) => v.toFixed(1)} />
         <Slider label="pull from" value={layout.floor} min={0} max={0.8} step={0.05} onChange={(floor) => setLayout({ floor })} format={(v) => `r ${v.toFixed(2)}`} title="Pairs less alike than this don't pull at all" />
         <Slider label="settle" value={layout.ease} min={0.01} max={0.3} step={0.01} onChange={(ease) => setLayout({ ease })} format={(v) => v.toFixed(2)} title="How quickly pulls follow each new window" />
+        <Toggle label="Zoom in to fit" checked={layout.zoomIn} onChange={(zoomIn) => setLayout({ zoomIn })} note="Off, the view zooms in no nearer than unrelated phones settle, so a few phones coming together (two, say) are seen to. On, it fills the ring with whatever's there." />
       </Section>
     </div>
   )

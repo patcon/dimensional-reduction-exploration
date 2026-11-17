@@ -16,9 +16,24 @@ export interface LayoutSettings {
   push: number
   /** How far each step eases pull strengths towards the latest window's. */
   ease: number
+  /**
+   * Let the view zoom in past where unrelated phones settle, to fill the ring with whatever's there. Off, phones
+   * coming together are seen to come together, however few: two alone would otherwise always fill the ring.
+   */
+  zoomIn: boolean
 }
 
-export const DEFAULT_LAYOUT: LayoutSettings = { floor: 0.15, pull: 0.3, push: 1, ease: 0.05 }
+export const DEFAULT_LAYOUT: LayoutSettings = { floor: 0.15, pull: 0.3, push: 1, ease: 0.05, zoomIn: false }
+
+/**
+ * How near the view may zoom in: as far out as unrelated phones settle from their middle. Repulsion over gravity puts
+ * them at about ∛push from it (being shared among the phones, however many there are), and two alone at exactly
+ * half that from their middle; a crowd's 95th percentile sits further out still, so only few phones, or all in one
+ * group, are held to it.
+ */
+export function minViewSpan(P: LayoutSettings) {
+  return P.zoomIn ? 0.15 : Math.max(0.15, 0.5 * Math.cbrt(P.push))
+}
 
 export class ForceLayout {
   keys: string[] = []
@@ -100,7 +115,7 @@ export class ForceLayout {
 
 /**
  * Where the layout is shown: its centre, and how far out it reaches (to the 95th percentile of phones, so one
- * straggler doesn't shrink the rest), eased so the view drifts rather than jumps.
+ * straggler doesn't shrink the rest, and no nearer than `minSpan`), eased so the view drifts rather than jumps.
  */
 export class LayoutView {
   cx = 0
@@ -108,14 +123,14 @@ export class LayoutView {
   span = 1
   private started = false
 
-  update(x: Float64Array, y: Float64Array, ease = 0.06) {
+  update(x: Float64Array, y: Float64Array, minSpan = 0.15, ease = 0.06) {
     const n = x.length
     if (!n) return
     let mx = 0, my = 0
     for (let i = 0; i < n; i++) { mx += x[i]; my += y[i] }
     mx /= n; my /= n
     const d = Array.from({ length: n }, (_, i) => Math.hypot(x[i] - mx, y[i] - my)).sort((a, b) => a - b)
-    const span = Math.max(0.15, d[Math.min(n - 1, Math.floor(n * 0.95))])
+    const span = Math.max(minSpan, d[Math.min(n - 1, Math.floor(n * 0.95))])
     if (!this.started) {
       Object.assign(this, { cx: mx, cy: my, span, started: true })
       return

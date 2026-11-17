@@ -7,7 +7,7 @@
 import type { Analysis, AnalysisSettings } from './analysis'
 import type { AnalysisAnswer, AnalysisMessage } from './analysis.worker'
 import { Crowd, FS, LiveRecorder, SLOT, START_T, WIN, type CrowdSettings } from './crowd'
-import { ForceLayout, LayoutView, type LayoutSettings } from './layout'
+import { ForceLayout, LayoutView, minViewSpan, type LayoutSettings } from './layout'
 import { Ensemble, Sound, type SoundMode } from './music'
 import { detectBeat, FlipListener, type Beat } from './tempo'
 import type { MusicPace } from './settings'
@@ -363,7 +363,7 @@ export class CrowdEngine {
       this.requestAnalysis()
     }
     for (let s = 0; s < LAYOUT_STEPS; s++) this.layout.step(this.layoutSettings)
-    this.view.update(this.layout.x, this.layout.y)
+    this.view.update(this.layout.x, this.layout.y, minViewSpan(this.layoutSettings))
     if (performance.now() - this.lastSnapshotAt > SNAPSHOT_MS && this.playing) this.changed()
   }
 
