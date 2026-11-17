@@ -55,14 +55,17 @@ phones) and what each is made of.
 ## The graph (View tab)
 
 Every pair of phones pulls together as much as it's alike (similarity above a floor, squared, eased
-towards each new window and normalised by degree), against a softened push between all of them. Drawn
+towards each new window and normalised by degree), against a softened push between all of them. The
+view fits the phones, but zooms in no nearer than unrelated phones settle, so a few coming together (two,
+say) are seen to; **Zoom in to fit** (Layout section, off by default) fills the ring regardless. Drawn
 as v4's visualiser draws its chords: dark, inside a ring, each phone a dot coloured by its facing now (or
 its group, or its true pattern), with the edges Leiden sees. Each phone's
 **trail** recedes into the screen as time goes back, coloured by its facing then, so a pattern's flips
 show as stripes along it. Its three views, swept between: the **2d time slice** (front on, flat), the
 **2d time series** (side on, time running left to right) and **3d** (in perspective, by a dolly zoom);
-drag to turn or pan, pinch or scroll to zoom. Live phones are ringed in their own colour, bigger and
-pulsing while touched. Rings round each dot in its group's colour are a View setting, off by default.
+drag to turn or pan, pinch or scroll to zoom. A live phone is ringed in its own colour while touched,
+with a bigger ring pulsing round it. Rings round each dot in its group's colour are a View setting, off
+by default; with them on, every live phone is ringed in its own colour too.
 
 ## Phones (Phones tab)
 
