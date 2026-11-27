@@ -38,7 +38,8 @@ export const NEIGHBOURS = 10
 export const MAX_TARGET = 12
 
 export const DEFAULT_SETTINGS: Settings = {
-  digits: Array.from({ length: N_DIGITS }, (_, d) => d),
+  /** 5, 6 and 7 to start: three groups make for calmer music than all ten. */
+  digits: [5, 6, 7],
   method: 'hdbscan',
   hdbscan: { minClusterSize: 60, minSamples: 10, allowSingle: true },
   matchDigits: true,
